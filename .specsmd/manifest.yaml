@@ -1,0 +1,7 @@
+flow: fire
+version: 0.1.65
+installed_at: '2026-05-15T12:45:33.622Z'
+tools:
+  - claude
+  - cursor
+  - codex
