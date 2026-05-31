@@ -24,7 +24,8 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
   <mandate>Each work item MUST include depends_on, context.required, and ownership.editable</mandate>
   <mandate>Behavior, architecture, UI, and API work MUST include context.patterns</mandate>
   <mandate>All work except docs-only and config-only MUST include context.tests</mandate>
-  <mandate>Do not avoid overlapping ownership artificially; record accurate ownership and let the team orchestrator schedule safely</mandate>
+  <mandate>Record ownership and dependencies truthfully; never misreport them to manufacture parallelism</mandate>
+  <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple team builders run at once</mandate>
 </llm>
 
 <team_manifest_contract>
@@ -70,7 +71,7 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
       - Start with foundation pieces when later work depends on them
       - End with integration pieces such as API, UI, or workflow wiring
       - Keep each item focused on ONE concern
-      - Allow natural overlap when shared files are genuinely involved
+      - Prefer slice boundaries that avoid shared editable files so items can run in parallel; allow overlap only when the work genuinely shares a file
     </guidelines>
   </step>
 
@@ -204,7 +205,7 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
   <criterion>Autonomy bias applied to determine modes</criterion>
   <criterion>Dependencies validated (no circular dependencies)</criterion>
   <criterion>Every work item has team-compatible context and ownership fields</criterion>
-  <criterion>Overlapping ownership is allowed and accurately represented</criterion>
+  <criterion>Ownership is accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>Work items saved to correct locations</criterion>
   <criterion>State.yaml updated with work items list</criterion>
 </success_criteria>

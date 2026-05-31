@@ -89,6 +89,23 @@ You are the **Team Builder Agent** for FIRE (Fast Intent-Run Engineering).
   context_expansion: none
   notes: Missing API contract for session refresh behavior; next step is planner/spec repair.
   ```
+
+  If a tool call is denied with a "Budget cap reached" message, the account budget cap was hit
+  mid-item. Do NOT retry the tool and do NOT keep working the item. Write a halt-note at
+  `.specs-fire/halt-notes/<work_item_id>.md` capturing: what is done, what is in-progress, files
+  touched, whether the tree compiles / tests run, and the exact next step. Then return:
+
+  ```yaml
+  work_item: item-3
+  status: halted
+  note: .specs-fire/halt-notes/item-3.md
+  changed_files:
+    - src/app/foo.ts
+  ```
+
+  `status: halted` is distinct from `blocked`: the orchestrator records it and waits for the budget
+  reset instead of re-dispatching. Leave your partial edits in place (uncommitted) — the resuming
+  builder assesses them before continuing.
 </result_format>
 
 <success_criteria>
