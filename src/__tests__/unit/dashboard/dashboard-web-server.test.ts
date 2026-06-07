@@ -50,6 +50,29 @@ describe('dashboard web server', () => {
       expect(data.ok).toBe(true);
       expect(data.flow).toBe('aidlc');
       expect(data.snapshot.project.name).toBe('demo');
+      expect(data.webviewMessage.type).toBe('setData');
+      expect(data.webviewMessage.availableFlows[0].id).toBe('aidlc');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  test('serves the VS Code webview app host', async () => {
+    const workspace = createAidlcWorkspace();
+    const handle = await startDashboardWeb({
+      path: workspace,
+      host: '127.0.0.1',
+      port: '0',
+      watch: false
+    });
+
+    try {
+      const response = await fetch(handle.url);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('<specsmd-app>');
+      expect(html).toContain('/webview-bundle.js');
     } finally {
       await handle.close();
     }

@@ -123,7 +123,8 @@ async function startDashboardWeb(options = {}) {
 
   async function loadAndBroadcast() {
     lastData = await loadWebDashboardData({ workspacePath, flow: options.flow });
-    const payload = `event: snapshot\ndata: ${JSON.stringify(lastData)}\n\n`;
+    const message = lastData.webviewMessage || lastData;
+    const payload = `event: message\ndata: ${JSON.stringify(message)}\n\n`;
     for (const client of clients) {
       client.write(payload);
     }
@@ -173,7 +174,8 @@ async function startDashboardWeb(options = {}) {
         res.write('\n');
         clients.add(res);
         if (lastData) {
-          res.write(`event: snapshot\ndata: ${JSON.stringify(lastData)}\n\n`);
+          const message = lastData.webviewMessage || lastData;
+          res.write(`event: message\ndata: ${JSON.stringify(message)}\n\n`);
         }
         req.on('close', () => {
           clients.delete(res);

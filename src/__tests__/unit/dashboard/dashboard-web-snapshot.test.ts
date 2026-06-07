@@ -44,6 +44,14 @@ describe('dashboard web snapshot adapter', () => {
     expect(data.snapshot.project.name).toBe('demo');
     expect(data.summary.cards.some((card: { label: string }) => card.label === 'Intents')).toBe(true);
     expect(data.summary.primaryItems[0].title).toBe('001-demo');
+    expect(data.webviewMessage.type).toBe('setData');
+    expect(data.webviewMessage.boltsData.stats).toEqual({
+      active: 0,
+      queued: 0,
+      done: 0,
+      blocked: 0
+    });
+    expect(data.webviewMessage.specsHtml).toContain('001-demo - intent');
   });
 
   test('returns a helpful error for unsupported workspaces', async () => {

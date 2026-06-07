@@ -4,6 +4,7 @@ const { parseFireDashboard } = require('../fire/parser');
 const { parseAidlcDashboard } = require('../aidlc/parser');
 const { parseSimpleDashboard } = require('../simple/parser');
 const { listGitChanges } = require('../git/changes');
+const { createSetDataMessage } = require('./extension-adapter');
 
 const FLOW_PARSERS = {
   fire: parseFireDashboard,
@@ -278,7 +279,7 @@ async function loadWebDashboardData(options = {}) {
     gitChanges: listGitChanges(workspacePath)
   };
 
-  return {
+  const data = {
     ok: true,
     flow: detection.flow,
     availableFlows: detection.availableFlows || [detection.flow],
@@ -288,6 +289,8 @@ async function loadWebDashboardData(options = {}) {
     warnings: Array.isArray(snapshot.warnings) ? snapshot.warnings : [],
     generatedAt: snapshot.generatedAt || new Date().toISOString()
   };
+  data.webviewMessage = createSetDataMessage(data);
+  return data;
 }
 
 module.exports = {
