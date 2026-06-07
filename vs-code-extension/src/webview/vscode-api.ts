@@ -14,8 +14,18 @@ import type { VsCodeApi } from './types/vscode.js';
  * load without acquireVsCodeApi.
  */
 function createStandaloneApi(): VsCodeApi {
+    const stateKey = 'specsmd:webview-state';
     let state: unknown = null;
     let eventsConnected = false;
+
+    try {
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(stateKey) : null;
+        if (stored !== null) {
+            state = JSON.parse(stored);
+        }
+    } catch {
+        state = null;
+    }
 
     const connectEvents = (): void => {
         if (eventsConnected || typeof EventSource !== 'function') {
@@ -61,6 +71,13 @@ function createStandaloneApi(): VsCodeApi {
         },
         setState(nextState: unknown): void {
             state = nextState;
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem(stateKey, JSON.stringify(nextState));
+                }
+            } catch {
+                // Persisting standalone state is best-effort only.
+            }
         }
     };
 }

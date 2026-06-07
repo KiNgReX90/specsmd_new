@@ -604,6 +604,114 @@
   }
 
   // src/webview/styles/theme.ts
+  var THEME_STORAGE_KEY = "specsmd:webview-theme";
+  var THEME_PALETTES = {
+    dark: {
+      "--vscode-foreground": "#cccccc",
+      "--vscode-descriptionForeground": "#8b8b8b",
+      "--vscode-sideBar-background": "#252526",
+      "--vscode-editor-background": "#1e1e1e",
+      "--vscode-sideBarSectionHeader-background": "#2d2d30",
+      "--vscode-sideBarSectionHeader-border": "#454545",
+      "--vscode-input-background": "#3c3c3c",
+      "--vscode-input-border": "#3f3f46",
+      "--vscode-list-hoverBackground": "#2a2d2e",
+      "--vscode-list-activeSelectionBackground": "#094771",
+      "--vscode-badge-background": "#4d4d4d",
+      "--vscode-badge-foreground": "#ffffff",
+      "--vscode-button-background": "#0e639c",
+      "--vscode-button-foreground": "#ffffff",
+      "--vscode-scrollbarSlider-background": "#686868",
+      "--vscode-font-family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "--vscode-font-size": "13px",
+      "--specsmd-color-scheme": "dark",
+      "--specsmd-surface-glow": "rgba(249, 115, 22, 0.05)"
+    },
+    light: {
+      "--vscode-foreground": "#1f2328",
+      "--vscode-descriptionForeground": "#57606a",
+      "--vscode-sideBar-background": "#f6f8fa",
+      "--vscode-editor-background": "#ffffff",
+      "--vscode-sideBarSectionHeader-background": "#eef2f7",
+      "--vscode-sideBarSectionHeader-border": "#d0d7de",
+      "--vscode-input-background": "#ffffff",
+      "--vscode-input-border": "#d0d7de",
+      "--vscode-list-hoverBackground": "#eef2f7",
+      "--vscode-list-activeSelectionBackground": "#dbeafe",
+      "--vscode-badge-background": "#d0d7de",
+      "--vscode-badge-foreground": "#24292f",
+      "--vscode-button-background": "#0e639c",
+      "--vscode-button-foreground": "#ffffff",
+      "--vscode-scrollbarSlider-background": "#b6c2cf",
+      "--vscode-font-family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "--vscode-font-size": "13px",
+      "--specsmd-color-scheme": "light",
+      "--specsmd-surface-glow": "rgba(14, 99, 156, 0.06)"
+    }
+  };
+  function isThemeMode(value) {
+    return value === "dark" || value === "light";
+  }
+  function getThemeRoot(target) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    if (!target) {
+      return document.documentElement;
+    }
+    if (target instanceof Document) {
+      return target.documentElement;
+    }
+    return target;
+  }
+  function readStoredTheme() {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") {
+      return null;
+    }
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      return isThemeMode(stored) ? stored : null;
+    } catch {
+      return null;
+    }
+  }
+  function getSystemTheme() {
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    return "dark";
+  }
+  function getInitialTheme(state2) {
+    if (isThemeMode(state2)) {
+      return state2;
+    }
+    const stored = readStoredTheme();
+    if (stored) {
+      return stored;
+    }
+    return getSystemTheme();
+  }
+  function persistTheme(theme) {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") {
+      return;
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+    }
+  }
+  function applyTheme(theme, target) {
+    const root = getThemeRoot(target);
+    if (!root) {
+      return;
+    }
+    const palette = THEME_PALETTES[theme];
+    for (const [name, value] of Object.entries(palette)) {
+      root.style.setProperty(name, value);
+    }
+    root.dataset.theme = theme;
+    root.style.setProperty("color-scheme", palette["--specsmd-color-scheme"]);
+  }
   var themeStyles = i`
     :host {
         /* VS Code font */
@@ -623,6 +731,8 @@
         --status-active: #f97316;
         --status-pending: #6b7280;
         --status-blocked: #ef4444;
+
+        color-scheme: var(--specsmd-color-scheme, dark);
     }
 `;
   var resetStyles = i`
@@ -6497,8 +6607,17 @@
 
   // src/webview/vscode-api.ts
   function createStandaloneApi() {
+    const stateKey = "specsmd:webview-state";
     let state2 = null;
     let eventsConnected = false;
+    try {
+      const stored = typeof localStorage !== "undefined" ? localStorage.getItem(stateKey) : null;
+      if (stored !== null) {
+        state2 = JSON.parse(stored);
+      }
+    } catch {
+      state2 = null;
+    }
     const connectEvents = () => {
       if (eventsConnected || typeof EventSource !== "function") {
         return;
@@ -6537,6 +6656,12 @@
       },
       setState(nextState) {
         state2 = nextState;
+        try {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem(stateKey, JSON.stringify(nextState));
+          }
+        } catch {
+        }
       }
     };
   }
@@ -6555,6 +6680,7 @@
       this._availableFlows = [];
       this._fireData = null;
       this._fireActiveTab = "runs";
+      this._theme = "dark";
       /**
        * Version counter for specs HTML to track when handlers need reattachment.
        * Incremented each time _specsHtml changes.
@@ -6650,6 +6776,9 @@
     }
     connectedCallback() {
       super.connectedCallback();
+      this._theme = getInitialTheme(vscode.getState());
+      this._applyTheme(this._theme);
+      vscode.setState(this._theme);
       window.addEventListener("message", this._handleMessage);
       vscode.postMessage({ type: "ready" });
     }
@@ -6799,11 +6928,44 @@
     }
     render() {
       if (!this._loaded) {
-        return b2`<div class="loading">Loading...</div>`;
+        return b2`
+                <div class="shell">
+                    <div class="shell-chrome">
+                        <div class="shell-brand">
+                            <span class="shell-mark">⚡</span>
+                            <div class="shell-brand-copy">
+                                <div class="shell-title">SpecsMD</div>
+                                <div class="shell-subtitle">Loading dashboard</div>
+                            </div>
+                        </div>
+                        <div class="shell-actions">
+                            ${this._renderThemeToggle()}
+                        </div>
+                    </div>
+                    <div class="loading">Loading...</div>
+                </div>
+            `;
       }
       const isFireFlow = this._activeFlow?.id === "fire";
       return b2`
-            ${isFireFlow ? this._renderFireApp() : this._renderAidlcApp()}
+            <div class="shell">
+                <div class="shell-chrome">
+                    <div class="shell-brand">
+                        <span class="shell-mark">⚡</span>
+                        <div class="shell-brand-copy">
+                            <div class="shell-title">SpecsMD</div>
+                            <div class="shell-subtitle">${isFireFlow ? "FIRE dashboard" : "AI-DLC dashboard"}</div>
+                        </div>
+                    </div>
+                    <div class="shell-actions">
+                        ${this._renderThemeToggle()}
+                    </div>
+                </div>
+
+                <div class="app-body">
+                    ${isFireFlow ? this._renderFireApp() : this._renderAidlcApp()}
+                </div>
+            </div>
         `;
     }
     /**
@@ -6893,6 +7055,28 @@
             ></fire-view>
         `;
     }
+    /**
+     * Render the theme toggle control.
+     */
+    _renderThemeToggle() {
+      const isDark = this._theme === "dark";
+      const nextTheme = isDark ? "light" : "dark";
+      const label = isDark ? "Light" : "Dark";
+      const title = `Switch to ${nextTheme} mode`;
+      const icon = isDark ? w`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Zm0-6a1 1 0 0 1 1 1.06l-.05 1.94a1 1 0 1 1-2 0l-.05-1.94A1 1 0 0 1 12 2.25Zm0 16.5a1 1 0 0 1 1 1.06l-.05 1.94a1 1 0 1 1-2 0l-.05-1.94a1 1 0 0 1 1.05-1.06Zm10.5-6a1 1 0 0 1-1.06 1l-1.94-.05a1 1 0 1 1 0-2l1.94-.05a1 1 0 0 1 1.06 1.1ZM4.5 12a1 1 0 0 1-1.06 1l-1.94-.05a1 1 0 1 1 0-2l1.94-.05A1 1 0 0 1 4.5 12Zm14.45-7.95a1 1 0 0 1 .04 1.41l-1.37 1.37a1 1 0 1 1-1.41-1.41l1.37-1.37a1 1 0 0 1 1.37 0Zm-11.14 11.1a1 1 0 0 1 .04 1.41l-1.37 1.37a1 1 0 1 1-1.41-1.41l1.37-1.37a1 1 0 0 1 1.37 0Zm11.14 2.78a1 1 0 0 1-1.41.04l-1.37-1.37a1 1 0 1 1 1.41-1.41l1.37 1.37a1 1 0 0 1 0 1.37ZM7.81 7.81a1 1 0 0 1-1.41.04L5.03 6.48a1 1 0 1 1 1.41-1.41l1.37 1.37a1 1 0 0 1 0 1.37Z"/></svg>` : w`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.75 14.2A9.7 9.7 0 0 1 9.8 2.25a1 1 0 0 0-1.16 1.16 8.5 8.5 0 1 0 12.95 11.95 1 1 0 0 0 .16-1.16Z"/></svg>`;
+      return b2`
+            <button
+                class="theme-toggle"
+                type="button"
+                title=${title}
+                aria-label=${title}
+                @click=${this._toggleTheme}
+            >
+                <span class="theme-toggle-icon">${icon}</span>
+                <span class="theme-toggle-text">${label}</span>
+            </button>
+        `;
+    }
     // ==================== FIRE Event Handlers ====================
     _handleFireTabChange(e7) {
       this._fireActiveTab = e7.detail.tab;
@@ -6931,6 +7115,21 @@
     }
     _handleFlowSwitch(e7) {
       vscode.postMessage({ type: "switchFlow" });
+    }
+    /**
+     * Toggle the dashboard theme and persist it locally.
+     */
+    _toggleTheme() {
+      this._theme = this._theme === "dark" ? "light" : "dark";
+      this._applyTheme(this._theme);
+      vscode.setState(this._theme);
+      persistTheme(this._theme);
+    }
+    /**
+     * Apply the selected theme to the document root.
+     */
+    _applyTheme(theme) {
+      applyTheme(theme, document.documentElement);
     }
     /**
      * Handle tab change from the tabs component.
@@ -7006,6 +7205,111 @@
                 height: 100vh;
                 overflow: hidden;
                 background: var(--background);
+            }
+
+            .shell {
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                min-height: 0;
+            }
+
+            .shell-chrome {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 10px 12px;
+                background: linear-gradient(180deg, var(--editor-background) 0%, var(--vscode-sideBarSectionHeader-background) 100%);
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .shell-brand {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-width: 0;
+            }
+
+            .shell-mark {
+                width: 24px;
+                height: 24px;
+                border-radius: 6px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 13px;
+                flex-shrink: 0;
+            }
+
+            .shell-brand-copy {
+                min-width: 0;
+            }
+
+            .shell-title {
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.2;
+            }
+
+            .shell-subtitle {
+                font-size: 10px;
+                color: var(--description-foreground);
+                line-height: 1.2;
+            }
+
+            .shell-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+
+            .theme-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+                background: var(--vscode-input-background);
+                color: var(--foreground);
+                font-size: 11px;
+                font-weight: 500;
+                transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            }
+
+            .theme-toggle:hover {
+                background: var(--vscode-list-hoverBackground);
+                border-color: var(--accent-primary);
+            }
+
+            .theme-toggle-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
+
+            .theme-toggle-icon svg {
+                width: 14px;
+                height: 14px;
+                fill: currentColor;
+            }
+
+            .theme-toggle-text {
+                min-width: 0;
+            }
+
+            .app-body {
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                min-height: 0;
             }
 
             .view-container {
@@ -7546,6 +7850,9 @@
   __decorateClass([
     r5()
   ], SpecsmdApp.prototype, "_fireActiveTab", 2);
+  __decorateClass([
+    r5()
+  ], SpecsmdApp.prototype, "_theme", 2);
   SpecsmdApp = __decorateClass([
     t3("specsmd-app")
   ], SpecsmdApp);
