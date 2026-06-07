@@ -6888,7 +6888,7 @@
           }
         });
       });
-      overviewView.querySelectorAll(".overview-resource-link").forEach((link) => {
+      overviewView.querySelectorAll(".overview-resource-link, .overview-fabriqa-link").forEach((link) => {
         const htmlLink = link;
         link.addEventListener("click", () => {
           const url = htmlLink.dataset.url;
@@ -7200,18 +7200,22 @@
     ...BaseElement.baseStyles,
     i`
             :host {
-                display: flex;
-                flex-direction: column;
+                display: block;
                 height: 100vh;
                 overflow: hidden;
+                position: relative;
                 background: var(--background);
             }
 
             .shell {
                 display: flex;
                 flex-direction: column;
-                flex: 1;
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
                 min-height: 0;
+                overflow: hidden;
             }
 
             .shell-chrome {
@@ -7310,10 +7314,12 @@
                 flex-direction: column;
                 flex: 1;
                 min-height: 0;
+                overflow: hidden;
             }
 
             .view-container {
                 flex: 1;
+                min-height: 0;
                 overflow-y: auto;
                 display: none;
             }
@@ -7321,6 +7327,7 @@
             .view-container.active {
                 display: flex;
                 flex-direction: column;
+                min-height: 0;
             }
 
             bolts-view {
@@ -7743,6 +7750,114 @@
                 margin-top: 20px;
                 padding-top: 16px;
                 border-top: 1px solid var(--border-color);
+            }
+
+            .overview-fabriqa-card {
+                margin-bottom: 14px;
+                padding: 14px;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                background: var(--editor-background);
+            }
+
+            .overview-fabriqa-brand {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .overview-fabriqa-mark {
+                width: 34px;
+                height: 34px;
+                border-radius: 8px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 12px;
+                font-weight: 700;
+                flex-shrink: 0;
+            }
+
+            .overview-fabriqa-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--foreground);
+                line-height: 1.25;
+            }
+
+            .overview-fabriqa-subtitle,
+            .overview-fabriqa-copy,
+            .overview-dashboard-copy {
+                color: var(--description-foreground);
+                font-size: 11px;
+                line-height: 1.45;
+            }
+
+            .overview-fabriqa-copy {
+                margin-bottom: 12px;
+            }
+
+            .overview-fabriqa-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .overview-fabriqa-link {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 30px;
+                padding: 0 10px;
+                border-radius: 6px;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            .overview-fabriqa-link.secondary {
+                background: var(--vscode-input-background);
+                color: var(--foreground);
+                border: 1px solid var(--border-color);
+            }
+
+            .overview-fabriqa-link:hover {
+                opacity: 0.88;
+            }
+
+            .overview-dashboard-tip {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+                padding: 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                background: var(--vscode-input-background);
+            }
+
+            .overview-dashboard-title {
+                margin-bottom: 4px;
+                color: var(--foreground);
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .overview-dashboard-tip code {
+                display: inline-block;
+                margin-top: 8px;
+                padding: 5px 7px;
+                border-radius: 4px;
+                background: var(--editor-background);
+                color: var(--foreground);
+                font-size: 10px;
+                white-space: nowrap;
             }
 
             .overview-resources-title {
