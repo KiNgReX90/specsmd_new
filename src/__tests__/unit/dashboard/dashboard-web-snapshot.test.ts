@@ -45,6 +45,7 @@ describe('dashboard web snapshot adapter', () => {
     expect(data.summary.cards.some((card: { label: string }) => card.label === 'Intents')).toBe(true);
     expect(data.summary.primaryItems[0].title).toBe('001-demo');
     expect(data.webviewMessage.type).toBe('setData');
+    expect(data.webviewMessage.availableFlows[0].icon).toBe('📘');
     expect(data.webviewMessage.boltsData.stats).toEqual({
       active: 0,
       queued: 0,
@@ -62,5 +63,47 @@ describe('dashboard web snapshot adapter', () => {
     expect(data.ok).toBe(false);
     expect(data.error.code).toBe('NO_SUPPORTED_FLOW');
     expect(data.error.message).toContain('No supported flow detected');
+  });
+
+  test('builds FIRE webview data for the shared VS Code FIRE components', async () => {
+    const workspace = createWorkspace();
+    mkdirSync(join(workspace, '.specs-fire', 'intents', 'intent-demo', 'work-items'), { recursive: true });
+    mkdirSync(join(workspace, '.specs-fire', 'runs', 'run-demo'), { recursive: true });
+    mkdirSync(join(workspace, '.specs-fire', 'standards'), { recursive: true });
+    writeFileSync(join(workspace, '.specs-fire', 'state.yaml'), [
+      'project:',
+      '  name: fire-demo',
+      'workspace:',
+      '  type: greenfield',
+      '  structure: monolith',
+      'intents:',
+      '  - id: intent-demo',
+      '    title: Demo intent',
+      '    status: pending',
+      '    work_items:',
+      '      - id: item-demo',
+      '        status: pending',
+      '        mode: confirm',
+      'runs:',
+      '  active: []',
+      '  completed: []'
+    ].join('\n'));
+    writeFileSync(join(workspace, '.specs-fire', 'intents', 'intent-demo', 'work-items', 'item-demo.md'), [
+      '---',
+      'title: Demo item',
+      'status: pending',
+      'mode: confirm',
+      '---',
+      '',
+      '# Demo item'
+    ].join('\n'));
+
+    const data = await loadWebDashboardData({ workspacePath: workspace });
+
+    expect(data.ok).toBe(true);
+    expect(data.flow).toBe('fire');
+    expect(data.webviewMessage.activeFlowId).toBe('fire');
+    expect(data.webviewMessage.fireData.activeTab).toBe('runs');
+    expect(data.webviewMessage.fireData.runsData.pendingItems[0].id).toBe('item-demo');
   });
 });

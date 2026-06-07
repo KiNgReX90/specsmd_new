@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -75,6 +75,96 @@ describe('dashboard web server', () => {
       expect(html).toContain('/webview-bundle.js');
     } finally {
       await handle.close();
+    }
+  });
+
+  test('rejects cross-origin dashboard command posts', async () => {
+    const workspace = createAidlcWorkspace();
+    const handle = await startDashboardWeb({
+      path: workspace,
+      host: '127.0.0.1',
+      port: '0',
+      watch: false
+    });
+
+    try {
+      const response = await fetch(`${handle.url}api/message`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          origin: 'https://example.test'
+        },
+        body: JSON.stringify({ type: 'openExternal', url: 'https://specs.md' })
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe('FORBIDDEN_ORIGIN');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  test('accepts same-origin dashboard command posts with page token', async () => {
+    const workspace = createAidlcWorkspace();
+    const handle = await startDashboardWeb({
+      path: workspace,
+      host: '127.0.0.1',
+      port: '0',
+      watch: false
+    });
+
+    try {
+      const pageResponse = await fetch(handle.url);
+      const cookie = pageResponse.headers.get('set-cookie')?.split(';')[0];
+      expect(cookie).toContain('specsmd_dashboard_token=');
+
+      const response = await fetch(`${handle.url}api/message`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: handle.url.replace(/\/$/, ''),
+          cookie: cookie || ''
+        },
+        body: JSON.stringify({ type: 'ready' })
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  test('does not open symlinked artifacts outside the workspace', async () => {
+    const workspace = createAidlcWorkspace();
+    const outsideFile = join(tmpdir(), `dashboard-web-outside-${Date.now()}.md`);
+    const linkPath = join(workspace, 'memory-bank', 'outside.md');
+    writeFileSync(outsideFile, '# outside');
+    symlinkSync(outsideFile, linkPath);
+
+    const handle = await startDashboardWeb({
+      path: workspace,
+      host: '127.0.0.1',
+      port: '0',
+      watch: false
+    });
+
+    try {
+      const response = await fetch(`${handle.url}api/message`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'openArtifact', path: linkPath })
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(202);
+      expect(body.ignored).toBe(true);
+    } finally {
+      await handle.close();
+      rmSync(outsideFile, { force: true });
     }
   });
 });

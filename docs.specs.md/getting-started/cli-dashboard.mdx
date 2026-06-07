@@ -5,10 +5,10 @@ description: Local web and terminal dashboards for tracking development progress
 
 ## Overview
 
-The default Dashboard is a local web app for monitoring your development progress in real-time. It works with all three flows (FIRE, AI-DLC, Simple) and provides live updates as your project state changes.
+The default dashboard is a local web app for monitoring your development progress in real time. It reuses the same dashboard UI components as the VS Code extension, runs against the current workspace, and watches for changes as your project state updates.
 
 <Info>
-  The web dashboard is the browser counterpart to the [IDE Extension](/getting-started/ide-extension). Use `dashboard-cli` when you specifically want the interactive terminal UI.
+  Use `dashboard` for the browser dashboard. Use `dashboard-cli` when you specifically want the interactive terminal UI.
 </Info>
 
 ## Quick Start
@@ -23,6 +23,67 @@ The dashboard auto-detects your flow, starts a local web server, and watches for
 npx specsmd@latest dashboard --no-open
 ```
 
+## Web Dashboard
+
+```bash
+npx specsmd@latest dashboard [options]
+```
+
+The web dashboard starts on `127.0.0.1` by default and opens your browser automatically. When you click a document, story, standard, or artifact, specsmd asks your operating system to open that local file from the current workspace.
+
+Use it when you are working outside VS Code but still want the same visual planning surface:
+
+- See the current AI-DLC bolt/run/spec state while coding in another editor or terminal-native agent
+- Review specs, units, stories, standards, and recent completions without running the slower terminal dashboard
+- Keep a browser tab open as a live status board while agents update the local `memory-bank`, `.specs-fire`, or `specs` folder
+- Click through to local markdown documents and artifacts from the dashboard
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--flow <flow>` | auto-detect | Flow to inspect: `fire`, `aidlc`, or `simple` |
+| `--path <dir>` | current directory | Workspace path to analyze |
+| `--host <host>` | `127.0.0.1` | Host for the local dashboard server |
+| `--port <n>` | random available port | Port for the local dashboard server |
+| `--refresh-ms <n>` | `1000` | Reserved compatibility refresh interval |
+| `--no-open` | `false` | Print the URL without opening a browser |
+| `--no-watch` | `false` | Disable live file watching |
+
+### Web Examples
+
+```bash
+# Auto-detect flow and open the browser
+npx specsmd@latest dashboard
+
+# Run without opening the browser
+npx specsmd@latest dashboard --no-open
+
+# Inspect another workspace
+npx specsmd@latest dashboard --path ../my-project
+
+# Use a fixed local port
+npx specsmd@latest dashboard --port 4317
+```
+
+## Web Dashboard Screenshots
+
+### Bolts View
+
+<Frame>
+  <img src="/images/dashboard/dashboard-web-bolts.png" alt="SpecsMD web dashboard Bolts view showing current focus, completed bolts, and recent activity" style={{ borderRadius: '8px' }} />
+</Frame>
+
+### Specs View
+
+<Frame>
+  <img src="/images/dashboard/dashboard-web-specs.png" alt="SpecsMD web dashboard Specs view showing intents, units, and stories from the local memory bank" style={{ borderRadius: '8px' }} />
+</Frame>
+
+### Overview View
+
+<Frame>
+  <img src="/images/dashboard/dashboard-web-overview.png" alt="SpecsMD web dashboard Overview view showing overall progress, suggested actions, intents, and standards" style={{ borderRadius: '8px' }} />
+</Frame>
+
 ## Terminal Dashboard
 
 ```bash
@@ -31,7 +92,7 @@ npx specsmd@latest dashboard-cli
 
 The terminal dashboard auto-detects your flow and starts watching for changes. Press `q` to quit.
 
-## Dashboard Screenshots
+## Terminal Dashboard Screenshots
 
 ### Git Changes Tab (Commit Diff Preview)
 
@@ -45,9 +106,9 @@ The terminal dashboard auto-detects your flow and starts watching for changes. P
   <img src="/images/dashboard/codex-desktop-dashboard1.png" alt="CLI Dashboard Active tab with file preview pane" style={{ borderRadius: '8px' }} />
 </Frame>
 
-## Tabs
+## Terminal Tabs
 
-The dashboard has five tabs, switched with number keys `1`–`5`:
+The terminal dashboard has five tabs, switched with number keys `1`–`5`:
 
 <Steps>
   <Step title="Active Items (1)">
@@ -67,7 +128,7 @@ The dashboard has five tabs, switched with number keys `1`–`5`:
   </Step>
 </Steps>
 
-## Keyboard Shortcuts
+## Terminal Keyboard Shortcuts
 
 ### Global
 
@@ -110,28 +171,13 @@ The dashboard has five tabs, switched with number keys `1`–`5`:
 | `e` | 4 | Errors |
 | `d` | 5 | Git diff |
 
-## Git Worktree Support
+## Terminal Git Worktree Support
 
-The dashboard auto-discovers git worktrees and shows activity across branches.
+The terminal dashboard auto-discovers git worktrees and shows activity across branches.
 
 - **Worktree switcher** — press `b` on the Active tab to switch between worktrees
 - **Cross-worktree view** — the "Other worktrees" section shows active runs/bolts in other branches
 - **Auto-selection** — picks the current worktree by default, falling back to main
-
-## Web Dashboard Options
-
-```bash
-npx specsmd@latest dashboard [options]
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--flow <flow>` | auto-detect | Flow to inspect: `fire`, `aidlc`, or `simple` |
-| `--path <dir>` | current directory | Workspace path |
-| `--host <host>` | `127.0.0.1` | Host to bind |
-| `--port <n>` | random available port | Port to bind |
-| `--no-open` | `false` | Print the URL without opening a browser |
-| `--no-watch` | `false` | Disable live file watching |
 
 ## Terminal Dashboard Options
 
@@ -147,17 +193,14 @@ npx specsmd@latest dashboard-cli [options]
 | `--refresh-ms <n>` | `1000` | File watch interval in ms (200–5000) |
 | `--no-watch` | `false` | Render once and exit (non-interactive) |
 
-### Examples
+### Terminal Examples
 
 ```bash
-# Auto-detect flow, live watch
-npx specsmd@latest dashboard
-
-# Specific flow
-npx specsmd@latest dashboard --flow fire
-
 # Terminal UI
 npx specsmd@latest dashboard-cli
+
+# Specific terminal flow
+npx specsmd@latest dashboard-cli --flow fire
 
 # Start on a feature branch worktree
 npx specsmd@latest dashboard-cli --worktree feature-auth

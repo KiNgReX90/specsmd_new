@@ -3,11 +3,13 @@ const http = require('http');
 const path = require('path');
 const { URL } = require('url');
 const { spawn } = require('child_process');
+const crypto = require('crypto');
 const { createWatchRuntime } = require('../runtime/watch-runtime');
 const { detectFlow } = require('../flow-detect');
 const { loadWebDashboardData } = require('./snapshot');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const TOKEN_COOKIE = 'specsmd_dashboard_token';
 
 function parsePort(raw) {
   const parsed = Number.parseInt(String(raw || '0'), 10);
@@ -31,6 +33,16 @@ function sendText(res, statusCode, body, contentType = 'text/plain; charset=utf-
   res.writeHead(statusCode, {
     'content-type': contentType,
     'cache-control': 'no-store',
+    'content-length': Buffer.byteLength(body)
+  });
+  res.end(body);
+}
+
+function sendHtml(res, body, token) {
+  res.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'set-cookie': `${TOKEN_COOKIE}=${token}; Path=/; SameSite=Strict`,
     'content-length': Buffer.byteLength(body)
   });
   res.end(body);
@@ -71,13 +83,56 @@ function readRequestBody(req) {
   });
 }
 
+function parseCookies(req) {
+  return String(req.headers.cookie || '')
+    .split(';')
+    .map((cookie) => cookie.trim())
+    .filter(Boolean)
+    .reduce((cookies, cookie) => {
+      const separator = cookie.indexOf('=');
+      if (separator === -1) return cookies;
+      cookies[cookie.slice(0, separator)] = decodeURIComponent(cookie.slice(separator + 1));
+      return cookies;
+    }, {});
+}
+
+function hasValidCommandToken(req, token) {
+  const headerToken = req.headers['x-specsmd-dashboard-token'];
+  const cookies = parseCookies(req);
+  return headerToken === token || cookies[TOKEN_COOKIE] === token;
+}
+
+function isAllowedCommandRequest(req, host, port, token) {
+  const origin = req.headers.origin;
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(origin);
+    const expectedPort = String(port);
+    const requestHost = req.headers.host || `${host}:${expectedPort}`;
+    return parsed.protocol === 'http:'
+      && parsed.host === requestHost
+      && hasValidCommandToken(req, token);
+  } catch {
+    return false;
+  }
+}
+
 function isSafeWorkspacePath(workspacePath, candidatePath) {
   if (typeof candidatePath !== 'string' || candidatePath.trim() === '') {
     return false;
   }
-  const resolvedWorkspace = path.resolve(workspacePath);
-  const resolvedCandidate = path.resolve(candidatePath);
-  return resolvedCandidate === resolvedWorkspace || resolvedCandidate.startsWith(`${resolvedWorkspace}${path.sep}`);
+  try {
+    const resolvedWorkspace = fs.realpathSync.native(workspacePath);
+    const resolvedCandidate = fs.realpathSync.native(candidatePath);
+    const stat = fs.statSync(resolvedCandidate);
+    return stat.isFile()
+      && (resolvedCandidate === resolvedWorkspace || resolvedCandidate.startsWith(`${resolvedWorkspace}${path.sep}`));
+  } catch {
+    return false;
+  }
 }
 
 function openExternal(url) {
@@ -117,6 +172,7 @@ async function startDashboardWeb(options = {}) {
   const workspacePath = path.resolve(options.path || options.workspacePath || process.cwd());
   const host = options.host || '127.0.0.1';
   const port = parsePort(options.port);
+  const commandToken = crypto.randomBytes(24).toString('base64url');
   const clients = new Set();
   let watcher = null;
   let lastData = null;
@@ -142,6 +198,16 @@ async function startDashboardWeb(options = {}) {
       }
 
       if (req.method === 'POST' && requestUrl.pathname === '/api/message') {
+        if (!isAllowedCommandRequest(req, host, actualPort, commandToken)) {
+          sendJson(res, 403, {
+            ok: false,
+            error: {
+              code: 'FORBIDDEN_ORIGIN',
+              message: 'Dashboard commands must originate from the local dashboard page.'
+            }
+          });
+          return;
+        }
         const rawBody = await readRequestBody(req);
         const message = rawBody ? JSON.parse(rawBody) : {};
         if (message.type === 'refresh' || message.type === 'ready') {
@@ -166,6 +232,16 @@ async function startDashboardWeb(options = {}) {
       }
 
       if (req.method === 'GET' && requestUrl.pathname === '/events') {
+        if (!isAllowedCommandRequest(req, host, actualPort, commandToken)) {
+          sendJson(res, 403, {
+            ok: false,
+            error: {
+              code: 'FORBIDDEN_ORIGIN',
+              message: 'Dashboard event streams must originate from the local dashboard page.'
+            }
+          });
+          return;
+        }
         res.writeHead(200, {
           'content-type': 'text/event-stream; charset=utf-8',
           'cache-control': 'no-cache, no-transform',
@@ -190,6 +266,10 @@ async function startDashboardWeb(options = {}) {
           return;
         }
         const body = fs.readFileSync(filePath);
+        if (filePath.endsWith('.html')) {
+          sendHtml(res, body, commandToken);
+          return;
+        }
         res.writeHead(200, {
           'content-type': contentTypeFor(filePath),
           'cache-control': filePath.endsWith('.html') ? 'no-store' : 'public, max-age=60',

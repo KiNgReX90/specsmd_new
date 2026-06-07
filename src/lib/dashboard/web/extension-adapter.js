@@ -321,6 +321,164 @@ function buildNextActions(snapshot) {
   }];
 }
 
+function normalizeFireStatus(status) {
+  if (status === 'complete') return 'completed';
+  if (status === 'in-progress') return 'in_progress';
+  return status || 'pending';
+}
+
+function normalizeFireMode(mode) {
+  return mode || 'confirm';
+}
+
+function normalizeFireComplexity(complexity) {
+  return ['low', 'medium', 'high'].includes(complexity) ? complexity : 'medium';
+}
+
+function buildFireWorkItemLookup(snapshot) {
+  const lookup = new Map();
+  for (const intent of snapshot.intents || []) {
+    for (const item of intent.workItems || []) {
+      lookup.set(item.id, {
+        ...item,
+        intentId: intent.id,
+        intentTitle: intent.title,
+        intentFilePath: intent.filePath
+      });
+    }
+  }
+  return lookup;
+}
+
+function fireRunFiles(run) {
+  const files = [];
+  if (run.hasPlan) files.push({ name: 'plan.md', path: path.join(run.folderPath, 'plan.md') });
+  if (run.hasWalkthrough) files.push({ name: 'walkthrough.md', path: path.join(run.folderPath, 'walkthrough.md') });
+  if (run.hasTestReport) files.push({ name: 'test-report.md', path: path.join(run.folderPath, 'test-report.md') });
+  return files;
+}
+
+function transformFireRun(run, lookup) {
+  return {
+    id: run.id,
+    scope: run.scope || 'single',
+    workItems: (run.workItems || []).map((item) => {
+      const details = lookup.get(item.id) || {};
+      return {
+        id: item.id,
+        intentId: item.intentId || details.intentId || '',
+        mode: normalizeFireMode(item.mode || details.mode),
+        status: normalizeFireStatus(item.status || details.status),
+        currentPhase: item.currentPhase,
+        checkpointState: item.checkpointState,
+        currentCheckpoint: item.currentCheckpoint,
+        title: details.title || item.id,
+        filePath: details.filePath,
+        intentFilePath: details.intentFilePath
+      };
+    }),
+    currentItem: run.currentItem,
+    folderPath: run.folderPath,
+    startedAt: run.startedAt || '',
+    completedAt: run.completedAt,
+    hasPlan: Boolean(run.hasPlan),
+    hasWalkthrough: Boolean(run.hasWalkthrough),
+    hasTestReport: Boolean(run.hasTestReport),
+    files: fireRunFiles(run)
+  };
+}
+
+function buildFireViewData(snapshot) {
+  const lookup = buildFireWorkItemLookup(snapshot);
+  const pendingItems = (snapshot.pendingItems || []).map((item) => ({
+    id: item.id,
+    intentId: item.intentId,
+    intentTitle: item.intentTitle,
+    intentFilePath: (snapshot.intents || []).find((intent) => intent.id === item.intentId)?.filePath,
+    title: item.title || item.id,
+    status: normalizeFireStatus(item.status),
+    mode: normalizeFireMode(item.mode),
+    complexity: normalizeFireComplexity(item.complexity),
+    filePath: item.filePath,
+    dependencies: item.dependencies || []
+  }));
+
+  const completedRuns = (snapshot.completedRuns || []).map((run) => ({
+    id: run.id,
+    scope: run.scope || 'single',
+    itemCount: (run.workItems || []).length,
+    completedAt: run.completedAt || '',
+    folderPath: run.folderPath,
+    files: fireRunFiles(run)
+  }));
+
+  const intents = (snapshot.intents || []).map((intent) => ({
+    id: intent.id,
+    title: intent.title || intent.id,
+    status: normalizeFireStatus(intent.status),
+    filePath: intent.filePath,
+    description: intent.description,
+    workItems: (intent.workItems || []).map((item) => ({
+      id: item.id,
+      title: item.title || item.id,
+      status: normalizeFireStatus(item.status),
+      mode: normalizeFireMode(item.mode),
+      complexity: normalizeFireComplexity(item.complexity),
+      filePath: item.filePath
+    }))
+  }));
+
+  return {
+    activeTab: 'runs',
+    runsData: {
+      activeRuns: (snapshot.activeRuns || []).map((run) => transformFireRun(run, lookup)),
+      pendingItems,
+      completedRuns,
+      completedRunsDisplayLimit: 5,
+      stats: snapshot.stats || {}
+    },
+    intentsData: {
+      intents,
+      expandedIntents: intents.slice(0, 3).map((intent) => intent.id),
+      filter: 'all'
+    },
+    overviewData: {
+      project: snapshot.project
+        ? {
+          name: snapshot.project.name || 'FIRE Project',
+          description: snapshot.project.description,
+          created: snapshot.project.created || '',
+          fireVersion: snapshot.version || snapshot.project.fireVersion || '0.0.0'
+        }
+        : null,
+      workspace: snapshot.workspace || null,
+      standards: snapshot.standards || [],
+      stats: snapshot.stats || {}
+    }
+  };
+}
+
+function flowDisplayName(flow) {
+  if (flow === 'aidlc') return 'AI-DLC';
+  if (flow === 'fire') return 'FIRE';
+  if (flow === 'simple') return 'Simple';
+  return flow || 'SpecsMD';
+}
+
+function flowRootFolder(flow) {
+  if (flow === 'aidlc') return 'memory-bank';
+  if (flow === 'fire') return '.specs-fire';
+  if (flow === 'simple') return 'specs';
+  return flow || '';
+}
+
+function flowIcon(flow) {
+  if (flow === 'aidlc') return '📘';
+  if (flow === 'fire') return '🔥';
+  if (flow === 'simple') return '📄';
+  return '📁';
+}
+
 function buildWebviewData(snapshot) {
   const now = new Date();
   const storyIndex = buildStoryIndex(snapshot);
@@ -504,6 +662,38 @@ function createSetDataMessage(data) {
     };
   }
 
+  const flowInfo = {
+    id: data.flow,
+    displayName: flowDisplayName(data.flow),
+    icon: flowIcon(data.flow),
+    rootFolder: flowRootFolder(data.flow)
+  };
+
+  if (data.flow === 'fire') {
+    return {
+      type: 'setData',
+      activeTab: 'bolts',
+      boltsData: {
+        currentIntent: null,
+        currentIntentContext: 'none',
+        stats: { active: 0, queued: 0, done: 0, blocked: 0 },
+        activeBolts: [],
+        upNextQueue: [],
+        completedBolts: [],
+        activityEvents: [],
+        focusCardExpanded: true,
+        activityFilter: 'all',
+        activityHeight: 200,
+        specsFilter: 'all'
+      },
+      specsHtml: '',
+      overviewHtml: '',
+      fireData: buildFireViewData(data.snapshot),
+      availableFlows: [flowInfo],
+      activeFlowId: data.flow
+    };
+  }
+
   const webviewData = buildWebviewData(data.snapshot);
   return {
     type: 'setData',
@@ -523,12 +713,7 @@ function createSetDataMessage(data) {
     },
     specsHtml: getSpecsViewHtml(webviewData),
     overviewHtml: getOverviewViewHtml(webviewData),
-    availableFlows: [{
-      id: data.flow,
-      displayName: data.flow === 'aidlc' ? 'AI-DLC' : data.flow,
-      icon: data.flow === 'aidlc' ? '$(rocket)' : '$(folder)',
-      rootFolder: data.flow === 'aidlc' ? 'memory-bank' : data.flow
-    }],
+    availableFlows: [flowInfo],
     activeFlowId: data.flow
   };
 }
