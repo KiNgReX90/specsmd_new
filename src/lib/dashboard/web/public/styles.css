@@ -1,0 +1,36 @@
+:root {
+  color-scheme: dark;
+  --vscode-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-foreground: #cccccc;
+  --vscode-descriptionForeground: #8b8b8b;
+  --vscode-sideBar-background: #252526;
+  --vscode-editor-background: #1e1e1e;
+  --vscode-sideBarSectionHeader-background: #2d2d30;
+  --vscode-sideBarSectionHeader-border: #454545;
+  --vscode-input-background: #3c3c3c;
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-button-background: #0e639c;
+  --vscode-button-foreground: #ffffff;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background);
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+}
+
+specsmd-app {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
