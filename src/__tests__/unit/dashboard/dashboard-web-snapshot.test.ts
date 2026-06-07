@@ -106,4 +106,27 @@ describe('dashboard web snapshot adapter', () => {
     expect(data.webviewMessage.fireData.activeTab).toBe('runs');
     expect(data.webviewMessage.fireData.runsData.pendingItems[0].id).toBe('item-demo');
   });
+
+  test('includes every detected flow in the webview switcher payload', async () => {
+    const workspace = createWorkspace();
+    mkdirSync(join(workspace, '.specs-fire'), { recursive: true });
+    mkdirSync(join(workspace, 'memory-bank', 'intents', '001-demo'), { recursive: true });
+    mkdirSync(join(workspace, 'memory-bank', 'bolts'), { recursive: true });
+    mkdirSync(join(workspace, 'memory-bank', 'standards'), { recursive: true });
+    writeFileSync(join(workspace, '.specs-fire', 'state.yaml'), 'project:\n  name: fire-demo\n');
+    writeFileSync(join(workspace, 'memory-bank', 'intents', '001-demo', 'requirements.md'), [
+      '---',
+      'status: draft',
+      '---',
+      '',
+      '# Requirements'
+    ].join('\n'));
+
+    const data = await loadWebDashboardData({ workspacePath: workspace });
+
+    expect(data.ok).toBe(true);
+    expect(data.flow).toBe('fire');
+    expect(data.webviewMessage.availableFlows.map((flow: { id: string }) => flow.id)).toEqual(['fire', 'aidlc']);
+    expect(data.webviewMessage.activeFlowId).toBe('fire');
+  });
 });

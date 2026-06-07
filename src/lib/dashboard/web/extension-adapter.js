@@ -710,12 +710,16 @@ function createSetDataMessage(data) {
     };
   }
 
-  const flowInfo = {
-    id: data.flow,
-    displayName: flowDisplayName(data.flow),
-    icon: flowIcon(data.flow),
-    rootFolder: flowRootFolder(data.flow)
-  };
+  const availableFlows = (data.availableFlows && data.availableFlows.length > 0
+    ? data.availableFlows
+    : [data.flow])
+    .filter(Boolean)
+    .map((flow) => ({
+      id: flow,
+      displayName: flowDisplayName(flow),
+      icon: flowIcon(flow),
+      rootFolder: flowRootFolder(flow)
+    }));
 
   if (data.flow === 'fire') {
     return {
@@ -737,7 +741,7 @@ function createSetDataMessage(data) {
       specsHtml: '',
       overviewHtml: '',
       fireData: buildFireViewData(data.snapshot),
-      availableFlows: [flowInfo],
+      availableFlows,
       activeFlowId: data.flow
     };
   }
@@ -761,7 +765,7 @@ function createSetDataMessage(data) {
     },
     specsHtml: getSpecsViewHtml(webviewData),
     overviewHtml: getOverviewViewHtml(webviewData),
-    availableFlows: [flowInfo],
+    availableFlows,
     activeFlowId: data.flow
   };
 }

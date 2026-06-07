@@ -357,6 +357,104 @@ export class FireOverviewView extends BaseElement {
             .feedback-link:hover {
                 opacity: 0.8;
             }
+
+            .fabriqa-card {
+                padding: 12px;
+                margin-bottom: 12px;
+                border: 1px solid rgba(249, 115, 22, 0.35);
+                border-radius: 6px;
+                background: linear-gradient(135deg, rgba(249, 115, 22, 0.12), rgba(34, 197, 94, 0.08));
+            }
+
+            .fabriqa-brand {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+            }
+
+            .fabriqa-mark {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 30px;
+                height: 30px;
+                border-radius: 6px;
+                background: var(--status-active);
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 700;
+            }
+
+            .fabriqa-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--foreground);
+            }
+
+            .fabriqa-subtitle,
+            .fabriqa-copy,
+            .dashboard-tip-copy {
+                font-size: 11px;
+                line-height: 1.45;
+                color: var(--description-foreground);
+            }
+
+            .fabriqa-copy {
+                margin-bottom: 10px;
+            }
+
+            .fabriqa-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .fabriqa-link {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 6px 9px;
+                border-radius: 5px;
+                background: var(--status-active);
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+
+            .fabriqa-link.secondary {
+                border: 1px solid var(--border-color);
+                background: var(--editor-background);
+                color: var(--foreground);
+            }
+
+            .fabriqa-link:hover {
+                opacity: 0.86;
+            }
+
+            .dashboard-tip {
+                padding: 10px;
+                margin-bottom: 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                background: var(--editor-background);
+            }
+
+            .dashboard-tip-title {
+                margin-bottom: 4px;
+                color: var(--foreground);
+                font-size: 11px;
+                font-weight: 700;
+            }
+
+            .dashboard-tip code {
+                padding: 1px 4px;
+                border-radius: 4px;
+                background: var(--background);
+                color: var(--foreground);
+                font-family: var(--font-family);
+            }
         `
     ];
 
@@ -471,6 +569,31 @@ export class FireOverviewView extends BaseElement {
 
                 <!-- Resources Footer -->
                 <div class="resources-footer">
+                    <div class="fabriqa-card">
+                        <div class="fabriqa-brand">
+                            <div class="fabriqa-mark">FA</div>
+                            <div>
+                                <div class="fabriqa-title">specs.md by Fabriqa.AI</div>
+                                <div class="fabriqa-subtitle">Spec-native agentic development environment</div>
+                            </div>
+                        </div>
+                        <div class="fabriqa-copy">
+                            Use Fabriqa.AI with your existing AI subscription to design, run, and reuse agentic workflows around your specs. It is free to try.
+                        </div>
+                        <div class="fabriqa-actions">
+                            <div class="fabriqa-link" @click=${() => this._openExternal('https://fabriqa.ai')}>Explore Fabriqa.AI</div>
+                            <div class="fabriqa-link secondary" @click=${() => this._openExternal('https://specs.md')}>Open specs.md</div>
+                        </div>
+                    </div>
+                    <div class="dashboard-tip">
+                        <div class="dashboard-tip-title">Did you know?</div>
+                        <div class="dashboard-tip-copy">
+                            You can use the specs.md dashboard outside VS Code and VS Code variants. Run <code>npx specsmd@latest dashboard</code> from your project folder.
+                        </div>
+                        <div class="fabriqa-actions">
+                            <div class="fabriqa-link secondary" @click=${() => this._openExternal('https://specs.md/getting-started/cli-dashboard')}>Dashboard docs</div>
+                        </div>
+                    </div>
                     <div class="resources-title">Links</div>
                     <div class="resources-links">
                         <div class="resource-link" @click=${() => this._openExternal('https://specs.md')} title="Website">

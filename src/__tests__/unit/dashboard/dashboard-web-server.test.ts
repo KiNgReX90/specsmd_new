@@ -184,6 +184,45 @@ describe('dashboard web server', () => {
     }
   });
 
+  test('switches between detected flows from the web dashboard', async () => {
+    const workspace = createAidlcWorkspace();
+    mkdirSync(join(workspace, '.specs-fire'), { recursive: true });
+    writeFileSync(join(workspace, '.specs-fire', 'state.yaml'), 'project:\n  name: fire-demo\n');
+
+    const handle = await startDashboardWeb({
+      path: workspace,
+      host: '127.0.0.1',
+      port: '0',
+      watch: false
+    });
+
+    try {
+      const pageResponse = await fetch(handle.url);
+      const cookie = pageResponse.headers.get('set-cookie')?.split(';')[0];
+      const initial = await (await fetch(`${handle.url}api/snapshot`)).json();
+      expect(initial.flow).toBe('fire');
+      expect(initial.webviewMessage.availableFlows.map((flow: { id: string }) => flow.id)).toEqual(['fire', 'aidlc']);
+
+      const response = await fetch(`${handle.url}api/message`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: handle.url.replace(/\/$/, ''),
+          cookie: cookie || ''
+        },
+        body: JSON.stringify({ type: 'switchFlow' })
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.data.flow).toBe('aidlc');
+      expect(body.data.webviewMessage.activeFlowId).toBe('aidlc');
+    } finally {
+      await handle.close();
+    }
+  });
+
   test('does not open symlinked artifacts outside the workspace', async () => {
     const workspace = createAidlcWorkspace();
     const outsideFile = join(tmpdir(), `dashboard-web-outside-${Date.now()}.md`);

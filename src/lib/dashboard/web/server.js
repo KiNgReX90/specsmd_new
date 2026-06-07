@@ -5,7 +5,7 @@ const { URL } = require('url');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const { createWatchRuntime } = require('../runtime/watch-runtime');
-const { detectFlow } = require('../flow-detect');
+const { detectAvailableFlows, detectFlow } = require('../flow-detect');
 const { loadWebDashboardData } = require('./snapshot');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -179,9 +179,13 @@ async function startDashboardWeb(options = {}) {
   const clients = new Set();
   let watcher = null;
   let lastData = null;
+  let activeFlow = options.flow || null;
 
   async function loadAndBroadcast() {
-    lastData = await loadWebDashboardData({ workspacePath, flow: options.flow });
+    lastData = await loadWebDashboardData({ workspacePath, flow: activeFlow });
+    if (lastData.flow) {
+      activeFlow = lastData.flow;
+    }
     const message = lastData.webviewMessage || lastData;
     const payload = `event: message\ndata: ${JSON.stringify(message)}\n\n`;
     for (const client of clients) {
@@ -214,6 +218,19 @@ async function startDashboardWeb(options = {}) {
         const rawBody = await readRequestBody(req);
         const message = rawBody ? JSON.parse(rawBody) : {};
         if (message.type === 'refresh' || message.type === 'ready') {
+          const data = await loadAndBroadcast();
+          sendJson(res, 200, { ok: true, data });
+          return;
+        }
+        if (message.type === 'switchFlow') {
+          const availableFlows = detectAvailableFlows(workspacePath);
+          const requestedFlow = typeof message.flowId === 'string' ? message.flowId : null;
+          if (requestedFlow && availableFlows.includes(requestedFlow)) {
+            activeFlow = requestedFlow;
+          } else if (availableFlows.length > 0) {
+            const currentIndex = availableFlows.indexOf(activeFlow);
+            activeFlow = availableFlows[(currentIndex + 1) % availableFlows.length];
+          }
           const data = await loadAndBroadcast();
           sendJson(res, 200, { ok: true, data });
           return;
@@ -308,14 +325,9 @@ async function startDashboardWeb(options = {}) {
 
   const initialData = await loadAndBroadcast();
   if (options.watch !== false && initialData.flow) {
-    let detection = null;
-    try {
-      detection = detectFlow(workspacePath, options.flow);
-    } catch {
-      detection = null;
-    }
-    const flow = detection?.flow || initialData.flow;
-    const roots = buildWatchRoots(workspacePath, flow).filter((root) => fs.existsSync(root));
+    const roots = detectAvailableFlows(workspacePath)
+      .flatMap((flow) => buildWatchRoots(workspacePath, flow))
+      .filter((root) => fs.existsSync(root));
     if (roots.length > 0) {
       watcher = createWatchRuntime({
         rootPaths: roots,
