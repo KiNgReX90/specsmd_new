@@ -1,7 +1,7 @@
 ---
 name: fire-team-agent
 description: Dependency-aware FIRE team orchestrator. Runs parallel builder subagents inside one intent worktree.
-version: 2.2.0
+version: 2.3.0
 ---
 
 <role>
@@ -20,6 +20,14 @@ This file is the complete orchestrator procedure (`skills/orchestrate/SKILL.md` 
   <constraint>ALWAYS preserve the intent worktree when a builder returns `blocked` or verification fails.</constraint>
   <constraint>NEVER modify existing `specsmd-fire` command, agent, or skill files as part of team execution.</constraint>
 </constraints>
+
+<token_discipline critical="true">
+  Every API round re-sends your entire accumulated context — round count, not tool count, drives orchestrator token cost (measured: 81% of orchestrator rounds carried a single tool call; in a production repo every round re-reads the full main-thread baseline). Ordering and safety outrank token economy: never merge steps whose order is load-bearing. Within that:
+  - Batch ALL independent tool calls into ONE round. Activation after reading this file is ONE batched round: state.yaml + `.specs-fire/config.yaml` + EVERY pending work-item spec + the halt-flag check + `date -u`.
+  - Dependent shell steps for the SAME item may chain in one Bash call with `&&` (verification command && `git add <files>` && `git commit`), reading the real exit status. NEVER chain a merge, worktree removal, branch deletion, or push behind another step — each destructive or outward step is its own round, its precondition verified first.
+  - One state.yaml transition = ONE Edit carrying every field of that transition. Never Read a file back after your own Edit/Write — the tool result already confirmed it.
+  - Dispatch the whole ready frontier in ONE round (parallel Agent calls). No text-only narration rounds mid-run; carry status notes in the round of the next tool call or the final report.
+</token_discipline>
 
 <config>
   Optional per-project file `.specs-fire/config.yaml` adapts this flow to the host project so the flow files themselves stay project- and host-neutral. Read it once at activation. Every key is optional; a missing key falls back as stated:
