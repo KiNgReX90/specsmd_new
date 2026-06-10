@@ -7,7 +7,7 @@ Canonical source for the SPECSMD **FIRE** tooling (agents, commands, skills, hoo
 SPECSMD drives the lifecycle (intent → work items → worktree → build → orchestrator-verified merge). Per-seam superpower wiring lives inside each specsmd agent definition; the `specsmd-skill-policy.py` hook hard-enforces the denial cases. The main thread only needs to know:
 
 - **Capturing an intent defaults to the team planner.** When the user asks to capture or write an intent, route to `specsmd-fire-team-planner`, not `specsmd-fire-planner`. Team work items are a strict superset (they add `depends_on`, `context.required`, `ownership.editable`), so this never loses anything. The `specsmd-skill-policy.py` hook enforces this on cold main-thread entry.
-- **Pick a track.** `/specsmd-fire` (sequential — one builder, one item at a time; use when items are coupled or checkpointing matters). `/specsmd-fire-team` (parallel builders in one intent worktree; use when items are mostly independent).
+- **One track: the team flow.** `/specsmd-fire-team` runs parallel builders in one intent worktree; coupled items serialize naturally through `depends_on`, so it also covers the sequential case.
 - **Specsmd owns the artifacts.** Intents, work items, runs, `.specs-fire/state.yaml`, walkthroughs. Don't author scratch plans or ad-hoc TodoWrite lists that should have been work items or runs.
 - **Close your own intent automatically; never touch another session's.** When an intent is complete, run this sequence yourself, every time, without asking and without stopping at local commits:
   1. **Commit the close artifacts** (`.specs-fire/state.yaml` + the work-item statuses) on YOUR branch.

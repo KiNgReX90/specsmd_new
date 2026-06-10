@@ -1,6 +1,6 @@
 # SPECSMD FIRE Tooling
 
-Canonical source for the SPECSMD **FIRE** workflow tooling: agents, slash commands, skills, hooks, and scripts for spec-driven AI development across **Claude Code**, **Cursor**, and **Codex**.
+Canonical source for the SPECSMD **FIRE team** workflow tooling: agents, slash commands, skills, hooks, and scripts for spec-driven AI development with **Claude Code** (plus a Codex skill surface).
 
 FIRE (Fast Intent-Run Engineering) drives the lifecycle **intent → work items → worktree → build → orchestrator-verified merge**. This repo extends the upstream baseline with, among other things:
 
@@ -14,14 +14,14 @@ FIRE (Fast Intent-Run Engineering) drives the lifecycle **intent → work items 
 
 | Path | Contents |
 |------|----------|
-| `.specsmd/fire/` | Canonical flow definition: agent docs, skills, templates |
+| `.specsmd/fire/` | Canonical flow definition: team agent docs, skills, templates |
 | `.claude/` | Claude Code surface: commands, agents, hooks, scripts |
-| `.cursor/`, `.codex/` | Cursor and Codex surfaces |
+| `.codex/` | Codex skill surface for the team flow |
 | `CLAUDE.md` | The operating guidance an adopting project loads |
 
 ## Getting started
 
-See [`.specsmd/fire/quick-start.md`](.specsmd/fire/quick-start.md) for the flow basics, and `.specs-fire/config.example.yaml` for the per-project configuration keys.
+The complete orchestrator procedure lives in [`.specsmd/fire/agents/team/agent.md`](.specsmd/fire/agents/team/agent.md); see `.specs-fire/config.example.yaml` for the per-project configuration keys.
 
 ## Author
 
