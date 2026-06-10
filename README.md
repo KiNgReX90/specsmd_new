@@ -17,7 +17,6 @@ FIRE (Fast Intent-Run Engineering) drives the lifecycle **intent → work items 
 | `.specsmd/fire/` | Canonical flow definition: agent docs, skills, templates |
 | `.claude/` | Claude Code surface: commands, agents, hooks, scripts |
 | `.cursor/`, `.codex/` | Cursor and Codex surfaces |
-| `docs/` | Design specs and plans behind the team flow |
 | `CLAUDE.md` | The operating guidance an adopting project loads |
 
 ## Getting started
