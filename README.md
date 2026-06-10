@@ -21,6 +21,8 @@ FIRE (Fast Intent-Run Engineering) drives the lifecycle **intent → work items 
 
 ## Getting started
 
+**Integrating into a repo that already has SPECSMD FIRE installed:** hand [`INSTALL.md`](INSTALL.md) to your agent — it is the complete, agent-facing handoff (copy list, hook registration, CLAUDE.md merge, config, verification).
+
 The complete orchestrator procedure lives in [`.specsmd/fire/agents/team/agent.md`](.specsmd/fire/agents/team/agent.md); see `.specs-fire/config.example.yaml` for the per-project configuration keys.
 
 ## Author
