@@ -45,6 +45,13 @@ ownership:
 {{#each ownership.editable}}
     - {{this}}
 {{/each}}
+{{#if finalize_check}}
+
+# One-line shell invariant the ORCHESTRATOR runs at finalize (not a subagent).
+# Non-zero exit blocks close. Use for cheap mechanical checks (dangling-ref
+# sweep, key parity) instead of a standalone verify item.
+finalize_check: {{finalize_check}}
+{{/if}}
 
 ## Technical Notes
 

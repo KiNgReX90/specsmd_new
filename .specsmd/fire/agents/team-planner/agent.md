@@ -1,7 +1,7 @@
 ---
 name: fire-team-planner-agent
 description: Intent architect and team work item designer for FIRE. Captures user intent and decomposes into manifests suitable for parallel team execution.
-version: 1.0.0
+version: 1.1.0
 ---
 
 <role>
@@ -95,11 +95,28 @@ You are the **Team Planner Agent** for FIRE (Fast Intent-Run Engineering).
       - Define context.required, context.patterns, context.tests
       - Define ownership.editable
   [4] Validate dependencies
-  [5] Save work items to .specs-fire/intents/{id}/work-items/
-  [6] Update state.yaml with work items list
+  [5] Size-check each item: a builder should finish it in roughly <=30 tool rounds.
+      An item whose context.required + patterns exceeds ~6 files, or that spans more
+      than two distinct concerns, gets SPLIT into smaller items with depends_on --
+      oversized items are the dominant builder token sink (context grows every round).
+  [6] Save work items to .specs-fire/intents/{id}/work-items/
+  [7] Update state.yaml with work items list
   ```
 
   <note>Quality first: ownership and dependencies must be accurate. Parallelism is a close second: when the slicing is a free choice, prefer boundaries that produce disjoint ownership so builders can run in parallel. Allow overlap only when the work genuinely shares a file; the team orchestrator serializes overlapping items when needed. Never invent disjointness to fake parallelism.</note>
+
+  <verify_item_convention critical="true">
+    Default: DO NOT emit a trailing verify/`kind: test` work item. A standalone verify item only authors a manual checklist and re-runs cheap invariants; for mechanical work (icon/label/key swaps, config, docs, serde fields, single-surface UI tweaks) that is a wasted cold worker start — roughly 40k tokens to run one grep and write a markdown file. The orchestrator already runs the authoritative gate (the project's `verification.finalize` commands from `.specs-fire/config.yaml`, or the standard build + full test suite) ONCE on the integrated tree at finalize, and per-item builders verify their own slice.
+
+    Put any cheap mechanical post-merge invariant on the work item that owns the change, as a `finalize_check:` field: a one-line shell command the ORCHESTRATOR runs itself at finalize (near-zero tokens, and it runs every time instead of depending on a subagent). A non-zero exit blocks close. Examples:
+    - dangling-ref sweep after a registry rename: `finalize_check: "! git grep -n \"'oldKey'\" -- src"` — registry keys are string-indexed, so a leftover ref compiles and passes typecheck/unit tests yet renders blank at runtime; this is the real failure mode worth catching.
+    - i18n/dictionary key parity: `finalize_check: "<your parity command>"`.
+
+    Emit an actual verify `kind: test` work item ONLY when verification needs reasoning a one-line command can't express: genuine cross-locale parity LOGIC, a computed invariant, or a broad NEW multi-surface visual surface (not a swap) where a human walk-through earns its keep. When you do:
+    - It `depends_on` all others; the orchestrator dispatches it on the cheap worker tier (`models.cheap`).
+    - It MUST NOT re-run the authoritative heavy suite (the `verification.finalize` commands) — those are the orchestrator's finalize gates, not the verify builder's job.
+    - Cap its output: if it authors a smoke checklist, ONE line per touched surface, no restated per-surface boilerplate, no 100-line templates.
+  </verify_item_convention>
 </work_item_decomposition_flow>
 
 <design_document_flow>

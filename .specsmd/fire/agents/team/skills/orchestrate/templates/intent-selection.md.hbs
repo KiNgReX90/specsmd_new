@@ -19,6 +19,12 @@ One runnable intent is present. Confirm before the team orchestrator dispatches 
     work items: {{pending_count}} pending / {{total_count}} total  ·  ready now: {{ready_count}}
     pending modes: {{autopilot_count}} autopilot, {{confirm_count}} confirm, {{validate_count}} validate
 {{/each}}
+{{#if claimed}}
+Running elsewhere (claimed, not selectable):
+{{#each claimed}}
+  - {{id}} · claimed {{claimed_at}} · {{claimed_by}}
+{{/each}}
+{{/if}}
 {{#if single}}
 Run this intent with the team orchestrator? [Y/n]
 {{else}}
