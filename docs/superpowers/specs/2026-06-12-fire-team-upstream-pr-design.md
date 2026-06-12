@@ -44,6 +44,7 @@ and given explicit go-ahead.** The automated flow ends at "evals pass + fork bra
 | Test channel | Local tarball (`npm pack` in fork's `src/`); optional scoped npm publish only later if ever needed. |
 | Eval depth | Deterministic install checks + one E2E smoke scenario. |
 | Eval harness location | This repo, under `evals/` — never part of the PR. |
+| Execution mode | Team work items always run in **autopilot** (0 checkpoints). The sequential FIRE flow's confirm/validate modes don't apply: builders are parallel subagents and cannot pause for user checkpoints mid-run. The team planner always assigns autopilot, and the team builder ignores/overrides any confirm or validate marking on a work item. |
 
 ## 1. PR contents (fork branch `feat/fire-team`)
 
