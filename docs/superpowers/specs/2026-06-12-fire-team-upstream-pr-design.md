@@ -62,22 +62,26 @@ All additions, no modifications to existing flow behavior:
     `models.strong` / `models.cheap` and `verification.finalize` commands, writes
     `.specs-fire/config.yaml` from the shipped example. Documents that model values apply to
     Claude agent dispatch; Codex resolves models its own way, as with the rest of FIRE.
-- **Config template** — `config.example.yaml` ships inside the flow tree so the normal
-  `.specsmd/` copy delivers it (installed under `.specsmd/fire/`, not `.specs-fire/` as in
-  this repo); the config command copies it to `.specs-fire/config.yaml` and fills it in.
-  Agent-doc references to `.specs-fire/config.example.yaml` are updated to the new location
-  during the port.
-- **Scripts** — this repo's `.claude/scripts/*.cjs` (intent-worktree scripts) and
-  `.claude/scripts/__tests__/` move into the team agent's skill tree (e.g.
-  `src/flows/fire/agents/team/skills/orchestrate/scripts/`), so they install via the
-  `.specsmd/` copy. Agent docs' references updated to the new paths.
-- **Registry & docs** — team agents registered in `src/flows/fire/memory-bank.yaml`;
-  team-flow section added to `src/flows/fire/README.md`; CHANGELOG entry.
+- **Config template** — `config.example.yaml` ships at
+  `src/flows/fire/agents/team/config.example.yaml` (the installer copies a fixed allow-list
+  of flow subpaths, and `agents/` is the one that always travels), installed as
+  `.specsmd/fire/agents/team/config.example.yaml`; the config command copies it to
+  `.specs-fire/config.yaml` and fills it in. Agent-doc references to
+  `.specs-fire/config.example.yaml` are updated to the new location during the port.
+- **Drift test** — a vitest test in `src/__tests__/unit/fire/` replaces the
+  `sync-claude-agent.cjs` mechanism: it asserts the `fire-team-builder.md` command body
+  equals the canonical `agents/team-builder/agent.md` body (the installer materializes the
+  command into `.claude/agents/specsmd-fire-team-builder.md`, preserving the
+  full-system-prompt design), and runs the flow's bundled `.cjs` test scripts.
+- **Docs** — team-flow section added to `src/flows/fire/README.md`; CHANGELOG entry.
 - **Attribution** — PR description credits Rubèn Plantinga (@KiNgReX90); both sides MIT.
 
 Explicitly **not** in the PR: INSTALL.md, `specsmd-skill-policy.py`, superpowers references,
-`sync-claude-agent.cjs` + generated-agent drift check, this repo's README/LICENSE/CLAUDE.md,
-the `evals/` harness.
+`sync-claude-agent.cjs`, this repo's README/LICENSE/CLAUDE.md, the `evals/` harness,
+and this repo's `.claude/scripts/*.cjs` utilities (fact-check 2026-06-12: nothing in the
+team flow references them — they are personal helpers synced from another project).
+`src/flows/fire/memory-bank.yaml` also stays untouched: it has no agent registry, and the
+team flow explicitly never reads it; the flow README documents the team track instead.
 
 ## 2. Fork mechanics & drift
 
