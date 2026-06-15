@@ -1,0 +1,35 @@
+project:
+  name: toy-math
+  description: Toy project for the FIRE team E2E smoke
+  created: 2026-06-12T00:00:00Z
+  fire_version: "0.1.8"
+workspace:
+  type: brownfield
+  structure: monolith
+  autonomy_bias: autonomous
+intents:
+  - id: toy-math
+    title: Add a tiny math library
+    status: pending
+    work_items:
+      - id: add-add
+        title: Add add() module with test
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: []
+      - id: add-mul
+        title: Add mul() module with test
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: []
+      - id: add-calc
+        title: Add calc() combining add and mul, with test
+        status: pending
+        complexity: medium
+        mode: autopilot
+        depends_on: [add-add, add-mul]
+runs:
+  active: []
+  completed: []
