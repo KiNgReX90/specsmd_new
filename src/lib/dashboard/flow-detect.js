@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SUPPORTED_FLOWS = ['fire', 'aidlc', 'simple'];
+const SUPPORTED_FLOWS = ['fire', 'aidlc', 'simple', 'inferno'];
 
 function directoryExists(dirPath) {
   try {
@@ -19,6 +19,8 @@ function getFlowMarkerPath(workspacePath, flow) {
       return path.join(workspacePath, 'memory-bank');
     case 'simple':
       return path.join(workspacePath, 'specs');
+    case 'inferno':
+      return path.join(workspacePath, '.specs-inferno');
     default:
       return null;
   }

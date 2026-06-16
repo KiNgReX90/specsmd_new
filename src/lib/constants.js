@@ -31,6 +31,11 @@ const FLOWS = {
         name: 'Ideation',
         description: 'Creative ideation - Spark → Flame → Forge idea generation and shaping',
         path: 'ideation'
+    },
+    inferno: {
+        name: 'INFERNO',
+        description: 'Autonomous parallel execution - decomposes an intent into work items and runs parallel autopilot builders in one worktree',
+        path: 'inferno'
     }
 };
 
