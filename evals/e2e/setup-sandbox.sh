@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the E2E sandbox: bare origin + work clone with the FIRE team flow
+# Builds the E2E sandbox: bare origin + work clone with the INFERNO flow
 # installed from the tarball and the toy-math intent pre-seeded.
 set -euo pipefail
 TARBALL="$(realpath "${1:?usage: setup-sandbox.sh <tarball>}")"
@@ -23,19 +23,19 @@ mkdir -p lib tests .claude
 git add -A && git commit -qm "chore: scaffold toy project"
 
 # Install the flow from the tarball (Claude Code only; same PTY trick as install-eval)
-{ sleep 12; printf '\r'; sleep 3; printf '\r'; sleep 45; } | \
+{ sleep 12; printf '\r'; sleep 3; printf '\033[B\033[B\033[B\033[B'; sleep 1; printf '\r'; sleep 45; } | \
   SPECSMD_TELEMETRY_DISABLED=1 script -qec "npx -y --package=\"$TARBALL\" specsmd install" /dev/null \
   > install.log 2>&1
-test -f .claude/commands/specsmd-fire-team.md || { echo "install failed; see $WORK/install.log"; exit 1; }
+test -f .claude/commands/specsmd-inferno.md || { echo "install failed; see $WORK/install.log"; exit 1; }
 
-# Seed FIRE state + intent + work items + per-project config
-mkdir -p .specs-fire/intents/toy-math/work-items
-cp "$HERE/fixtures/state.yaml" .specs-fire/state.yaml
-cp "$HERE/fixtures/brief.md"   .specs-fire/intents/toy-math/brief.md
-cp "$HERE/fixtures/add-add.md"  .specs-fire/intents/toy-math/work-items/add-add.md
-cp "$HERE/fixtures/add-mul.md"  .specs-fire/intents/toy-math/work-items/add-mul.md
-cp "$HERE/fixtures/add-calc.md" .specs-fire/intents/toy-math/work-items/add-calc.md
-cat > .specs-fire/config.yaml <<'EOF'
+# Seed INFERNO state + intent + work items + per-project config
+mkdir -p .specs-inferno/intents/toy-math/work-items
+cp "$HERE/fixtures/state.yaml" .specs-inferno/state.yaml
+cp "$HERE/fixtures/brief.md"   .specs-inferno/intents/toy-math/brief.md
+cp "$HERE/fixtures/add-add.md"  .specs-inferno/intents/toy-math/work-items/add-add.md
+cp "$HERE/fixtures/add-mul.md"  .specs-inferno/intents/toy-math/work-items/add-mul.md
+cp "$HERE/fixtures/add-calc.md" .specs-inferno/intents/toy-math/work-items/add-calc.md
+cat > .specs-inferno/config.yaml <<'EOF'
 models:
   strong: sonnet
   cheap: haiku
@@ -43,6 +43,6 @@ verification:
   finalize:
     - npm test
 EOF
-git add -A && git commit -qm "chore: install FIRE team flow and seed toy-math intent"
+git add -A && git commit -qm "chore: install INFERNO flow and seed toy-math intent"
 git push -q -u origin main
 echo "$WORK"

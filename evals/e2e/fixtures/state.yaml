@@ -1,8 +1,8 @@
 project:
   name: toy-math
-  description: Toy project for the FIRE team E2E smoke
+  description: Toy project for the INFERNO E2E smoke
   created: 2026-06-12T00:00:00Z
-  fire_version: "0.1.8"
+  inferno_version: "0.1.8"
 workspace:
   type: brownfield
   structure: monolith
