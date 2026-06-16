@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const {
   validateWorkItem,
-} = require("../../../../team/skills/orchestrate/scripts/team-scheduler.cjs");
+} = require("../../../../orchestrator/skills/orchestrate/scripts/team-scheduler.cjs");
 
 const templatePath = path.resolve(__dirname, "../templates/work-item.md.hbs");
 
