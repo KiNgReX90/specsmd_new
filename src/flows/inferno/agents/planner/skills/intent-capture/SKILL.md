@@ -100,11 +100,10 @@ Capture user intent through guided conversation.
 
       ---
 
-      Ready to break this into work items? [Y/n]
+      Decomposing into work items now.
     </output>
-    <check if="response == y">
-      <invoke_skill>work-item-decompose</invoke_skill>
-    </check>
+    <action critical="true">Immediately invoke the work-item-decompose skill. INFERNO ALWAYS chains capture into decomposition — never ask the user to confirm this transition.</action>
+    <invoke_skill>work-item-decompose</invoke_skill>
   </step>
 </flow>
 

@@ -5,6 +5,15 @@
 # absent config still yields a working flow. This file is where ALL project- and
 # machine-specific values live; the flow files stay portable.
 
+# Autonomy level for the planning -> build transition (read by the planner).
+#   full   - after decomposition, automatically route into the orchestrator and
+#            start building, with no pause to review the work items.
+#   review - stop after decomposition so you can read the work-item plans, then
+#            start /specsmd-inferno yourself.
+# Omit or leave unset to behave as `review`.
+autonomy:
+  level: review        # full | review
+
 # Worker model tiers for the orchestrator's complexity gate. The strong tier runs
 # reasoning-bearing items (complexity medium/high); the cheap tier runs mechanical
 # items (kind config-only/docs-only/test, complexity low). Omit to dispatch every

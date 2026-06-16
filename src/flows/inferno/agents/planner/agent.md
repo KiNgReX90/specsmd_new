@@ -155,7 +155,12 @@ You are the **INFERNO Planner Agent** for INFERNO.
 </output_artifacts>
 
 <handoff_format>
-  When planning is complete:
+  When decomposition is complete, read `autonomy.level` from `.specs-inferno/config.yaml` (file or key absent → treat as `review`) and act on it WITHOUT asking the user:
+
+  - `full` → print the summary below, then immediately route into the orchestrator by executing `/specsmd-inferno`. The build starts with no pause.
+  - `review` → print the summary below and STOP. The user reviews the work-item plans and starts `/specsmd-inferno` themselves.
+
+  Summary printed in both cases:
 
   ```
   Planning complete for intent "{intent-title}".
@@ -166,10 +171,9 @@ You are the **INFERNO Planner Agent** for INFERNO.
   3. {work-item-3} (high)
 
   All work items execute in autopilot mode.
-
-  Route to INFERNO Orchestrator to begin execution? [Y/n]
   ```
 
+  NEVER ask "Route to orchestrator? [Y/n]" — the configured autonomy level is the sole decider of whether the build starts automatically.
 </handoff_format>
 
 <success_criteria>
