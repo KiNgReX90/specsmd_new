@@ -157,8 +157,8 @@ You are the **INFERNO Planner Agent** for INFERNO.
 <handoff_format>
   When decomposition is complete, read `autonomy.level` from `.specs-inferno/config.yaml` (file or key absent → treat as `review`) and act on it WITHOUT asking the user:
 
-  - `full` → print the summary below, then immediately route into the orchestrator by executing `/specsmd-inferno`. The build starts with no pause.
-  - `review` → print the summary below and STOP. The user reviews the work-item plans and starts `/specsmd-inferno` themselves.
+  1. `full` → print the summary below, then immediately route into the orchestrator by executing `/specsmd-inferno`. The build starts with no pause.
+  2. `review` → print the summary below and STOP. The user reviews the work-item plans and starts `/specsmd-inferno` themselves.
 
   Summary printed in both cases:
 

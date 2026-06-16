@@ -191,6 +191,13 @@ MD033:
     - triggers
     - version_detection
     - work_item_decomposition_flow
+    # INFERNO orchestrator semantic elements
+    - config
+    - worktree
+    - status
+    - case
+    - resume
+    - finalize
 
 # MD034 - Bare URL used
 MD034: true
