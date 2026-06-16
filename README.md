@@ -1,29 +1,25 @@
-# SPECSMD FIRE Tooling
+# SPECSMD INFERNO Tooling
 
-Canonical source for the SPECSMD **FIRE team** workflow tooling: agents, slash commands, skills, hooks, and scripts for spec-driven AI development with **Claude Code** (plus a Codex skill surface).
+Canonical source for the SPECSMD **INFERNO** flow tooling: agents, slash commands, and skills for spec-driven AI development with **Claude Code** (plus a Codex skill surface).
 
-FIRE (Fast Intent-Run Engineering) drives the lifecycle **intent → work items → worktree → build → orchestrator-verified merge**. This repo extends the upstream baseline with, among other things:
+INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIRE — that drives the lifecycle **intent → auto-decomposed work items → one intent worktree → parallel autopilot builders → orchestrator-verified merge**, all under its own `.specs-inferno/` artifact namespace. It extends the upstream baseline with, among other things:
 
-- **Team flow** (`/specsmd-fire-team`): parallel builder subagents in one intent worktree, with dependency-aware dispatch, claim-on-select intent locking, and an orchestrator-verified merge gate.
-- **Team planner** (`specsmd-fire-team-planner`): work items with `depends_on`, `context.required`, and `ownership.editable` so independent items build concurrently without edit collisions.
-- **Portable per-project config** (`.specs-fire/config.yaml`): model tiers, finalize verification commands, and budget-halt wiring live per project; the flow files stay project-agnostic.
+- **Autonomous parallel flow** (planner, builder, orchestrator): one planner auto-decomposes an intent into work items with `depends_on`, `context.required`, and `ownership.editable`, then parallel autopilot builders run in one intent worktree with dependency-aware dispatch, claim-on-select intent locking, and an orchestrator-verified merge gate. Planning autonomy is config-driven via `autonomy.level`.
+- **Portable per-project config** (`.specs-inferno/config.yaml`): model tiers, finalize verification commands, `autonomy.level`, and budget-halt wiring live per project; the flow files stay project-agnostic.
 - **Budget-cap halt protocol**: builders write halt-notes and return cleanly when a spend cap is hit; the orchestrator hands off and resumes after reset.
-- **Skill-policy hook** (`specsmd-skill-policy.py`): hard-enforces the agent/skill pairing rules instead of relying on prompt discipline.
 
 ## Layout
 
 | Path | Contents |
 |------|----------|
-| `.specsmd/fire/` | Canonical flow definition: team agent docs, skills, templates |
-| `.claude/` | Claude Code surface: commands, agents, hooks, scripts |
-| `.codex/` | Codex skill surface for the team flow |
+| `.specsmd/inferno/` | Canonical flow definition: agent docs, skills, templates |
+| `.claude/` | Claude Code surface: commands, agents |
+| `.codex/` | Codex skill surface for the flow |
 | `CLAUDE.md` | The operating guidance an adopting project loads |
 
 ## Getting started
 
-**Integrating into a repo that already has SPECSMD FIRE installed:** hand [`INSTALL.md`](INSTALL.md) to your agent — it is the complete, agent-facing handoff (copy list, hook registration, CLAUDE.md merge, config, verification).
-
-The complete orchestrator procedure lives in [`.specsmd/fire/agents/team/agent.md`](.specsmd/fire/agents/team/agent.md); see `.specs-fire/config.example.yaml` for the per-project configuration keys.
+INFERNO is installed by choosing it at `specsmd install` time. See `CLAUDE.md` for the operating guidance an adopting project loads, and `.specsmd/inferno/agents/orchestrator/config.example.yaml` for the per-project configuration keys.
 
 ## Author
 
@@ -33,7 +29,7 @@ If you copy or fork this work, keep this attribution and the [LICENSE](LICENSE) 
 
 ## Attribution
 
-The original FIRE flow baseline was installed from the upstream [specsmd](https://github.com/fabriqaai/specs.md) project (MIT, by the specsmd team) at v0.1.65. Everything on top of that baseline, the team flow, team planner, halt protocol, policy hook, scripts, and portability work, is by Rubèn Plantinga.
+The original FIRE flow baseline was installed from the upstream [specsmd](https://github.com/fabriqaai/specs.md) project (MIT, by the specsmd team) at v0.1.65. Everything on top of that baseline — the INFERNO autonomous parallel flow (planner, builder, orchestrator), the halt protocol, and portability work — is by Rubèn Plantinga.
 
 ## License
 

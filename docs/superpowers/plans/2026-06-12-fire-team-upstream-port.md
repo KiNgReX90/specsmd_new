@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-06-16)** by `docs/superpowers/specs/2026-06-16-inferno-flow-design.md` and `docs/superpowers/plans/2026-06-16-inferno-flow.md`. INFERNO ships the autonomous/parallel capability as a standalone flow instead of bolting a team track onto FIRE. Kept for history.
+
 # FIRE Team Flow Upstream Port Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

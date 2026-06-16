@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-06-16)** by `docs/superpowers/specs/2026-06-16-inferno-flow-design.md` and `docs/superpowers/plans/2026-06-16-inferno-flow.md`. INFERNO ships the autonomous/parallel capability as a standalone flow instead of bolting a team track onto FIRE. Kept for history.
+
 # Design: Contributing the FIRE Team Flow Upstream
 
 **Date:** 2026-06-12
