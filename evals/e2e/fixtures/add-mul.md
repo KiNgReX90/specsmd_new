@@ -21,7 +21,7 @@ Create `lib/mul.js` exporting `mul(a, b)` (CommonJS: `module.exports = { mul }`)
 - [ ] `lib/mul.js` exports mul(a, b) returning a * b
 - [ ] `node --test tests/mul.test.js` passes
 
-## Team Execution Manifest
+## Execution Manifest
 
 context:
   required:

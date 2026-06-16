@@ -21,7 +21,7 @@ Create `lib/calc.js` exporting `calc(a, b)` = `add(a, b) * mul(a, b)`, requiring
 - [ ] `lib/calc.js` requires lib/add.js and lib/mul.js (no reimplementation)
 - [ ] `node --test tests/calc.test.js` passes
 
-## Team Execution Manifest
+## Execution Manifest
 
 context:
   required:

@@ -21,7 +21,7 @@ Create `lib/add.js` exporting `add(a, b)` (CommonJS: `module.exports = { add }`)
 - [ ] `lib/add.js` exports add(a, b) returning a + b
 - [ ] `node --test tests/add.test.js` passes
 
-## Team Execution Manifest
+## Execution Manifest
 
 context:
   required:
