@@ -1,0 +1,42 @@
+# FIRE team per-project configuration — copy to .specs-fire/config.yaml in the
+# consuming repo and fill in your values, or run /specsmd-fire-team-config to be
+# walked through it. Read by .specsmd/fire/agents/team/agent.md. Every key is
+# optional: a missing key falls back to host/project defaults, so an empty or
+# absent config still yields a working flow. This file is where ALL project- and
+# machine-specific values live; the flow files stay portable.
+
+# Worker model tiers for the orchestrator's complexity gate. The strong tier runs
+# reasoning-bearing items (complexity medium/high); the cheap tier runs mechanical
+# items (kind config-only/docs-only/test, complexity low). Omit to dispatch every
+# builder with the host's default model.
+#
+# IMPORTANT: values are passed VERBATIM as the per-dispatch model override, so
+# they must be in the form the host's dispatch accepts. On Claude Code that is
+# the Agent-tool aliases opus / sonnet / haiku — NOT full model IDs. Exact
+# version pins can be set by editing the frontmatter of the installed
+# .claude/agents/specsmd-fire-team-builder.md (note: re-running the specsmd
+# installer regenerates that file).
+models:
+  strong: opus
+  cheap: sonnet
+
+# Authoritative finalize gate: ordered shell commands the orchestrator runs ONCE
+# on the integrated tree before merging an intent. Omit to fall back to the
+# project's standard production build + full test suite.
+verification:
+  finalize:
+    - npm run build
+    - npm test
+
+# Budget-halt integration: flag_file is checked before every dispatch wave;
+# wait_script is launched in the background at halt-finalize and should exit when
+# the budget window resets. Omit both to disable the HALT gate (a builder that
+# still hits a budget cap halts gracefully and the run resumes manually).
+# halt:
+#   flag_file: /absolute/path/to/HALT
+#   wait_script: /absolute/path/to/wait-for-budget-reset.sh
+
+# Path to a project knowledge-base index builders should walk first when their
+# curated context is insufficient. Omit if the project has none.
+# knowledge:
+#   index: docs/knowledge/index.md

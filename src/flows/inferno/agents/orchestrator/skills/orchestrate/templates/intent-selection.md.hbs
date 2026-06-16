@@ -1,0 +1,31 @@
+{{! Standard intent-selection menu for the FIRE team orchestrator. }}
+{{! Rendered when the orchestrator activates and one or more runnable intents }}
+{{! exist. The orchestrator NEVER auto-picks: it always renders this menu and }}
+{{! waits for the user's choice. `single` is true when exactly one runnable }}
+{{! intent is present. }}
+{{#if single}}
+# Confirm intent to run
+
+One runnable intent is present. Confirm before the team orchestrator dispatches any builder.
+{{else}}
+# Select an intent to run
+
+{{count}} runnable intents are present. Pick one by number; the orchestrator will not start until you do.
+{{/if}}
+
+{{#each intents}}
+[{{number}}] {{title}}
+    id: {{id}}  ·  status: {{status}}
+    work items: {{pending_count}} pending / {{total_count}} total  ·  ready now: {{ready_count}}
+{{/each}}
+{{#if claimed}}
+Running elsewhere (claimed, not selectable):
+{{#each claimed}}
+  - {{id}} · claimed {{claimed_at}} · {{claimed_by}}
+{{/each}}
+{{/if}}
+{{#if single}}
+Run this intent with the team orchestrator? [Y/n]
+{{else}}
+Enter a number (1-{{count}}) to choose.
+{{/if}}
