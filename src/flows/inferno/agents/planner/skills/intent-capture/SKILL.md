@@ -83,24 +83,24 @@ Capture user intent through guided conversation.
   <step n="4" title="Generate Intent Brief">
     <action>Create intent ID from title (kebab-case)</action>
     <action>Generate intent brief using template: templates/brief.md.hbs</action>
-    <action>Create directory: .specs-fire/intents/{intent-id}/</action>
-    <action>Save: .specs-fire/intents/{intent-id}/brief.md</action>
+    <action>Create directory: .specs-inferno/intents/{intent-id}/</action>
+    <action>Save: .specs-inferno/intents/{intent-id}/brief.md</action>
   </step>
 
   <step n="5" title="Update State">
     <action>Add intent to state.yaml</action>
-    <action>Set intent status to "pending" (the team orchestrator claims it and sets "in_progress" at selection)</action>
+    <action>Set intent status to "pending" (the orchestrator claims it and sets "in_progress" at selection)</action>
   </step>
 
   <step n="6" title="Transition">
     <output>
       **Intent captured**: "{intent-title}"
 
-      Saved to: .specs-fire/intents/{intent-id}/brief.md
+      Saved to: .specs-inferno/intents/{intent-id}/brief.md
 
       ---
 
-      Ready to break this into team-compatible work items? [Y/n]
+      Ready to break this into work items? [Y/n]
     </output>
     <check if="response == y">
       <invoke_skill>work-item-decompose</invoke_skill>
@@ -112,7 +112,7 @@ Capture user intent through guided conversation.
 
   | Artifact | Location | Template |
   |----------|----------|----------|
-  | Intent Brief | `.specs-fire/intents/{id}/brief.md` | `./templates/brief.md.hbs` |
+  | Intent Brief | `.specs-inferno/intents/{id}/brief.md` | `./templates/brief.md.hbs` |
 </output_artifacts>
 
 <success_criteria>

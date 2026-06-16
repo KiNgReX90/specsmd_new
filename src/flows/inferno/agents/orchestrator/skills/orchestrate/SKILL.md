@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Team orchestration assets — intent-selection template and scheduler scripts. The procedure itself lives in the team agent definition.
+description: Orchestration assets — intent-selection template and scheduler scripts. The procedure itself lives in the orchestrator agent definition.
 version: 2.2.0
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: workitem-execute
-description: Superseded stub — the complete team-builder procedure lives in the team-builder agent definition.
+description: Superseded stub — the complete builder procedure lives in the builder agent definition.
 version: 2.2.0
 ---
 

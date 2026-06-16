@@ -1,6 +1,6 @@
-# FIRE team per-project configuration — copy to .specs-fire/config.yaml in the
-# consuming repo and fill in your values, or run /specsmd-fire-team-config to be
-# walked through it. Read by .specsmd/fire/agents/team/agent.md. Every key is
+# INFERNO per-project configuration — copy to .specs-inferno/config.yaml in the
+# consuming repo and fill in your values, or run /specsmd-inferno-config to be
+# walked through it. Read by .specsmd/inferno/agents/orchestrator/agent.md. Every key is
 # optional: a missing key falls back to host/project defaults, so an empty or
 # absent config still yields a working flow. This file is where ALL project- and
 # machine-specific values live; the flow files stay portable.
@@ -14,7 +14,7 @@
 # they must be in the form the host's dispatch accepts. On Claude Code that is
 # the Agent-tool aliases opus / sonnet / haiku — NOT full model IDs. Exact
 # version pins can be set by editing the frontmatter of the installed
-# .claude/agents/specsmd-fire-team-builder.md (note: re-running the specsmd
+# .claude/agents/specsmd-inferno-builder.md (note: re-running the specsmd
 # installer regenerates that file).
 models:
   strong: opus

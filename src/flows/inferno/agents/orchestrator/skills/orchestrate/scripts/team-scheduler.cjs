@@ -128,7 +128,7 @@ function buildBuilderPrompt(workItem) {
     "- Handle exactly this work item.",
     "- Search autonomously when the manifest is insufficient.",
     "- Stay within editable ownership unless implementation evidence requires a scoped correction.",
-    "- Do not commit, edit .specs-fire/state.yaml, spawn subagents, or choose another work item.",
+    "- Do not commit, edit .specs-inferno/state.yaml, spawn subagents, or choose another work item.",
     "- Return only status, changed_files, tests, context_expansion, and notes.",
   ].join("\n");
 }

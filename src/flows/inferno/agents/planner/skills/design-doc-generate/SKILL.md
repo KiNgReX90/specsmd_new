@@ -27,14 +27,14 @@ Generate design documents for high-complexity work items (planning-time design r
 
 <flow>
   <step n="1" title="Analyze Work Item">
-    <action>Read work item from .specs-fire/intents/{intent-id}/work-items/{id}.md</action>
+    <action>Read work item from .specs-inferno/intents/{intent-id}/work-items/{id}.md</action>
     <action>Identify key design decisions needed</action>
     <action>Assess domain modeling needs</action>
     <action>Identify integration points</action>
   </step>
 
   <step n="2" title="Gather Context">
-    <action>Review project standards (.specs-fire/standards/)</action>
+    <action>Review project standards (.specs-inferno/standards/)</action>
     <action>Check existing codebase patterns</action>
     <action>Identify similar implementations to reference</action>
   </step>
@@ -65,7 +65,7 @@ Generate design documents for high-complexity work items (planning-time design r
     <action>Define API contracts (if applicable)</action>
     <action>Specify database changes (if applicable)</action>
     <action>Document data flow</action>
-    <action>Document context and ownership assumptions when they affect team work-item boundaries</action>
+    <action>Document context and ownership assumptions when they affect work-item boundaries</action>
   </step>
 
   <step n="6" title="Identify Risks">
@@ -100,7 +100,7 @@ Generate design documents for high-complexity work items (planning-time design r
         ## Technical Approach
         {component diagram, API contracts}
 
-        ## Team Execution Assumptions
+        ## Execution Assumptions
         {context and ownership assumptions, if applicable}
 
         ## Risks
@@ -120,12 +120,12 @@ Generate design documents for high-complexity work items (planning-time design r
   <step n="9" title="Handle Response">
     <check if="response == y">
       <action>Generate design doc using template: templates/design.md.hbs</action>
-      <action>Save to: .specs-fire/intents/{intent-id}/work-items/{id}-design.md</action>
+      <action>Save to: .specs-inferno/intents/{intent-id}/work-items/{id}-design.md</action>
       <action>Mark checkpoint 1 as passed</action>
       <output>
-        Design approved. Ready for team-compatible work-item planning.
+        Design approved. Ready for work-item planning.
 
-        Route to Team Planner decomposition? [Y/n]
+        Route to INFERNO Planner decomposition? [Y/n]
       </output>
     </check>
     <check if="response == edit">
@@ -145,7 +145,7 @@ Generate design documents for high-complexity work items (planning-time design r
 
   | Artifact | Location | Template |
   |----------|----------|----------|
-  | Design Doc | `.specs-fire/intents/{intent-id}/work-items/{id}-design.md` | `./templates/design.md.hbs` |
+  | Design Doc | `.specs-inferno/intents/{intent-id}/work-items/{id}-design.md` | `./templates/design.md.hbs` |
 </output_artifacts>
 
 <success_criteria>
@@ -153,7 +153,7 @@ Generate design documents for high-complexity work items (planning-time design r
   <criterion>Key decisions documented with rationale</criterion>
   <criterion>Domain model defined (if applicable)</criterion>
   <criterion>Technical approach specified</criterion>
-  <criterion>Team context and ownership assumptions documented when relevant</criterion>
+  <criterion>Context and ownership assumptions documented when relevant</criterion>
   <criterion>Risks identified with mitigations</criterion>
   <criterion>Implementation checklist created</criterion>
   <criterion>Design doc approved at checkpoint</criterion>

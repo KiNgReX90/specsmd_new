@@ -1,16 +1,16 @@
 ---
 name: work-item-decompose
-description: Break an intent into discrete, executable, team-compatible work items with context pointers, ownership, complexity assessment, and dependency validation.
+description: Break an intent into discrete, executable, work items with context pointers, ownership, complexity assessment, and dependency validation.
 version: 1.0.0
 ---
 
 <objective>
-Break an intent into discrete, executable work items for `/specsmd-fire-team`.
+Break an intent into discrete, executable work items for `/specsmd-inferno`.
 </objective>
 
 <triggers>
   - Intent exists without work items
-  - User wants to plan execution for the team workflow
+  - User wants to plan execution for the INFERNO workflow
 </triggers>
 
 <degrees_of_freedom>
@@ -25,11 +25,11 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
   <mandate>Behavior, architecture, UI, and API work MUST include context.patterns</mandate>
   <mandate>All work except docs-only and config-only MUST include context.tests</mandate>
   <mandate>Record ownership and dependencies truthfully; never misreport them to manufacture parallelism</mandate>
-  <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple team builders run at once</mandate>
+  <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple builders run at once</mandate>
 </llm>
 
 <team_manifest_contract>
-  Every work item must include the standard FIRE metadata and this team execution manifest:
+  Every work item must include the standard INFERNO metadata and this execution manifest:
 
   ```yaml
   kind: behavior | architecture | api | ui | test | docs-only | config-only
@@ -58,7 +58,7 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
 
 <flow>
   <step n="1" title="Load Intent">
-    <action>Read intent brief from .specs-fire/intents/{intent-id}/brief.md</action>
+    <action>Read intent brief from .specs-inferno/intents/{intent-id}/brief.md</action>
     <action>Understand goal, users, success criteria</action>
   </step>
 
@@ -102,7 +102,7 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
 
   <step n="3b" title="Set Execution Mode">
     <action>Set mode: autopilot on every work item</action>
-    <note>Team execution is always autopilot: builders run as parallel subagents inside the
+    <note>Execution is always autopilot: builders run as parallel subagents inside the
     orchestrator's intent worktree and cannot pause for user checkpoints. Oversight happens
     at planning time (this skill's approval gates) and at the orchestrator's verified
     finalize. Complexity from step 3 still matters: the orchestrator uses it to pick the
@@ -116,7 +116,7 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
     <substep>Any edge cases to handle</substep>
   </step>
 
-  <step n="5" title="Define Team Manifest">
+  <step n="5" title="Define Manifest">
     <action>For each work item, assign kind, depends_on, context, and ownership</action>
     <substep>Use exact file or directory paths wherever the codebase reveals them</substep>
     <substep>Use narrow, factual reasons for each context pointer</substep>
@@ -143,10 +143,10 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
 
   <step n="7" title="Present Plan">
     <output>
-      ## Team Work Items for "{intent-title}"
+      ## Work Items for "{intent-title}"
 
       **Total**: {count} work items
-      **Complexity**: {low} low / {medium} medium / {high} high — all autopilot (team execution)
+      **Complexity**: {low} low / {medium} medium / {high} high — all autopilot (execution)
 
       **Work Item Details**:
 
@@ -160,29 +160,29 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
 
       ---
 
-      Approve this team plan? [Y/n/edit]
+      Approve this plan? [Y/n/edit]
     </output>
   </step>
 
   <step n="8" title="Save Work Items">
     <check if="approved">
-      <action>Create .specs-fire/intents/{intent-id}/work-items/</action>
+      <action>Create .specs-inferno/intents/{intent-id}/work-items/</action>
       <action>For each work item, generate using template: templates/work-item.md.hbs</action>
-      <action>Save each to: .specs-fire/intents/{intent-id}/work-items/{work-item-id}.md</action>
+      <action>Save each to: .specs-inferno/intents/{intent-id}/work-items/{work-item-id}.md</action>
       <action>Update state.yaml with work items list</action>
     </check>
   </step>
 
   <step n="9" title="Transition">
     <output>
-      **{count} team-compatible work items created** for "{intent-title}".
+      **{count} work items created** for "{intent-title}".
 
       ---
 
-      Ready to execute with the team orchestrator? [Y/n]
+      Ready to execute with the orchestrator? [Y/n]
     </output>
     <check if="response == y">
-      <route_to>/specsmd-fire-team</route_to>
+      <route_to>/specsmd-inferno</route_to>
     </check>
   </step>
 </flow>
@@ -191,16 +191,16 @@ Break an intent into discrete, executable work items for `/specsmd-fire-team`.
 
   | Artifact | Location | Template |
   |----------|----------|----------|
-  | Work Item | `.specs-fire/intents/{intent-id}/work-items/{id}.md` | `./templates/work-item.md.hbs` |
+  | Work Item | `.specs-inferno/intents/{intent-id}/work-items/{id}.md` | `./templates/work-item.md.hbs` |
 </output_artifacts>
 
 <success_criteria>
   <criterion>Intent decomposed into discrete work items</criterion>
   <criterion>Each work item has clear acceptance criteria</criterion>
   <criterion>Complexity assessed for each item</criterion>
-  <criterion>Every work item has mode: autopilot (team execution is checkpoint-free)</criterion>
+  <criterion>Every work item has mode: autopilot (execution is checkpoint-free)</criterion>
   <criterion>Dependencies validated (no circular dependencies)</criterion>
-  <criterion>Every work item has team-compatible context and ownership fields</criterion>
+  <criterion>Every work item has context and ownership fields</criterion>
   <criterion>Ownership is accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>Work items saved to correct locations</criterion>
   <criterion>State.yaml updated with work items list</criterion>

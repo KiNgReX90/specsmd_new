@@ -9,7 +9,7 @@ const {
 
 const templatePath = path.resolve(__dirname, "../templates/work-item.md.hbs");
 
-test("team work item template exposes the team execution contract", () => {
+test("work item template exposes the execution contract", () => {
   const template = fs.readFileSync(templatePath, "utf8");
 
   for (const token of [
@@ -26,7 +26,7 @@ test("team work item template exposes the team execution contract", () => {
   }
 });
 
-test("team work item contract accepts overlapping ownership", () => {
+test("work item contract accepts overlapping ownership", () => {
   const first = {
     id: "item-1",
     kind: "behavior",
@@ -56,7 +56,7 @@ test("team work item contract accepts overlapping ownership", () => {
   assert.equal(validateWorkItem(second).valid, true);
 });
 
-test("team work item contract rejects missing required context", () => {
+test("work item contract rejects missing required context", () => {
   const invalid = {
     id: "item-3",
     kind: "behavior",

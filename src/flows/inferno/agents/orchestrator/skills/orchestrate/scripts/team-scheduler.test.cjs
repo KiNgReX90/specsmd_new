@@ -172,7 +172,7 @@ test("validateBuilderResult accepts halted result with a note and rejects halted
     changed_files: [],
     tests: "not run; budget HALT before verification",
     context_expansion: "none",
-    note: ".specs-fire/halt-notes/item-4.md",
+    note: ".specs-inferno/halt-notes/item-4.md",
   });
 
   const haltedWithoutNote = validateBuilderResult({
