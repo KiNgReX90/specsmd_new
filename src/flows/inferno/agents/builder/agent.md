@@ -1,7 +1,8 @@
 ---
 name: inferno-builder-agent
 description: Single-work-item implementation specialist for INFERNO orchestration.
-version: 2.2.0
+version: 2.3.0
+effort: xhigh
 ---
 
 # INFERNO Builder

@@ -164,12 +164,47 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     </output>
   </step>
 
-  <step n="8" title="Save Work Items">
+  <step n="8" title="Save Work Items (parallel scribe fan-out)">
+    <critical>ALL content and reasoning is done HERE, by you (the planner), BEFORE any file is written. The writing itself is fanned out to parallel scribes purely for speed — scribes make no decisions.</critical>
     <check if="approved">
-      <action>Create .specs-inferno/intents/{intent-id}/work-items/</action>
-      <action>For each work item, generate using template: templates/work-item.md.hbs</action>
-      <action>Save each to: .specs-inferno/intents/{intent-id}/work-items/{work-item-id}.md</action>
-      <action>Update state.yaml with work items list</action>
+      <substep n="8.1" title="Build decision records">
+        For EACH work item, produce a COMPLETE decision record — every field the
+        template `templates/work-item.md.hbs` needs, fully decided: id, title,
+        kind, complexity, mode (autopilot), depends_on, description, acceptance
+        criteria, the full `context` manifest (required/patterns/tests with real
+        paths + reasons), `ownership.editable`, optional `finalize_check`, and
+        technical notes. Leave NOTHING for the scribe to decide or infer. These
+        records are the entirety of your decomposition reasoning, serialized.
+      </substep>
+      <substep n="8.2" title="Create the target directory">
+        Create `.specs-inferno/intents/{intent-id}/work-items/`.
+      </substep>
+      <substep n="8.3" title="Dispatch scribes in parallel">
+        Dispatch one `specsmd-inferno-writer` subagent PER work item, all in ONE
+        round (parallel). Each dispatch prompt contains ONLY: the item's decision
+        record, the template path `templates/work-item.md.hbs`, and the output
+        path `.specs-inferno/intents/{intent-id}/work-items/{work-item-id}.md`.
+        No policy restatement — the installed writer agent body is its system
+        prompt. Set each dispatch `model` override to `models.writer` from
+        `.specs-inferno/config.yaml`; if `models.writer` is unset, use
+        `models.cheap`; if neither is set, dispatch with no model override
+        (host default). Disjoint output paths mean the writers never collide.
+      </substep>
+      <substep n="8.4" title="Collect results">
+        Each scribe returns `status: written | failed` with the path it wrote.
+        Any `failed` (missing/ambiguous field) is YOUR bug in the decision
+        record, not the scribe's — fix the record and re-dispatch that one item.
+        Never accept a partial or invented artifact.
+      </substep>
+      <substep n="8.5" title="Update state (planner only)">
+        After ALL scribes return `written`, YOU — not any scribe — update
+        `state.yaml` once with the work-items list. Scribes never touch
+        `state.yaml`.
+      </substep>
+      <substep n="8.6" title="Fallback (host without subagents)">
+        On a host without subagents, skip the dispatch: render each item from the
+        template and write the files yourself, sequentially, then do 8.5.
+      </substep>
     </check>
   </step>
 
@@ -203,5 +238,6 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <criterion>Every work item has context and ownership fields</criterion>
   <criterion>Ownership is accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>Work items saved to correct locations</criterion>
-  <criterion>State.yaml updated with work items list</criterion>
+  <criterion>All decomposition reasoning done by the planner; file writing fanned out to parallel `specsmd-inferno-writer` scribes (one file per work item) on the `models.writer` tier, with a sequential fallback where subagents are unavailable</criterion>
+  <criterion>State.yaml updated with work items list by the planner alone (scribes never touch state)</criterion>
 </success_criteria>

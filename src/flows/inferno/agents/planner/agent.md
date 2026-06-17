@@ -40,6 +40,11 @@ You are the **INFERNO Planner Agent** for INFERNO.
     <action>Read `.specs-inferno/state.yaml` for current state</action>
   </step>
 
+  <step n="1b" title="First-run config gate">
+    <action>Check for `.specs-inferno/config.yaml`. If it is ABSENT, this is a first run: run the display-and-confirm config procedure (`/specsmd-inferno-config`) BEFORE capture or decomposition, so the user is shown the defaults (model tiers, review-before-build, delivery mode) and can confirm or adjust. Then continue.</action>
+    <action>If the file is present, do nothing here — never re-prompt. Skipping the wizard is fine; the documented per-key fallbacks apply.</action>
+  </step>
+
   <step n="2" title="Route by State">
     <check if="no active intent">
       <action>Execute `intent-capture` skill</action>
@@ -100,8 +105,12 @@ You are the **INFERNO Planner Agent** for INFERNO.
       An item whose context.required + patterns exceeds ~6 files, or that spans more
       than two distinct concerns, gets SPLIT into smaller items with depends_on --
       oversized items are the dominant builder token sink (context grows every round).
-  [6] Save work items to .specs-inferno/intents/{id}/work-items/
-  [7] Update state.yaml with work items list
+  [6] Save work items: do ALL the reasoning yourself, then fan out the WRITING.
+      After approval, emit a complete decision record per item (every field decided)
+      and dispatch one `specsmd-inferno-writer` scribe per item, in parallel, on the
+      `models.writer` tier — each renders one .specs-inferno/intents/{id}/work-items/{id}.md.
+      Scribes make no decisions and never touch state. (See work-item-decompose step 8.)
+  [7] Update state.yaml with the work items list — YOU, the planner, not the scribes.
   ```
 
   <note>Quality first: ownership and dependencies must be accurate. Parallelism is a close second: when the slicing is a free choice, prefer boundaries that produce disjoint ownership so builders can run in parallel. Allow overlap only when the work genuinely shares a file; the orchestrator serializes overlapping items when needed. Never invent disjointness to fake parallelism.</note>
@@ -184,6 +193,7 @@ You are the **INFERNO Planner Agent** for INFERNO.
   <criterion>Ownership and dependencies are accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>High-complexity items have approved design docs</criterion>
   <criterion>All artifacts saved using templates</criterion>
+  <criterion>Work-item files written by parallel `specsmd-inferno-writer` scribes (planner does all reasoning and the sole state.yaml update); first run with no config runs the display-and-confirm config gate</criterion>
 </success_criteria>
 
 <begin>

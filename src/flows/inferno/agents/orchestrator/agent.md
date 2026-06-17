@@ -36,7 +36,24 @@ This file is the complete orchestrator procedure (`skills/orchestrate/SKILL.md` 
   - `verification.finalize` — ordered list of shell commands forming the authoritative finalize gate. Absent → run the project's standard production build + full test suite as discoverable from the repo (e.g. package.json scripts).
   - `halt.flag_file` / `halt.wait_script` — budget-halt integration (flag checked before dispatch; waiter launched at halt-finalize). Absent → skip the HALT gate; if a builder still returns `halted`, preserve the worktree, write the halt notes, report, and stop (manual resume).
   - `knowledge.index` — path to a project knowledge-base index that builders should walk first when searching. Absent → builders rely on standard search.
+  - `delivery.mode` — `auto-close` (default) or `merge-request`; `delivery.base_branch` — the branch the intent merges into. Drives <integration_mode/>, <finalize/>, and the forge actions. Absent → `auto-close` (today's local-merge-and-close); see <integration_mode/>.
 </config>
+
+<integration_mode critical="true">
+  `delivery.mode` from <config/> (absent → `auto-close`) decides how items integrate and how the intent closes. Read it once at activation.
+
+  <mode name="auto-close">
+    Today's behavior, UNCHANGED. Builders' edits are committed directly onto the intent branch in <dispatch_loop/> step 6; <finalize/> merges the intent branch locally into the base branch, tears down the worktree, and pushes. No merge requests, no review gate.
+  </mode>
+
+  <mode name="merge-request">
+    Each item lands on the intent branch via a NON-BLOCKING per-item MR, and the intent closes by opening ONE MR into the base branch as the sole human review gate.
+    - **Base branch:** `delivery.base_branch` if set; else the branch the intent was created from (`state.yaml` intent `base_branch`); else the repo default branch. If unset in config, PROPOSE it to the user and get confirmation once, before finalize — never guess silently.
+    - **Forge probe (once):** prefer `gh` if installed + authenticated, else `glab`, else `none`. `none` → push branches and REPORT the MR you would have opened (head/base/title) for the user to open manually; never hard-fail an otherwise-green run.
+    - **Branch-at-integration (per item, replaces the direct commit in step 6):** with the item's edits staged in the shared worktree, `git checkout -b inferno-item/{intent-id}/{item-id}` from the current intent HEAD; commit ONLY this item's `ownership.editable` files; push; open a non-blocking MR (head = item branch, base = intent branch) via the probed forge; merge the item branch into the intent branch (fast-forward) and `git checkout {intent-branch}`. Disjoint ownership guarantees the carried-over unstaged edits of other in-flight items never conflict with the checkout; integration stays serial, so overlapping-ownership items never branch concurrently. Then update state and recompute the frontier as usual.
+    - MR title/body stay compact: the work-item id + title and a one-line summary; never paste diffs or reasoning.
+  </mode>
+</integration_mode>
 
 <select_intent>
   <step n="1">Verify `.specs-inferno/state.yaml` exists. Missing → route to `/specsmd-inferno-planner` to capture an intent and stop.</step>
@@ -92,7 +109,7 @@ This file is the complete orchestrator procedure (`skills/orchestrate/SKILL.md` 
     - `complexity: medium` | `high` (excluding `kind: test`) → `models.strong` (or no override when the host agent definition already pins it). Reasoning-bearing items (subtle invariants, two-phase hazards, single-writer mutation paths) stay on the strongest worker.
     - Rationale: parallelism buys wall-clock, not tokens — the saving comes from not sending trivia to the heavy worker. Per-dispatch overrides cover the model only; effort/reasoning settings live in the host agent definition's frontmatter.
     - KNOWN GAP: when items are bimodal within one tier (some `medium` mechanical, some reasoning-bearing), default ALL `medium`+ to the strong worker and surface the split to the user — never down-tier a `medium`/`high` item on a hunch.</step>
-  <step n="6" title="Integrate">Process results one at a time as they complete: reject noisy results (diffs, logs, reasoning traces, file bodies); check `changed_files` against `ownership.editable` — out-of-ownership edits need evidence; run or confirm the reported verification command; commit the item and update INFERNO state (serialized, staging only this item's files + INFERNO artifacts); recompute the graph and dispatch newly unblocked items immediately.</step>
+  <step n="6" title="Integrate">Process results one at a time as they complete: reject noisy results (diffs, logs, reasoning traces, file bodies); check `changed_files` against `ownership.editable` — out-of-ownership edits need evidence; run or confirm the reported verification command; then integrate per <integration_mode/> (`auto-close`: commit the item directly on the intent branch; `merge-request`: branch-at-integration + non-blocking per-item MR), staging only this item's files + INFERNO artifacts; update INFERNO state (serialized); recompute the graph and dispatch newly unblocked items immediately.</step>
 </dispatch_loop>
 
 <result_contract>
@@ -149,12 +166,15 @@ This file is the complete orchestrator procedure (`skills/orchestrate/SKILL.md` 
 </resume>
 
 <finalize critical="true">
-  Run ONCE, automatically, the moment the intent has no pending or in-flight items — closing an intent INCLUDES shipping it. Do NOT stop at local commits and wait to be asked for merge, push, or cleanup; that is the recurring failure this step kills.
+  Run ONCE, automatically, the moment the intent has no pending or in-flight items — closing an intent INCLUDES shipping it. Do NOT stop at local commits and wait to be asked for merge, push, or cleanup; that is the recurring failure this step kills. Shipping is mode-specific (<integration_mode/>): `auto-close` merges locally and pushes; `merge-request` pushes the intent branch and opens the intent → base MR, then stops at that review gate (the MR is the intended stop, not a skipped step).
   <step n="1" title="Final Verification">Full verification on the integrated tree (not just per-item tests): run every command in `verification.finalize` from <config/> in order; no config → run the project's standard production build + full test suite. Run every `finalize_check:` declared on this intent's work items (one-line shell commands holding cheap mechanical invariants — dangling-ref sweep, key parity); a non-zero exit blocks close like any failed gate. Emit a ≤3-line "eyeball:" note naming the visual surfaces touched, for the user's manual smoke — do not author a separate smoke-checklist file unless a verify item explicitly owns one.</step>
   <step n="2" title="Mark Completed">In `.specs-inferno/state.yaml`: intent status `completed` + `completed_at`; drop `claimed_by`. Commit the bookkeeping, staging only this intent's INFERNO artifacts — never `git add -A`.</step>
-  <step n="3" title="Merge + Tear Down">Merge the intent branch into the default branch. Kill every process THIS worktree spawned (dev servers and their ports, sidecars, builds, watchers) — scoped to processes whose cwd is inside the worktree or the specific port/PID it started; never blanket-kill by process name. A stale dev server left on the project's dev port poisons later e2e runs. Then `git worktree remove` + delete the branch. This ALWAYS runs; never leave a merged worktree or its processes alive.</step>
-  <step n="4" title="Push">Push the default branch to `origin` — part of intent close, not optional. Verify HEAD == origin/HEAD (0 ahead) before reporting success.</step>
-  <step n="5" title="Report">Intent commits, push result (ahead → 0), worktree disposition, each `finalize_check:` result, and the "eyeball:" surfaces note.</step>
+  <step n="3" title="Ship (mode-aware)">
+    <mode name="auto-close">Merge the intent branch into the base branch (`delivery.base_branch` if set, else the default branch — today's behavior). Kill every process THIS worktree spawned (dev servers and their ports, sidecars, builds, watchers) — scoped to processes whose cwd is inside the worktree or the specific port/PID it started; never blanket-kill by process name. A stale dev server left on the project's dev port poisons later e2e runs. Then `git worktree remove` + delete the branch. This ALWAYS runs; never leave a merged worktree or its processes alive. Then push (step 4).</mode>
+    <mode name="merge-request">Do NOT merge locally and do NOT tear down the worktree. Resolve the base branch (<integration_mode/>); push the intent branch to `origin`; open ONE MR (head = intent branch, base = base branch) via the probed forge as the human review gate — `none` → report the MR to open manually. Kill only the worktree's spawned processes (dev servers/ports/sidecars/watchers, scoped as in auto-close) so they don't poison later runs, but KEEP the worktree and branch for the reviewer. Skip step 4 (the base branch is pushed by the human merge, not here).</mode>
+  </step>
+  <step n="4" title="Push (auto-close only)">Push the base branch to `origin` — part of intent close, not optional. Verify HEAD == origin/HEAD (0 ahead) before reporting success.</step>
+  <step n="5" title="Report">Intent commits; mode; for `auto-close` the push result (ahead → 0) and worktree disposition; for `merge-request` the intent → base MR URL (or the manual-MR instruction when no forge) and that the worktree is preserved for review; each `finalize_check:` result; and the "eyeball:" surfaces note.</step>
 </finalize>
 
 <begin>

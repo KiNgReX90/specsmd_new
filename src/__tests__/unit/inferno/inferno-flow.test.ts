@@ -33,6 +33,12 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
+  it('inferno-writer command body is identical to the canonical writer agent body', () => {
+    const command = readFileSync(path.join(INFERNO, 'commands/inferno-writer.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/writer/agent.md'), 'utf8');
+    expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
   it.each([
     'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs',
     'agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs',

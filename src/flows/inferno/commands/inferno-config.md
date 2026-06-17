@@ -1,5 +1,5 @@
 ---
-description: INFERNO Config - create or update .specs-inferno/config.yaml (autonomy level, worker model tiers, finalize verification)
+description: INFERNO Config - create or update .specs-inferno/config.yaml (autonomy level, worker model tiers, delivery mode, finalize verification)
 ---
 
 # INFERNO Config
@@ -16,16 +16,25 @@ Create or update the optional per-project configuration at `.specs-inferno/confi
 
 ## Procedure
 
-1. Read the annotated template `.specsmd/inferno/agents/orchestrator/config.example.yaml`. If `.specs-inferno/config.yaml` already exists, read it and show the user its current values before asking anything.
-2. Ask the user, ONE question at a time:
-   - **autonomy.level** — *"Run INFERNO fully autonomously (after decomposition, route straight into the orchestrator and start building with no review), or pause after decomposition so you can read the work-item plans first?"* `full` routes into the build automatically; `review` stops after decomposition. Suggest `review`.
-   - **models.strong** — worker model for reasoning-bearing items (complexity medium/high). The value is passed VERBATIM as the per-dispatch model override, so it must be in the form the host's dispatch accepts (on Claude Code: the Agent-tool aliases `opus` / `sonnet` / `haiku`). Suggest `opus`.
-   - **models.cheap** — worker model for mechanical items (kind config-only/docs-only/test, complexity low). Suggest `sonnet`.
-   - **verification.finalize** — the ordered shell commands that are this project's authoritative build/test gate, run once by the orchestrator on the integrated tree before merging. Propose defaults discovered from the repo (e.g. `package.json` scripts) and let the user edit.
-   - **Optional extras** — only if the user wants them: `halt.flag_file` + `halt.wait_script` (budget-halt integration) and `knowledge.index` (knowledge-base index path). Skip silently otherwise.
-3. The user may answer "skip" to any question — omit that key entirely (the flow's documented fallbacks apply; an omitted `autonomy.level` behaves as `review`).
-4. Write `.specs-inferno/config.yaml`, preserving any existing keys you did not ask about. Keep the file minimal: only keys the user actually chose.
-5. Show the final file content and remind the user: model values apply to Claude Code subagent dispatch; other hosts (e.g. Codex) resolve models their own way and ignore the tiers.
+This is a **display-and-confirm** flow, not an interrogation. Show the defaults in
+plain language, let the user accept everything at once or adjust the few things
+they care about, and keep raw model IDs in the background. Do NOT walk the user
+through every key one at a time.
+
+1. Read the annotated template `.specsmd/inferno/agents/orchestrator/config.example.yaml`. If `.specs-inferno/config.yaml` already exists, read it so you display the user's CURRENT values instead of the defaults.
+2. **Display the effective settings in plain language**, then ask one question: *"Use these, or adjust?"* Present them roughly like:
+   - **Complex work items** (the reasoning-heavy ones) → handled by the strong model at maximum effort. *(default: `opus`, xhigh)*
+   - **Simple work items** (mechanical: config, docs, small swaps) → handled by the fast model. *(default: `sonnet`)*
+   - **Plan writing** → drafted in parallel by fast scribe agents. *(default: same as simple)*
+   - **Before building** → the plan is shown for your review first. *(default: `review`; the alternative is fully autonomous)*
+   - **Delivery** → *autonomous* (build, merge, and close automatically) or *production* (open merge requests for review — per work item into the intent, and the whole intent into your base branch). *(default: autonomous)*
+   - **Final check before closing** → the project's build + tests. *(propose what you discover from the repo, e.g. `package.json` scripts)*
+   Keep the model names parenthetical/secondary — the user reasons about "complex vs simple work", not about `opus`/`sonnet`.
+3. If the user accepts, you're done — write only the non-default keys. If they want to adjust, change only what they name; everything else keeps its default. Map their plain-language choices to keys: complex→`models.strong`, simple→`models.cheap`, plan writing→`models.writer`, review→`autonomy.level`, delivery→`delivery.mode`, final check→`verification.finalize`.
+4. **If delivery = production (`merge-request`)**, propose the base branch the intent should merge into — the branch you're currently on, or the repo's default branch — and let the user confirm or change it. Record it as `delivery.base_branch` (omit it to let the orchestrator propose-and-confirm at finalize instead).
+5. Offer the optional extras only if asked: `halt.flag_file` + `halt.wait_script` (budget-halt) and `knowledge.index`. Skip silently otherwise.
+6. Write `.specs-inferno/config.yaml`, preserving any existing keys you did not touch. Keep the file minimal — only keys that differ from the documented defaults. Every key stays optional; an omitted `autonomy.level` behaves as `review`, an omitted `delivery.mode` as `auto-close`, an omitted `models.writer` as `models.cheap`.
+7. Show the final file and note: model values apply to Claude Code subagent dispatch; other hosts (e.g. Codex) resolve models their own way and ignore the tiers.
 
 ---
 
