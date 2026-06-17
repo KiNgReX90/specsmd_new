@@ -26,6 +26,11 @@ function stripFrontmatter(content: string): string {
   return (match ? content.slice(match[0].length) : content).trim();
 }
 
+function frontmatter(content: string): string {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  return match ? match[1] : '';
+}
+
 describe('inferno flow', () => {
   it('inferno-builder command body is identical to the canonical builder agent body', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-builder.md'), 'utf8');
@@ -37,6 +42,21 @@ describe('inferno flow', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-writer.md'), 'utf8');
     const agent = readFileSync(path.join(INFERNO, 'agents/writer/agent.md'), 'utf8');
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  // `effort` is an official subagent frontmatter field (docs: code.claude.com/docs/en/sub-agents.md)
+  // that overrides the session effort level. The installer materializes the .claude/agents/*.md
+  // verbatim from these command files, so the effort declared here is what the dispatched subagent
+  // runs at. The drift tests above strip frontmatter, so these guards keep the effort levels from
+  // being silently dropped — i.e. they make the effort policy "always enforced".
+  it.each([
+    ['commands/inferno-builder.md', 'xhigh'],
+    ['agents/builder/agent.md', 'xhigh'],
+    ['commands/inferno-writer.md', 'low'],
+    ['agents/writer/agent.md', 'low'],
+  ])('%s frontmatter pins effort: %s', (rel, level) => {
+    const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
+    expect(fm).toMatch(new RegExp(`^effort:\\s*${level}\\s*$`, 'm'));
   });
 
   it.each([

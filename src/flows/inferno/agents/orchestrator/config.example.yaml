@@ -29,10 +29,12 @@ autonomy:
 # .claude/agents/specsmd-inferno-builder.md (note: re-running the specsmd
 # installer regenerates that file).
 #
-# Effort/reasoning is NOT set here (per-dispatch overrides cover the model only).
-# The strong tier runs at `xhigh` effort by default via the builder agent's
-# frontmatter (`effort: xhigh` in agents/builder/agent.md + commands/inferno-builder.md).
-# Edit that frontmatter to change effort.
+# Effort/reasoning is NOT set here. Claude Code has no per-dispatch effort override
+# (only model), so effort is pinned in the builder subagent's frontmatter
+# (`effort: xhigh` in agents/builder/agent.md + commands/inferno-builder.md), which
+# overrides the session effort level whenever a builder runs. Edit that frontmatter
+# to change it. Available levels (low|medium|high|xhigh|max) depend on the model —
+# opus supports xhigh; a cheap model may clamp it, which is fine for mechanical work.
 models:
   strong: opus     # complexity medium/high builders, at xhigh effort
   cheap: sonnet     # complexity low + kind config-only/docs-only/test builders
