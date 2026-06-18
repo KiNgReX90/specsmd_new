@@ -29,8 +29,8 @@ If you copy or fork this work, keep this attribution and the [LICENSE](LICENSE) 
 
 ## Attribution
 
-The original FIRE flow baseline was installed from the upstream [specsmd](https://github.com/fabriqaai/specs.md) project (MIT, by the specsmd team) at v0.1.65. Everything on top of that baseline — the INFERNO autonomous parallel flow (planner, builder, orchestrator), the halt protocol, and portability work — is by Rubèn Plantinga.
+The INFERNO autonomous parallel flow (planner, builder, orchestrator), the halt protocol, and the portability work are by **Rubèn Plantinga**.
 
 ## License
 
-[MIT](LICENSE). Copyright (c) 2026 Rubèn Plantinga. Portions derived from specsmd, copyright the specsmd team, also under MIT.
+[MIT](LICENSE). Copyright (c) 2026 Rubèn Plantinga.

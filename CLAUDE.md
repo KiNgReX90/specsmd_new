@@ -12,7 +12,7 @@ INFERNO is this project's specsmd flow: a standalone, autonomous, parallel build
 
 ## Source of truth and build/eval workflow
 
-The flow's source of truth is the upstream clone at `/home/ruben/dev/specsmd-upstream`, branch `feat/inferno-flow`; the flow sources live under `src/flows/inferno/`. To change the flow and validate it:
+This repo is self-contained: the flow's source of truth lives here under `src/flows/inferno/` — the full `specsmd` package (`src/`, `package.json`, all flows) is vendored into this repo. To change the flow and validate it:
 
 1. Edit the flow sources under `src/flows/inferno/`.
 2. `cd src && npm run validate:all`.

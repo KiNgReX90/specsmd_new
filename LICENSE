@@ -2,10 +2,6 @@ MIT License
 
 Copyright (c) 2026 Rubèn Plantinga
 
-Portions of this repository (the FIRE flow baseline under .specsmd/) are
-derived from the specsmd project (https://github.com/fabriqaai/specs.md),
-Copyright (c) specsmd team, also licensed under the MIT License.
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
