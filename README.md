@@ -33,4 +33,4 @@ The INFERNO autonomous parallel flow (planner, builder, orchestrator), the halt 
 
 ## License
 
-[MIT](LICENSE). Copyright (c) 2026 Rubèn Plantinga.
+Proprietary — Copyright (c) 2026 Rubèn Plantinga, all rights reserved. See [LICENSE](LICENSE). Bundled third-party components remain under their own MIT terms.
