@@ -1,0 +1,439 @@
+---
+title: FAQ
+description: Frequently asked questions about specs.md
+---
+
+## General
+
+<AccordionGroup>
+  <Accordion title="What is specs.md?">
+    specs.md is an AI-native development framework with pluggable flows for every use case. It provides markdown-based agents that work with your favorite AI coding tools (Claude Code, Cursor, GitHub Copilot) to guide software development.
+
+    We offer three flows:
+    - **Simple Flow** - Spec generation only (requirements, design, tasks)
+    - **FIRE Flow** - Adaptive execution with brownfield & monorepo support
+    - **AI-DLC Flow** - Full methodology with comprehensive traceability
+
+    [Choose your flow →](/architecture/choose-flow)
+  </Accordion>
+
+  <Accordion title="Which flow should I choose?">
+    | Flow | Optimized For | Checkpoints |
+    |------|---------------|-------------|
+    | **Simple** | Quick specs, prototypes, handoff to other teams | 3 (phase gates) |
+    | **FIRE** | Adaptive execution, brownfield, monorepos | Adaptive |
+    | **AI-DLC** | Full traceability, comprehensive documentation | Comprehensive |
+
+    **Quick decision:**
+    - Just need specs without execution tracking? → **Simple**
+    - Want adaptive rigor that right-sizes to complexity? → **FIRE**
+    - Need comprehensive documentation and fixed workflows? → **AI-DLC**
+
+    [Detailed comparison →](/architecture/choose-flow)
+  </Accordion>
+
+  <Accordion title="What is FIRE flow?">
+    FIRE (Fast Intent-Run Engineering) is an **Adaptive Spec-Driven Development** flow. It analyzes work complexity and your config preference to decide when to ask and when to burn through.
+
+    - **Adaptive checkpoints**: Based on work complexity + your autonomy preference
+    - **Brownfield-first**: Analyzes your existing structure and respects your patterns
+    - **Monorepo support**: Hierarchical standards with module-specific overrides
+    - **Walkthrough generation**: Every change documented automatically
+    - **Design docs when needed**: Implementation plan for simple tasks, design docs for complex ones
+
+    [Learn more about FIRE →](/fire-flow/overview)
+  </Accordion>
+
+  <Accordion title="What is AI-DLC?">
+    AI-DLC is a software development methodology developed by AWS where AI drives the conversation and humans validate. Unlike traditional Agile with week-long sprints, AI-DLC operates in "Bolts" - rapid iterations measured in hours or days.
+
+    Key principles:
+    - **Reimagine, don't retrofit** - AI-DLC is built from first principles, not AI bolted onto Agile
+    - **Reversed conversation** - AI proposes, humans validate (not vice versa)
+    - **DDD as core** - Domain-Driven Design is integral, not optional
+
+    [Learn more about AI-DLC →](/methodology/what-is-ai-dlc)
+  </Accordion>
+
+  <Accordion title="What AI coding tools are supported?">
+    specs.md supports:
+    - **Claude Code** - Full support with slash commands
+    - **Cursor** - Full support with rules
+    - **GitHub Copilot** - Full support with agents
+    - **Google Antigravity** - Full support with agents
+    - **Any AI assistant** - Works with any tool that can read markdown prompts
+  </Accordion>
+
+  <Accordion title="Is specs.md free?">
+    Yes, specs.md is open source under the MIT license. You can use it freely in personal and commercial projects. You only pay for your AI API tokens.
+  </Accordion>
+</AccordionGroup>
+
+## FIRE Flow
+
+<AccordionGroup>
+  <Accordion title="What are FIRE's execution modes?">
+    FIRE adapts oversight to complexity with three modes:
+
+    | Mode | Checkpoints | Use For |
+    |------|-------------|---------|
+    | **Autopilot** | 0 | Bug fixes, minor updates, well-defined changes |
+    | **Confirm** | 1 | Standard features, moderate complexity |
+    | **Validate** | 2 | Security, payments, core architecture |
+
+    [Learn more about execution modes →](/fire-flow/execution-modes)
+  </Accordion>
+
+  <Accordion title="How does FIRE handle brownfield projects?">
+    FIRE treats existing codebases as first-class citizens:
+    - **Auto-detection**: Scans your codebase to infer tech stack and conventions
+    - **Search before create**: Extends existing modules rather than duplicating
+    - **Respect patterns**: Follows existing naming and folder structures
+    - **Minimal changes**: Targeted edits, no unnecessary rewrites
+
+    [Learn more about brownfield support →](/fire-flow/monorepo-support)
+  </Accordion>
+
+  <Accordion title="How does FIRE support monorepos?">
+    FIRE has first-class monorepo support with hierarchical standards:
+    - **Root standards**: Project-wide defaults
+    - **Module overrides**: Per-module tech stack and conventions
+    - **Constitution**: Universal policies (always inherited, never overridden)
+    - **AI detection**: Automatically detects language/framework per module
+
+    [Learn more about monorepo support →](/fire-flow/monorepo-support)
+  </Accordion>
+
+  <Accordion title="What are walkthroughs in FIRE?">
+    Walkthroughs are generated documentation after each work item completes:
+    - Summary of what changed
+    - Files created/modified/deleted
+    - Key decisions made
+    - Verification steps
+    - Test coverage
+
+    They enable async review—you don't need to watch AI code in real-time.
+  </Accordion>
+
+  <Accordion title="When should I NOT use FIRE?">
+    Consider AI-DLC instead if:
+    - You have a large team requiring coordination
+    - Your domain logic is complex and needs DDD
+    - You're in a regulated environment requiring extensive documentation
+    - Multiple stakeholders need to review and approve changes
+
+    [Flow comparison →](/architecture/choose-flow)
+  </Accordion>
+</AccordionGroup>
+
+## Why AI-DLC? (The Agentic Age)
+
+<AccordionGroup>
+  <Accordion title="Why do we need a new methodology? What's wrong with Agile?">
+    Traditional methods were built for longer iteration durations (months and weeks), leading to rituals like daily standups and retrospectives. With AI, iteration cycles are measured in hours or days.
+
+    Retrofitting AI into Agile limits its potential and reinforces outdated inefficiencies. We need automobiles, not faster horse chariots.
+
+    [Read: The AI-Native SDLC: Reimagined →](/methodology/sdlc-reimagined)
+  </Accordion>
+
+  <Accordion title="Why are sprints becoming obsolete?">
+    - **Two weeks is no longer fast** - AI produces working prototypes in hours
+    - **Story points are meaningless** - AI execution time bears no relation to human effort
+    - **Sprint boundaries create artificial delays** - Completed work waits for ceremonies
+    - **Velocity fluctuates wildly** - Based on AI tool usage, not team capability
+
+    AI-DLC replaces sprints with "Bolts" - hours or days, not weeks.
+  </Accordion>
+
+  <Accordion title="What is V-Bounce?">
+    V-Bounce is a model from the [Crowdbotics research paper](https://arxiv.org/abs/2408.03416) that introduced a key insight: humans shift from primary implementers to validators and verifiers.
+
+    AI handles planning, coding, and testing. Humans focus on requirements, architecture, and continuous validation.
+  </Accordion>
+
+  <Accordion title="What does 'AI drives, human validates' mean?">
+    In traditional development, humans prompt AI to complete tasks. In AI-DLC, the conversation is reversed:
+
+    **Traditional**: Human asks → AI responds
+
+    **AI-DLC**: AI proposes breakdown, trade-offs, designs → Human validates, approves, redirects
+
+    Think of it like Google Maps: you set the destination, AI provides step-by-step directions, you maintain oversight.
+  </Accordion>
+
+  <Accordion title="What are Mob Elaboration and Mob Construction?">
+    These are AI-DLC's collaborative rituals:
+
+    - **Mob Elaboration** (Inception): Product managers, developers, QA collaborate with AI to refine requirements into user stories. What took months now takes hours.
+
+    - **Mob Construction** (Construction): Teams work in parallel after domain modeling, with AI generating component models while team provides real-time clarification.
+
+    Both happen in a single room with shared screen for deep alignment.
+  </Accordion>
+</AccordionGroup>
+
+## Comparisons
+
+<AccordionGroup>
+  <Accordion title="How does specs.md compare to GitHub Spec Kit?">
+    **Spec Kit** is a toolkit with agent prompts (`/speckit.specify`, `/speckit.plan`, `/speckit.tasks`) for 15+ AI assistants.
+
+    **specs.md** is a full methodology with phase-based agents, Mob rituals, and DDD integration.
+
+    Choose Spec Kit for a 4-phase workflow with minimal learning curve. Choose specs.md for complex systems needing formal methodology structure.
+
+    [specs.md (Simple Flow)](/simple-flow/overview) provides Kiro-style Requirements → Design → Tasks workflow.
+
+    [Full comparison →](/compare/vs-speckit)
+  </Accordion>
+
+  <Accordion title="How does specs.md compare to BMAD-Method?">
+    Both target complex systems:
+
+    - **BMAD**: 19+ role-based agents (Analyst, PM, Architect, Dev, QA...)
+    - **specs.md**: 3 phase-based agents (Master, Inception, Construction, Operations)
+
+    Choose BMAD for maximum agent customization. Choose specs.md for formal AWS methodology with simpler agent model.
+
+    [Full comparison →](/compare/vs-bmad)
+  </Accordion>
+
+  <Accordion title="How does specs.md compare to Kiro (AWS)?">
+    **Kiro** is a full IDE with built-in spec-driven development and agent hooks.
+
+    **specs.md** is IDE-agnostic—works with any editor and AI model.
+
+    | Aspect | specs.md | Kiro |
+    |--------|----------|------|
+    | IDE | Any | Kiro only |
+    | AI Model | Any | Claude Sonnet only |
+    | Pricing | Free + API tokens | $19-39/month |
+
+    [specs.md (Simple Flow)](/simple-flow/overview) provides a Kiro-style workflow that works with any IDE.
+
+    [Full comparison →](/compare/vs-kiro)
+  </Accordion>
+
+  <Accordion title="How does specs.md compare to OpenSpec?">
+    **OpenSpec** is brownfield-first, focused on change management with excellent token efficiency.
+
+    **specs.md** provides full lifecycle support (Inception → Operations) for both greenfield and brownfield.
+
+    Choose OpenSpec for high-volume small changes. Choose specs.md for full lifecycle complex systems.
+
+    [Full comparison →](/compare/vs-openspec)
+  </Accordion>
+
+  <Accordion title="Do I need other spec-driven tools if I use specs.md?">
+    No. specs.md is a complete methodology that includes everything you need:
+
+    - Formal phases (Inception → Construction → Operations)
+    - Defined rituals (Mob Elaboration, Mob Construction)
+    - Design integration (DDD as core)
+    - Memory Bank for persistent context
+    - Phase-based agents
+
+    Other tools focus on specifications only. AI-DLC is a full methodology.
+  </Accordion>
+</AccordionGroup>
+
+## Installation
+
+<AccordionGroup>
+  <Accordion title="How do I install specs.md?">
+    ```bash
+    npx specsmd@latest install
+    ```
+
+    The installer automatically detects your AI coding tools and sets up the appropriate agents.
+
+    [Full installation guide →](/getting-started/installation)
+  </Accordion>
+
+  <Accordion title="Should I install globally with npm?">
+    No. Always use `npx specsmd@latest install` to ensure you get the latest version. Global installation may result in using an outdated version.
+  </Accordion>
+
+  <Accordion title="What gets installed?">
+    specs.md creates a `.specsmd/` directory with:
+    - Agent definitions
+    - Skills and capabilities
+    - Templates for artifacts
+    - Memory bank schema
+
+    It also creates tool-specific files (e.g., `.claude/commands/` for Claude Code).
+  </Accordion>
+</AccordionGroup>
+
+## Usage
+
+<AccordionGroup>
+  <Accordion title="Agents don't seem to remember previous context?">
+    Each agent invocation starts fresh. Agents read context from the Memory Bank at startup.
+
+    **Solution**: Ensure artifacts are saved after each step. The Memory Bank is how context persists between sessions.
+  </Accordion>
+
+  <Accordion title="How do I reset project state?">
+    To reset all artifacts, clear the `memory-bank/` directory:
+    ```bash
+    rm -rf memory-bank/
+    ```
+
+    To remove specs.md entirely:
+    ```bash
+    rm -rf .specsmd/
+    rm -rf .claude/commands/specsmd-*  # For Claude Code
+    ```
+  </Accordion>
+
+  <Accordion title="Can I use specs.md with existing Agile workflows?">
+    AI-DLC is designed as a reimagination of development methodology, not a retrofit. However, familiar concepts (user stories, acceptance criteria) are retained to ease transition.
+
+    You can use specs.md alongside existing Agile processes, treating Intents as Epics and Bolts as focused work items within sprints.
+  </Accordion>
+
+  <Accordion title="Can I use specs.md on existing codebases (brownfield)?">
+    Yes. AI-DLC supports brownfield development through "model elevation" - AI first converts existing code to semantic models (domain components, responsibilities, relationships) before making changes.
+
+    This ensures AI understands the existing system before proposing modifications.
+  </Accordion>
+</AccordionGroup>
+
+## Methodology
+
+<AccordionGroup>
+  <Accordion title="What's the difference between Intents, Units, and Bolts?">
+    - **Intent**: High-level goal ("Build user authentication")
+    - **Unit**: Cohesive work element derived from Intent ("User Registration")
+    - **Bolt**: Smallest iteration, hours to days ("Registration Domain Model")
+
+    [Learn more about core concepts →](/core-concepts/intents)
+  </Accordion>
+
+  <Accordion title="What are the three phases?">
+    1. **Inception**: Mob Elaboration ritual - capture intents, decompose into units and stories
+    2. **Construction**: Mob Construction ritual - domain modeling, code generation, testing
+    3. **Operations**: Deployment, monitoring, maintenance
+
+    [Learn more about phases →](/methodology/three-phases)
+  </Accordion>
+
+  <Accordion title="What are human checkpoints?">
+    Human checkpoints are validation points within a bolt. You must approve each stage before proceeding to the next:
+
+    1. Domain Model → **CHECKPOINT** → Technical Design → **CHECKPOINT** → etc.
+
+    This catches errors early before they cascade downstream.
+  </Accordion>
+
+  <Accordion title="What bolt types are available?">
+    | Type | Use Case |
+    |------|----------|
+    | **DDD Construction** | Complex business logic, domain modeling |
+    | **Simple Construction** | UI, integrations, utilities |
+  </Accordion>
+
+  <Accordion title="What is the Memory Bank?">
+    The Memory Bank is a file-based storage system for all project artifacts. It maintains context across agent sessions and provides traceability between requirements, designs, code, and tests.
+
+    [Learn more about Memory Bank →](/core-concepts/memory-bank)
+  </Accordion>
+
+  <Accordion title="Why is DDD (Domain-Driven Design) required?">
+    Unlike Agile frameworks that leave design techniques optional, AI-DLC integrates DDD as its core. AI applies domain-driven design principles during decomposition:
+
+    - Bounded contexts
+    - Aggregates and entities
+    - Domain events
+    - Repositories and factories
+
+    This ensures consistent, high-quality domain models regardless of which team member is working.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent commands not recognized">
+    Ensure specs.md is installed correctly:
+    ```bash
+    ls .specsmd/aidlc/agents/
+    ```
+
+    If the directory is empty or missing, reinstall:
+    ```bash
+    npx specsmd@latest install
+    ```
+  </Accordion>
+
+  <Accordion title="Memory Bank artifacts missing">
+    Check if the memory-bank directory exists:
+    ```bash
+    ls memory-bank/
+    ```
+
+    If missing, run project initialization:
+    ```bash
+    /specsmd-master-agent
+    > project-init
+    ```
+  </Accordion>
+
+  <Accordion title="Standards not being followed in generated code">
+    Ensure standards are defined in `memory-bank/standards/`:
+    - `tech-stack.md`
+    - `coding-standards.md`
+    - `architecture.md`
+
+    If missing or incomplete, use the Master Agent to define them:
+    ```bash
+    /specsmd-master-agent
+    > project-init
+    ```
+  </Accordion>
+
+  <Accordion title="AI not following the spec properly">
+    This is a known limitation of all spec-driven tools. Even with comprehensive specs, AI agents don't always follow every instruction.
+
+    **Solutions**:
+    - Use checkpoints to catch errors early
+    - Break work into smaller, clearer units
+    - Ensure Memory Bank has complete context
+    - Validate each step before proceeding
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card
+    title="AI-DLC Whitepaper (AWS)"
+    icon="file-pdf"
+    href="https://github.com/fabriqaai/specsmd/blob/main/resources/aidlc.pdf"
+  >
+    Original AWS whitepaper defining AI-DLC methodology
+  </Card>
+  <Card
+    title="V-Bounce Paper (arXiv)"
+    icon="book"
+    href="https://arxiv.org/abs/2408.03416"
+  >
+    AI-Native Software Development Lifecycle research
+  </Card>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/fabriqaai/specsmd"
+  >
+    Source code, issues, and contributions
+  </Card>
+  <Card
+    title="Compare Tools"
+    icon="scale-balanced"
+    href="/compare/overview"
+  >
+    See how specs.md compares to alternatives
+  </Card>
+</CardGroup>

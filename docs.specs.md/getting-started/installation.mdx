@@ -1,0 +1,219 @@
+---
+title: Installation
+description: Install specs.md and select your development flow
+---
+
+## Prerequisites
+
+- Node.js 18 or higher
+- An AI coding tool (Claude Code, Cursor, GitHub Copilot, or Google Antigravity)
+
+## Install specs.md
+
+<Note>
+  Always use npx to get the latest version. Do not install globally with npm.
+</Note>
+
+```bash
+npx specsmd@latest install
+```
+
+## Select Your Flow
+
+During installation, you'll be prompted to select a development flow:
+
+```
+? Select a development flow:
+  Simple - Spec generation only (requirements, design, tasks)
+❯ FIRE - Adaptive execution, brownfield & monorepo ready
+  AI-DLC - Full methodology with DDD (comprehensive checkpoints)
+```
+
+| Flow | Best For | Agents |
+|------|----------|--------|
+| **Simple** | Quick specs, prototypes, handoff | 1 |
+| **FIRE** | Adaptive execution, brownfield, monorepos | 3 |
+| **AI-DLC** | Full traceability, comprehensive documentation | 4 |
+
+<Info>
+  **Not sure which flow?** Check out our [Choose Your Flow](/architecture/choose-flow) guide.
+</Info>
+
+The installer automatically detects your AI coding tools and sets up:
+
+<CardGroup cols={3}>
+  <Card title="Agent Definitions" icon="robot">
+    Specialized agents for your selected flow
+  </Card>
+  <Card title="Standards" icon="ruler">
+    Project guidelines and conventions
+  </Card>
+  <Card title="Slash Commands" icon="terminal">
+    Easy agent invocation commands
+  </Card>
+</CardGroup>
+
+## What Gets Installed
+
+After installation, you'll see the following structure based on your selected flow:
+
+<Tabs>
+  <Tab title="Simple Flow">
+    ```
+    .specsmd/
+    ├── manifest.yaml              # Installation manifest
+    └── simple/                    # Simple flow
+        └── agents/                # Single agent
+
+    specs/                         # Your specs will go here
+    └── (feature folders)
+    ```
+  </Tab>
+  <Tab title="FIRE Flow">
+    ```
+    .specsmd/
+    ├── manifest.yaml              # Installation manifest
+    └── fire/                      # FIRE flow
+        ├── agents/                # Orchestrator, Planner, Builder
+        └── skills/                # Agent capabilities
+
+    .specs-fire/                   # Project artifacts
+    ├── state.yaml                 # Central state tracking
+    ├── standards/                 # Project standards
+    ├── intents/                   # Intent documentation
+    ├── runs/                      # Run logs
+    └── walkthroughs/              # Generated documentation
+    ```
+  </Tab>
+  <Tab title="AI-DLC Flow">
+    ```
+    .specsmd/
+    ├── manifest.yaml              # Installation manifest
+    └── aidlc/                     # AI-DLC flow
+        ├── agents/                # Master, Inception, Construction, Operations
+        ├── skills/                # Agent capabilities
+        ├── templates/             # Artifact templates
+        └── memory-bank.yaml       # Memory bank schema
+
+    memory-bank/                   # Project artifacts
+    ├── standards/                 # Project standards
+    ├── intents/                   # Intent documentation
+    └── bolts/                     # Bolt tracking
+    ```
+  </Tab>
+</Tabs>
+
+## Tool-Specific Setup
+
+<Tabs>
+  <Tab title="Claude Code">
+    Slash commands are installed in `.claude/commands/`. Type `/` to see available commands:
+
+    <Frame>
+      <img src="/images/claude-code-commands.png" alt="Claude Code Commands" style={{ borderRadius: '8px' }} />
+    </Frame>
+
+    **Simple Flow:**
+    - `/specsmd-agent`
+
+    **FIRE Flow:**
+    - `/specsmd-fire`
+    - `/specsmd-fire-planner`
+    - `/specsmd-fire-builder`
+
+    **AI-DLC Flow:**
+    - `/specsmd-master-agent`
+    - `/specsmd-inception-agent`
+    - `/specsmd-construction-agent`
+    - `/specsmd-operations-agent`
+  </Tab>
+  <Tab title="Cursor">
+    Commands are installed in `.cursor/commands/` as `.md` files. Invoke them by typing `/` followed by the command name:
+
+    <Frame>
+      <img src="/images/cursor-commands.png" alt="Cursor Commands" style={{ borderRadius: '8px' }} />
+    </Frame>
+
+    **Simple Flow:**
+    - `/specsmd-agent`
+
+    **FIRE Flow:**
+    - `/specsmd-fire`
+    - `/specsmd-fire-planner`
+    - `/specsmd-fire-builder`
+
+    **AI-DLC Flow:**
+    - `/specsmd-master-agent`
+    - `/specsmd-inception-agent`
+    - `/specsmd-construction-agent`
+    - `/specsmd-operations-agent`
+  </Tab>
+  <Tab title="GitHub Copilot">
+    Agents are installed in `.github/agents/` using `.agent.md` format. Type `/` to see available commands:
+
+    <Frame>
+      <img src="/images/copilot-commands.png" alt="GitHub Copilot Commands" style={{ borderRadius: '8px' }} />
+    </Frame>
+
+    **Simple Flow:**
+    - `/specsmd-agent`
+
+    **FIRE Flow:**
+    - `/specsmd-fire`
+    - `/specsmd-fire-planner`
+    - `/specsmd-fire-builder`
+
+    **AI-DLC Flow:**
+    - `/specsmd-master-agent`
+    - `/specsmd-inception-agent`
+    - `/specsmd-construction-agent`
+    - `/specsmd-operations-agent`
+  </Tab>
+  <Tab title="Google Antigravity">
+    Workflows are installed in `.agent/workflows/` as `.md` files. Type `/` to see available commands:
+
+    <Frame>
+      <img src="/images/antigravity-commands.png" alt="Google Antigravity Commands" style={{ borderRadius: '8px' }} />
+    </Frame>
+
+    **Simple Flow:**
+    - `/specsmd-agent`
+
+    **FIRE Flow:**
+    - `/specsmd-fire`
+    - `/specsmd-fire-planner`
+    - `/specsmd-fire-builder`
+
+    **AI-DLC Flow:**
+    - `/specsmd-master-agent`
+    - `/specsmd-inception-agent`
+    - `/specsmd-construction-agent`
+    - `/specsmd-operations-agent`
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card
+    title="Simple Quick Start"
+    icon="feather"
+    href="/simple-flow/quick-start"
+  >
+    Generate specs in minutes
+  </Card>
+  <Card
+    title="FIRE Quick Start"
+    icon="bolt"
+    href="/fire-flow/quick-start"
+  >
+    Ship your first feature fast
+  </Card>
+  <Card
+    title="AI-DLC Quick Start"
+    icon="building"
+    href="/getting-started/quick-start"
+  >
+    Full methodology walkthrough
+  </Card>
+</CardGroup>

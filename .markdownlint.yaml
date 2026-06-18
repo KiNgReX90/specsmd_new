@@ -1,0 +1,266 @@
+# Markdownlint configuration for specsmd
+# See: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# Default: enable all rules
+default: true
+
+# MD001 - Heading levels should only increment by one level at a time
+MD001: true
+
+# MD003 - Heading style (ATX style with # prefix)
+MD003:
+  style: atx
+
+# MD004 - Unordered list style (consistent)
+MD004:
+  style: consistent
+
+# MD007 - Unordered list indentation
+MD007:
+  indent: 2
+
+# MD009 - Trailing spaces
+MD009:
+  br_spaces: 2
+  strict: false
+
+# MD010 - Hard tabs
+MD010:
+  code_blocks: false
+
+# MD012 - Multiple consecutive blank lines
+MD012:
+  maximum: 2
+
+# MD013 - Line length (disabled for specs - they often have long lines)
+MD013: false
+
+# MD022 - Headings should be surrounded by blank lines
+MD022:
+  lines_above: 1
+  lines_below: 1
+
+# MD024 - Multiple headings with the same content (allow for repeated section names)
+MD024:
+  siblings_only: true
+
+# MD025 - Single top-level heading in the document
+MD025: true
+
+# MD026 - Trailing punctuation in heading
+MD026:
+  punctuation: ".,;:!"
+
+# MD028 - Blank line inside blockquote
+MD028: false
+
+# MD029 - Ordered list item prefix
+MD029:
+  style: ordered
+
+# MD030 - Spaces after list markers
+MD030:
+  ul_single: 1
+  ol_single: 1
+  ul_multi: 1
+  ol_multi: 1
+
+# MD031 - Fenced code blocks should be surrounded by blank lines
+MD031: true
+
+# MD032 - Lists should be surrounded by blank lines
+MD032: true
+
+# MD033 - Inline HTML (allow for special cases)
+# Includes semantic XML elements used in FIRE flow SKILL.md files
+MD033:
+  allowed_elements:
+    - br
+    - details
+    - summary
+    - kbd
+    - sub
+    - sup
+    # FIRE flow semantic elements
+    - action
+    - adaptation
+    - ai_fallback
+    - anti_bias
+    - check
+    - clarification
+    - constraints
+    - criteria
+    - critic
+    - exit
+    - goto
+    - handoff
+    - llm
+    - mode
+    - principles
+    - reference
+    - scope
+    - script
+    - step
+    - stop
+    - ask
+    - begin
+    - bias_table
+    - brownfield_rules
+    - check_constitution
+    - check_monorepo
+    - check_schema
+    - checkpoint
+    - code
+    - complete_item_output
+    - complete_run_output
+    - constraint
+    - context_passed_to_agents
+    - criterion
+    - critical_clarifications
+    - critical
+    - degrees_of_freedom
+    - description
+    - design_document_flow
+    - determine_resume_point
+    - dreamer
+    - error
+    - example_output
+    - example
+    - examples
+    - execution_modes
+    - file_discovery_logic
+    - file_tracking_format
+    - file_tracking
+    - flow
+    - flow_transitions
+    - format
+    - generate_options
+    - grouping_algorithm
+    - grouping_rules
+    - guarantee
+    - guidelines
+    - handoff_format
+    - handoff_protocol
+    - history_entry
+    - input_context
+    - intent_capture_flow
+    - invoke_skill
+    - if
+    - listen
+    - mandate
+    - monorepo_detection
+    - note
+    - objective
+    - on_activation
+    - output_artifact
+    - output_artifacts
+    - output_format
+    - output_template
+    - output
+    - prerequisites
+    - principle
+    - protocols
+    - recommendation_logic
+    - realist
+    - reasoning
+    - references
+    - references_index
+    - resolution_algorithm
+    - return_value
+    - return
+    - role
+    - route_to
+    - routing_decision_tree
+    - routing_logic
+    - rule
+    - run_folder_structure
+    - run_lifecycle
+    - safety_guarantees
+    - scope_types
+    - scripts
+    - set
+    - session_management
+    - skills
+    - scoring
+    - state_schema_updates
+    - state_schema
+    - substep
+    - success_criteria
+    - timeline
+    - transition
+    - triggers
+    - version_detection
+    - work_item_decomposition_flow
+    # INFERNO orchestrator semantic elements
+    - config
+    - worktree
+    - status
+    - case
+    - resume
+    - finalize
+
+# MD034 - Bare URL used
+MD034: true
+
+# MD035 - Horizontal rule style
+MD035:
+  style: "---"
+
+# MD036 - Emphasis used instead of a heading (disabled - we use bold for emphasis)
+MD036: false
+
+# MD037 - Spaces inside emphasis markers
+MD037: true
+
+# MD038 - Spaces inside code span elements
+MD038: true
+
+# MD039 - Spaces inside link text
+MD039: true
+
+# MD040 - Fenced code blocks should have a language specified (disabled - too strict for docs)
+MD040: false
+
+# MD041 - First line should be a top-level heading
+# Disabled: FIRE flow files intentionally start with semantic XML tags (<role>, <objective>)
+MD041: false
+
+# MD042 - No empty links
+MD042: true
+
+# MD044 - Proper names should have correct capitalization
+MD044:
+  names:
+    - specsmd
+    - AI-DLC
+    - TypeScript
+    - JavaScript
+  code_blocks: false
+  html_elements: false
+
+# MD046 - Code block style
+# Disabled: FIRE flow files use indented code blocks for XML examples
+MD046: false
+
+# MD047 - Files should end with a single newline
+MD047: true
+
+# MD048 - Code fence style (disabled - we use tilde fences for nested code block examples)
+MD048: false
+
+# MD049 - Emphasis style
+MD049:
+  style: asterisk
+
+# MD050 - Strong style
+MD050:
+  style: asterisk
+
+# MD055 - Table pipe style (disabled - linter confused by tables inside XML blocks)
+MD055: false
+
+# MD056 - Table column count (disabled - linter confused by tables inside XML blocks)
+MD056: false
+
+# MD060 - Table column style (disabled - cosmetic, doesn't affect rendering)
+MD060: false

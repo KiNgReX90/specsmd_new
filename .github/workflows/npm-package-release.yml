@@ -1,0 +1,133 @@
+name: NPM Package Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+concurrency:
+  group: npm-package-release-main
+  cancel-in-progress: false
+
+jobs:
+  npm-package-test:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src
+        run: npm ci
+
+      - name: Lint markdown files
+        working-directory: src
+        run: npm run lint:md
+
+      - name: Run schema validation tests
+        working-directory: src
+        run: npm run test:schema
+
+      - name: Run all tests
+        working-directory: src
+        run: npm test
+
+  npm-package-release:
+    needs: npm-package-test
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: src
+        run: npm ci
+
+      - name: Install VS Code extension dependencies
+        working-directory: vs-code-extension
+        run: npm ci
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version
+        id: version
+        working-directory: src
+        run: |
+          # Bump patch version (e.g., 1.0.5 -> 1.0.6)
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped to version $NEW_VERSION"
+
+      - name: Commit version bump
+        run: |
+          git add src/package.json src/package-lock.json
+          git commit -m "chore(npm): bump version to ${{ steps.version.outputs.version }} [skip ci]"
+
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt: syncing with latest main before push..."
+            git pull --rebase origin main
+            if git push origin HEAD:main; then
+              echo "Version bump pushed successfully."
+              exit 0
+            fi
+          done
+
+          echo "Failed to push version bump after 3 attempts."
+          exit 1
+
+      - name: Copy README to src for npm package
+        run: cp README.md src/README.md
+
+      - name: Build and sync dashboard webview bundle
+        run: |
+          npm --prefix vs-code-extension run compile:webview
+          npm --prefix src run sync:webview-bundle
+          npm --prefix src run check:webview-bundle
+
+      - name: Publish to npm
+        working-directory: src
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create tag
+          git tag -a "v${{ steps.version.outputs.version }}" -m "specsmd v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+          # Create GitHub release
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "specsmd v${{ steps.version.outputs.version }}" \
+            --notes "## specsmd v${{ steps.version.outputs.version }}
+
+          Install from npm:
+          \`\`\`bash
+          npx specsmd@${{ steps.version.outputs.version }} install
+          \`\`\`"

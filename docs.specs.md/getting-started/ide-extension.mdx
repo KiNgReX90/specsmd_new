@@ -1,0 +1,229 @@
+---
+title: IDE Extension
+description: Track your AI-DLC progress with the specsmd sidebar extension for VS Code and compatible IDEs
+---
+
+## Overview
+
+The specsmd IDE extension provides a visual dashboard for tracking your development progress across both **FIRE Flow** and **AI-DLC Flow**. Monitor runs/bolts, browse specs, and see project metrics—all from your IDE sidebar.
+
+<img
+  src="/images/extension-preview.png"
+  alt="VS Code Extension Preview"
+  style={{ borderRadius: '8px', marginBottom: '16px' }}
+/>
+
+<Info>
+  Works with VS Code-based IDEs including [Cursor](https://cursor.sh), [Google Antigravity](https://antigravity.google), [Windsurf](https://codeium.com/windsurf), [GitHub Codespaces](https://github.com/features/codespaces), [Gitpod](https://gitpod.io), and [Amazon Kiro](https://kiro.dev).
+</Info>
+
+## Installation
+
+<Tabs>
+  <Tab title="VS Code Marketplace">
+    Install directly from the Microsoft VS Code Marketplace:
+
+    1. Open VS Code (or Cursor, Windsurf, etc.)
+    2. Go to Extensions (`Cmd+Shift+X` / `Ctrl+Shift+X`)
+    3. Search for "specsmd"
+    4. Click **Install**
+
+    Or install via command line:
+    ```bash
+    code --install-extension fabriqaai.specsmd
+    ```
+
+    <Card
+      title="View on VS Code Marketplace"
+      icon="microsoft"
+      href="https://marketplace.visualstudio.com/items?itemName=fabriqaai.specsmd"
+    >
+      Install from the official VS Code Marketplace
+    </Card>
+
+    **Compatible IDEs:** VS Code, GitHub Codespaces
+  </Tab>
+  <Tab title="Open VSX Registry">
+    Install from Open VSX for VS Code forks and open-source IDEs:
+
+    1. Open your IDE (Cursor, Windsurf, Kiro, etc.)
+    2. Go to Extensions
+    3. Search for "specsmd"
+    4. Click **Install**
+
+    <Card
+      title="View on Open VSX"
+      icon="box"
+      href="https://open-vsx.org/extension/fabriqaai/specsmd"
+    >
+      Install from the Open VSX Registry
+    </Card>
+
+    **Compatible IDEs:** Cursor, Windsurf, Amazon Kiro, Google Antigravity, VSCodium, Gitpod, Google IDX, Eclipse Theia, Code-Server
+  </Tab>
+  <Tab title="Manual Install (VSIX)">
+    Download and install the VSIX file manually:
+
+    1. Go to [GitHub Releases](https://github.com/fabriqaai/specs.md/releases)
+    2. Download the latest `.vsix` file
+    3. In VS Code, open Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+    4. Run "Extensions: Install from VSIX..."
+    5. Select the downloaded file
+
+    <Card
+      title="GitHub Releases"
+      icon="github"
+      href="https://github.com/fabriqaai/specs.md/releases"
+    >
+      Download VSIX for manual installation
+    </Card>
+  </Tab>
+</Tabs>
+
+## Features
+
+The extension supports **both FIRE Flow and AI-DLC Flow**. It automatically detects which flow you're using and adapts the interface accordingly.
+
+---
+
+## FIRE Flow Views
+
+If you're using FIRE Flow (`.specs-fire/` folder), the extension provides:
+
+<Frame>
+  <img src="/images/extension-gallery/fireflow-extension/1.png" alt="FIRE Flow - Runs Tab" style={{ borderRadius: '8px' }} />
+</Frame>
+
+- **Runs Tab** - Track active runs and completed runs with file listings
+- **Intents Tab** - Browse intents and work items with progress indicators
+- **Overview Tab** - Project-wide metrics and quick actions
+
+<Frame>
+  <img src="/images/extension-gallery/fireflow-extension/3.png" alt="FIRE Flow - Overview" style={{ borderRadius: '8px' }} />
+</Frame>
+
+---
+
+## AI-DLC Flow Views
+
+If you're using AI-DLC Flow (`memory-bank/` folder), the extension provides three main views:
+
+### Bolts Tab
+
+Track your bolt execution progress in real-time.
+
+<Frame>
+  <img src="/images/extension-gallery/bolts.jpeg" alt="Bolts Tab" style={{ borderRadius: '8px' }} />
+</Frame>
+
+<AccordionGroup>
+  <Accordion title="Current Focus">
+    Shows active bolts being worked on with:
+    - Bolt name and type (DDD, Simple)
+    - Current stage progress
+    - Stage pipeline with status indicators
+    - Stories list with completion status
+  </Accordion>
+  <Accordion title="Up Next Queue">
+    Shows pending bolts ready to be started:
+    - Unblocked bolts first (higher priority)
+    - Blocked bolts with dependency info
+    - Quick start button for each bolt
+  </Accordion>
+  <Accordion title="Recent Activity">
+    Timeline of bolt and stage completions:
+    - Filterable by All, Stages, or Bolts
+    - Relative timestamps
+    - Click to navigate to files
+  </Accordion>
+</AccordionGroup>
+
+### Specs Tab
+
+Browse your project specifications hierarchically.
+
+<Frame>
+  <img src="/images/extension-gallery/specs.jpeg" alt="Specs Tab" style={{ borderRadius: '8px' }} />
+</Frame>
+
+- **Intents** - High-level goals with progress indicators
+- **Units** - Cohesive work elements within intents
+- **Stories** - Individual user stories with status
+
+Click any item to open its markdown file.
+
+### Overview Tab
+
+High-level project metrics and quick actions.
+
+<Frame>
+  <img src="/images/extension-gallery/overview.jpeg" alt="Overview Tab" style={{ borderRadius: '8px' }} />
+</Frame>
+
+- **Progress** - Overall completion percentage
+- **Stats** - Active, queued, done, and blocked bolts
+- **Suggested Actions** - AI-recommended next steps
+- **Standards** - Quick access to project standards
+
+## Activation
+
+The extension automatically activates when it detects:
+- A `memory-bank/` folder in your workspace (AI-DLC Flow)
+- A `.specs-fire/` folder in your workspace (FIRE Flow)
+- A `.specsmd/` folder in your workspace
+
+<Note>
+  Make sure you've run `npx specsmd@latest install` first to set up your project structure.
+</Note>
+
+## Refreshing Data
+
+The extension watches your memory-bank files for changes. To manually refresh:
+- Click the refresh icon in the sidebar header
+- Or use Command Palette: "specsmd: Refresh"
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Extension not showing in sidebar">
+    Ensure your workspace has one of these folders:
+    - `memory-bank/` (AI-DLC Flow)
+    - `.specs-fire/` (FIRE Flow)
+    - `.specsmd/` (Either flow)
+
+    The extension only activates when these are present.
+
+    ```bash
+    # Initialize specs.md first
+    npx specsmd@latest install
+    ```
+  </Accordion>
+  <Accordion title="Data not updating">
+    Click the refresh icon in the sidebar header, or check that your memory-bank files are saved.
+  </Accordion>
+  <Accordion title="Extension not working in Cursor/Windsurf/other IDEs">
+    The extension is compatible with VS Code-based IDEs. Install from the correct registry:
+    - **VS Code Marketplace** — VS Code, GitHub Codespaces (Microsoft products only)
+    - **Open VSX Registry** — Cursor, Windsurf, Amazon Kiro, Google Antigravity, VSCodium, Gitpod, Google IDX, Eclipse Theia, Code-Server
+    - **VSIX file** — Manual installation for any compatible IDE
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Choose Your Flow"
+    icon="compass"
+    href="/architecture/choose-flow"
+  >
+    Compare Simple, FIRE, and AI-DLC flows
+  </Card>
+  <Card
+    title="FIRE Quick Start"
+    icon="bolt"
+    href="/fire-flow/quick-start"
+  >
+    Ship your first feature with FIRE Flow
+  </Card>
+</CardGroup>

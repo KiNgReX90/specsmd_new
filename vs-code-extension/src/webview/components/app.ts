@@ -1,0 +1,1482 @@
+/**
+ * SpecsmdApp - Root component for the SpecsMD webview.
+ *
+ * This is the main entry point component that manages:
+ * - Tab navigation state
+ * - Communication with the VS Code extension
+ * - View content rendering
+ *
+ * Bolts view uses Lit components with structured data.
+ * Specs and Overview views use server-rendered HTML (hybrid approach).
+ */
+
+import { html, css, svg } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { BaseElement } from './shared/base-element.js';
+import './tabs/view-tabs.js';
+import './bolts/bolts-view.js';
+import './shared/flow-switcher.js';
+// FIRE flow components
+import './fire/fire-view.js';
+import type { TabId, TabChangeDetail } from './tabs/view-tabs.js';
+import type { BoltsViewData } from './bolts/bolts-view.js';
+import type { ActivityFilter } from './bolts/activity-feed.js';
+import type { FlowInfo } from './shared/flow-switcher.js';
+import type { FireViewData } from './fire/fire-view.js';
+import type { FireTabId } from './fire/fire-view-tabs.js';
+import { applyTheme, getInitialTheme, persistTheme, type ThemeMode } from '../styles/theme.js';
+import { vscode } from '../vscode-api.js';
+
+/**
+ * Message types from the extension.
+ */
+interface ExtensionMessage {
+    type: 'setData' | 'setTab' | 'setBoltsData' | 'switchFlow' | 'updateFlows';
+    activeTab?: TabId;
+    // Hybrid approach (specs/overview)
+    specsHtml?: string;
+    overviewHtml?: string;
+    // Lit components approach (bolts)
+    boltsData?: BoltsViewData;
+    // Legacy support
+    boltsHtml?: string;
+    // Multi-flow support
+    flowId?: string;
+    flowType?: 'aidlc' | 'fire';
+    flowDisplayName?: string;
+    availableFlows?: FlowInfo[];
+    activeFlowId?: string;
+    // FIRE flow data
+    fireData?: FireViewData;
+}
+
+/**
+ * Root application component.
+ */
+@customElement('specsmd-app')
+export class SpecsmdApp extends BaseElement {
+    /**
+     * Currently active tab.
+     */
+    @state()
+    private _activeTab: TabId = 'bolts';
+
+    /**
+     * Bolts view data (Lit components).
+     */
+    @state()
+    private _boltsData: BoltsViewData | null = null;
+
+    /**
+     * HTML content for specs/overview views (server-rendered).
+     */
+    @state()
+    private _specsHtml = '';
+
+    @state()
+    private _overviewHtml = '';
+
+    /**
+     * Whether initial data has been loaded.
+     */
+    @state()
+    private _loaded = false;
+
+    /**
+     * Currently active flow.
+     */
+    @state()
+    private _activeFlow: FlowInfo | null = null;
+
+    /**
+     * Available flows in the workspace.
+     */
+    @state()
+    private _availableFlows: FlowInfo[] = [];
+
+    /**
+     * FIRE flow view data.
+     */
+    @state()
+    private _fireData: FireViewData | null = null;
+
+    /**
+     * Active FIRE tab (separate from AI-DLC tabs).
+     */
+    @state()
+    private _fireActiveTab: FireTabId = 'runs';
+
+    /**
+     * Current UI theme.
+     */
+    @state()
+    private _theme: ThemeMode = 'dark';
+
+    /**
+     * Version counter for specs HTML to track when handlers need reattachment.
+     * Incremented each time _specsHtml changes.
+     */
+    private _specsVersion = 0;
+
+    /**
+     * Last attached specs version to prevent duplicate handler attachment.
+     */
+    private _lastAttachedSpecsVersion = -1;
+
+    static styles = [
+        ...BaseElement.baseStyles,
+        css`
+            :host {
+                display: block;
+                height: 100vh;
+                overflow: hidden;
+                position: relative;
+                background: var(--background);
+            }
+
+            .shell {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .shell-chrome {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 10px 12px;
+                background: linear-gradient(180deg, var(--editor-background) 0%, var(--vscode-sideBarSectionHeader-background) 100%);
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .shell-brand {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-width: 0;
+            }
+
+            .shell-mark {
+                width: 24px;
+                height: 24px;
+                border-radius: 6px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 13px;
+                flex-shrink: 0;
+            }
+
+            .shell-brand-copy {
+                min-width: 0;
+            }
+
+            .shell-title {
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.2;
+            }
+
+            .shell-subtitle {
+                font-size: 10px;
+                color: var(--description-foreground);
+                line-height: 1.2;
+            }
+
+            .shell-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+
+            .theme-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+                background: var(--vscode-input-background);
+                color: var(--foreground);
+                font-size: 11px;
+                font-weight: 500;
+                transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            }
+
+            .theme-toggle:hover {
+                background: var(--vscode-list-hoverBackground);
+                border-color: var(--accent-primary);
+            }
+
+            .theme-toggle-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
+
+            .theme-toggle-icon svg {
+                width: 14px;
+                height: 14px;
+                fill: currentColor;
+            }
+
+            .theme-toggle-text {
+                min-width: 0;
+            }
+
+            .app-body {
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .view-container {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                display: none;
+            }
+
+            .view-container.active {
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+
+            bolts-view {
+                flex: 1;
+                min-height: 0;
+            }
+
+            .loading {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                color: var(--description-foreground);
+            }
+
+            /* ==================== SPECS VIEW ==================== */
+            .specs-toolbar {
+                padding: 8px 12px;
+                background: var(--vscode-sideBarSectionHeader-background);
+                border-bottom: 1px solid var(--border-color);
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            .specs-toolbar-label {
+                font-size: 9px;
+                color: var(--description-foreground);
+                text-transform: uppercase;
+            }
+
+            .specs-toolbar-select {
+                flex: 1;
+                padding: 5px 8px;
+                font-size: 10px;
+                background: var(--vscode-input-background);
+                border: 1px solid var(--border-color);
+                color: var(--foreground);
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            .specs-content {
+                flex: 1;
+                overflow-y: auto;
+            }
+
+            .intent-item {
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .intent-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 12px;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+
+            .intent-header:hover {
+                background: var(--editor-background);
+            }
+
+            .intent-expand {
+                font-size: 10px;
+                color: var(--description-foreground);
+                transition: transform 0.2s;
+            }
+
+            .intent-item.collapsed .intent-expand {
+                transform: rotate(-90deg);
+            }
+
+            .intent-icon {
+                font-size: 14px;
+            }
+
+            .intent-info {
+                flex: 1;
+            }
+
+            .intent-name {
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            .intent-meta {
+                font-size: 10px;
+                color: var(--description-foreground);
+                margin-top: 2px;
+            }
+
+            .intent-progress-ring {
+                width: 28px;
+                height: 28px;
+                position: relative;
+            }
+
+            .intent-progress-ring svg {
+                transform: rotate(-90deg);
+            }
+
+            .intent-progress-ring .ring-bg {
+                fill: none;
+                stroke: var(--vscode-input-background);
+                stroke-width: 3;
+            }
+
+            .intent-progress-ring .ring-fill {
+                fill: none;
+                stroke: var(--status-complete);
+                stroke-width: 3;
+                stroke-linecap: round;
+                stroke-dasharray: 69.115;
+            }
+
+            .intent-progress-text {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 8px;
+                font-weight: 600;
+            }
+
+            .intent-content {
+                max-height: 2000px;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                background: var(--editor-background);
+            }
+
+            .intent-item.collapsed .intent-content {
+                max-height: 0;
+            }
+
+            .unit-item {
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .unit-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px 8px 28px;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+
+            .unit-header:hover {
+                background: var(--vscode-list-hoverBackground);
+            }
+
+            .unit-expand {
+                font-size: 10px;
+                color: var(--description-foreground);
+                transition: transform 0.2s;
+            }
+
+            .unit-item.collapsed .unit-expand {
+                transform: rotate(-90deg);
+            }
+
+            .unit-icon {
+                font-size: 12px;
+            }
+
+            .unit-status {
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 9px;
+                color: white;
+            }
+
+            .unit-status.complete { background: var(--status-complete); }
+            .unit-status.active { background: var(--status-active); }
+            .unit-status.pending {
+                background: var(--vscode-input-background);
+                border: 1px dashed var(--border-color);
+                color: var(--description-foreground);
+            }
+
+            .unit-name {
+                flex: 1;
+                font-size: 11px;
+            }
+
+            /* Spec open buttons (magnifier icons) */
+            .spec-open-btn {
+                background: none;
+                border: none;
+                color: var(--description-foreground);
+                cursor: pointer;
+                padding: 4px;
+                font-size: 12px;
+                border-radius: 4px;
+                opacity: 0;
+                transition: all 0.15s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .intent-header:hover .spec-open-btn,
+            .unit-header:hover .spec-open-btn {
+                opacity: 0.7;
+            }
+
+            .spec-open-btn:hover {
+                opacity: 1 !important;
+                background: var(--vscode-list-hoverBackground);
+                color: var(--foreground);
+            }
+
+            .unit-progress {
+                font-size: 9px;
+                color: var(--description-foreground);
+            }
+
+            .unit-content {
+                max-height: 1000px;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+            }
+
+            .unit-item.collapsed .unit-content {
+                max-height: 0;
+            }
+
+            .spec-story-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px 6px 52px;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+
+            .spec-story-item:hover {
+                background: var(--vscode-list-hoverBackground);
+            }
+
+            .spec-story-icon {
+                font-size: 11px;
+                opacity: 0.7;
+            }
+
+            .spec-story-status {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                border: 2px solid var(--border-color);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 8px;
+            }
+
+            .spec-story-status.complete {
+                background: var(--status-complete);
+                border-color: var(--status-complete);
+                color: white;
+            }
+
+            .spec-story-status.active {
+                background: var(--status-active);
+                border-color: var(--status-active);
+                color: white;
+            }
+
+            .spec-story-name {
+                flex: 1;
+                font-size: 11px;
+            }
+
+            .spec-story-name.complete {
+                color: var(--description-foreground);
+            }
+
+            .spec-no-stories {
+                padding: 8px 12px 8px 52px;
+                font-size: 11px;
+                font-style: italic;
+                color: var(--description-foreground);
+            }
+
+            /* ==================== OVERVIEW VIEW ==================== */
+            .overview-content {
+                padding: 16px;
+            }
+
+            .overview-section {
+                margin-bottom: 20px;
+            }
+
+            .overview-section-title {
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                color: var(--description-foreground);
+                margin-bottom: 10px;
+            }
+
+            .overview-metrics {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .overview-metric-card {
+                background: var(--editor-background);
+                border-radius: 8px;
+                padding: 16px;
+                text-align: center;
+            }
+
+            .overview-metric-value {
+                font-size: 28px;
+                font-weight: 700;
+                margin-bottom: 4px;
+            }
+
+            .overview-metric-value.highlight { color: var(--status-active); }
+            .overview-metric-value.success { color: var(--status-complete); }
+
+            .overview-metric-label {
+                font-size: 10px;
+                color: var(--description-foreground);
+            }
+
+            .overview-progress-bar {
+                height: 8px;
+                background: var(--vscode-input-background);
+                border-radius: 4px;
+                overflow: hidden;
+                margin-bottom: 20px;
+            }
+
+            .overview-progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, var(--status-complete), var(--status-active));
+                border-radius: 4px;
+                transition: width 0.5s ease;
+            }
+
+            .overview-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .overview-list-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                background: var(--editor-background);
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+
+            .overview-list-item:hover {
+                background: var(--vscode-list-hoverBackground);
+            }
+
+            .overview-list-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+            }
+
+            .overview-list-icon.intent {
+                background: rgba(139, 92, 246, 0.2);
+                color: #8b5cf6;
+            }
+
+            .overview-list-icon.action {
+                background: rgba(249, 115, 22, 0.2);
+                color: var(--status-active);
+            }
+
+            .overview-list-icon.bolt {
+                background: rgba(249, 115, 22, 0.2);
+                color: var(--status-active);
+            }
+
+            .overview-list-info {
+                flex: 1;
+            }
+
+            .overview-list-name {
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            .overview-list-meta {
+                font-size: 10px;
+                color: var(--description-foreground);
+                margin-top: 2px;
+            }
+
+            .overview-list-progress {
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--status-complete);
+            }
+
+            /* ==================== OVERVIEW RESOURCES FOOTER ==================== */
+            .overview-resources-footer {
+                margin-top: 14px;
+            }
+
+            .overview-fabriqa-card {
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                background: var(--editor-background);
+            }
+
+            .overview-fabriqa-brand {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 6px;
+            }
+
+            .overview-fabriqa-mark {
+                width: 26px;
+                height: 26px;
+                border-radius: 6px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 10px;
+                font-weight: 700;
+                flex-shrink: 0;
+            }
+
+            .overview-fabriqa-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--foreground);
+                line-height: 1.25;
+            }
+
+            .overview-fabriqa-subtitle,
+            .overview-fabriqa-copy,
+            .overview-dashboard-copy {
+                color: var(--description-foreground);
+                font-size: 11px;
+                line-height: 1.45;
+            }
+
+            .overview-fabriqa-copy {
+                margin-bottom: 8px;
+            }
+
+            .overview-fabriqa-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .overview-fabriqa-link {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 26px;
+                padding: 0 8px;
+                border-radius: 5px;
+                background: var(--accent-primary);
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            .overview-fabriqa-link.secondary {
+                background: var(--vscode-input-background);
+                color: var(--foreground);
+                border: 1px solid var(--border-color);
+            }
+
+            .overview-fabriqa-link:hover {
+                opacity: 0.88;
+            }
+
+            .overview-dashboard-tip {
+                padding-top: 8px;
+                margin-top: 8px;
+                border-top: 1px solid var(--border-color);
+            }
+
+            .overview-dashboard-title {
+                margin-bottom: 4px;
+                color: var(--foreground);
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .overview-dashboard-tip code {
+                padding: 1px 4px;
+                border-radius: 4px;
+                background: var(--editor-background);
+                color: var(--foreground);
+            }
+
+            .overview-resources-links {
+                display: inline-flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .overview-resource-link {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                border-radius: 6px;
+                background: var(--editor-background);
+                border: 1px solid var(--border-color);
+                cursor: pointer;
+                transition: all 0.15s ease;
+                color: var(--description-foreground);
+            }
+
+            .overview-resource-link:hover {
+                background: var(--vscode-list-hoverBackground);
+                border-color: var(--status-active);
+                color: var(--status-active);
+            }
+
+            .overview-resource-link svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            .overview-feedback-message {
+                display: inline;
+                font-size: 11px;
+                color: var(--description-foreground);
+            }
+
+            .overview-feedback-link {
+                color: var(--status-active);
+                cursor: pointer;
+                text-decoration: underline;
+            }
+
+            .overview-feedback-link:hover {
+                opacity: 0.8;
+            }
+
+            .overview-footer-row {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding-top: 8px;
+                margin-top: 8px;
+                border-top: 1px solid var(--border-color);
+            }
+
+            .overview-footer-feedback {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 6px;
+            }
+
+            /* ==================== EMPTY STATE ==================== */
+            .empty-state {
+                padding: 20px;
+                text-align: center;
+                color: var(--description-foreground);
+            }
+
+            .empty-state-icon {
+                font-size: 24px;
+                margin-bottom: 8px;
+            }
+
+            .empty-state-text {
+                font-size: 11px;
+            }
+        `
+    ];
+
+    connectedCallback(): void {
+        super.connectedCallback();
+
+        this._theme = getInitialTheme(vscode.getState());
+        this._applyTheme(this._theme);
+        vscode.setState(this._theme);
+
+        // Listen for messages from the extension
+        window.addEventListener('message', this._handleMessage);
+
+        // Notify extension we're ready
+        vscode.postMessage({ type: 'ready' });
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        window.removeEventListener('message', this._handleMessage);
+    }
+
+    /**
+     * Called after render. Attach event handlers to server-rendered HTML.
+     */
+    updated(changedProperties: Map<string, unknown>): void {
+        super.updated(changedProperties);
+
+        // Attach handlers for specs view whenever specsHtml changes or becomes active
+        // Use requestAnimationFrame to ensure DOM has been updated
+        if (changedProperties.has('_specsHtml') || changedProperties.has('_activeTab')) {
+            requestAnimationFrame(() => this._attachSpecsViewHandlers());
+        }
+
+        // Attach handlers for overview view
+        if (changedProperties.has('_overviewHtml') || changedProperties.has('_activeTab')) {
+            requestAnimationFrame(() => this._attachOverviewViewHandlers());
+        }
+    }
+
+    /**
+     * Attach event handlers to specs view server-rendered HTML.
+     * Uses version counter to prevent duplicate listener attachment.
+     */
+    private _attachSpecsViewHandlers(): void {
+        const specsView = this.shadowRoot?.querySelector('#specs-view') as HTMLElement | null;
+        if (!specsView) return;
+
+        // Version-based guard to prevent duplicate attachment.
+        // _specsVersion is incremented when specsHtml changes in _handleMessage.
+        if (this._lastAttachedSpecsVersion === this._specsVersion) return;
+        this._lastAttachedSpecsVersion = this._specsVersion;
+
+        // Intent expand/collapse
+        specsView.querySelectorAll('.intent-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                // Don't toggle if clicking on the open button
+                if ((e.target as HTMLElement).closest('.spec-open-btn')) {
+                    return;
+                }
+                header.parentElement?.classList.toggle('collapsed');
+            });
+        });
+
+        // Intent open button (magnifier) - opens intent requirements file
+        specsView.querySelectorAll('.intent-open-btn').forEach(btn => {
+            const htmlBtn = btn as HTMLElement;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const path = htmlBtn.dataset.path;
+                if (path) {
+                    vscode.postMessage({ type: 'openArtifact', kind: 'intent', path });
+                }
+            });
+        });
+
+        // Unit expand/collapse
+        specsView.querySelectorAll('.unit-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                // Don't toggle if clicking on the open button
+                if ((e.target as HTMLElement).closest('.spec-open-btn')) {
+                    return;
+                }
+                e.stopPropagation();
+                header.parentElement?.classList.toggle('collapsed');
+            });
+        });
+
+        // Unit open button (magnifier) - opens unit brief file
+        specsView.querySelectorAll('.unit-open-btn').forEach(btn => {
+            const htmlBtn = btn as HTMLElement;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const path = htmlBtn.dataset.path;
+                if (path) {
+                    vscode.postMessage({ type: 'openArtifact', kind: 'unit', path });
+                }
+            });
+        });
+
+        // Story click
+        specsView.querySelectorAll('.spec-story-item').forEach(item => {
+            const htmlItem = item as HTMLElement;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const path = htmlItem.dataset.path;
+                if (path) {
+                    vscode.postMessage({ type: 'openArtifact', kind: 'story', path });
+                }
+            });
+        });
+
+        // Specs filter dropdown
+        const specsFilter = specsView.querySelector('#specsFilter') as HTMLSelectElement | null;
+        if (specsFilter) {
+            specsFilter.addEventListener('change', () => {
+                vscode.postMessage({ type: 'specsFilter', filter: specsFilter.value });
+            });
+        }
+    }
+
+    /**
+     * Attach event handlers to overview view server-rendered HTML.
+     * Uses data attribute to prevent duplicate listener attachment.
+     */
+    private _attachOverviewViewHandlers(): void {
+        const overviewView = this.shadowRoot?.querySelector('#overview-view') as HTMLElement | null;
+        if (!overviewView) return;
+
+        // Container-level guard to prevent multiple attachment passes
+        const currentHtmlHash = this._overviewHtml.length.toString();
+        if (overviewView.dataset.handlersAttached === currentHtmlHash) return;
+        overviewView.dataset.handlersAttached = currentHtmlHash;
+
+        // List item clicks
+        overviewView.querySelectorAll('.overview-list-item').forEach(item => {
+            const htmlItem = item as HTMLElement;
+            item.addEventListener('click', () => {
+                const path = htmlItem.dataset.path;
+                const intent = htmlItem.dataset.intent;
+                const actionType = htmlItem.dataset.actionType;
+
+                if (path) {
+                    vscode.postMessage({ type: 'openArtifact', kind: 'standard', path });
+                } else if (intent) {
+                    // Switch to specs tab when clicking on an intent
+                    this._activeTab = 'specs';
+                    vscode.postMessage({ type: 'tabChange', tab: 'specs' });
+                } else if (actionType) {
+                    const targetId = htmlItem.dataset.targetId;
+                    this._handleSuggestedAction(actionType, targetId);
+                }
+            });
+        });
+
+        // Resource links (website, Fabriqa, docs, discord, twitter)
+        overviewView.querySelectorAll('.overview-resource-link, .overview-fabriqa-link').forEach(link => {
+            const htmlLink = link as HTMLElement;
+            link.addEventListener('click', () => {
+                const url = htmlLink.dataset.url;
+                if (url) {
+                    vscode.postMessage({ type: 'openExternal', url });
+                }
+            });
+        });
+
+        // Feedback link
+        const feedbackLink = overviewView.querySelector('.overview-feedback-link') as HTMLElement | null;
+        if (feedbackLink) {
+            feedbackLink.addEventListener('click', () => {
+                const url = feedbackLink.dataset.url;
+                if (url) {
+                    vscode.postMessage({ type: 'openExternal', url });
+                }
+            });
+        }
+    }
+
+    /**
+     * Handle suggested action clicks.
+     */
+    private _handleSuggestedAction(actionType: string, targetId?: string): void {
+        switch (actionType) {
+            case 'continue-bolt':
+            case 'start-bolt':
+            case 'unblock-bolt':
+                if (targetId) {
+                    vscode.postMessage({ type: 'startBolt', boltId: targetId });
+                }
+                break;
+            case 'complete-stage':
+                if (targetId) {
+                    vscode.postMessage({ type: 'continueBolt', boltId: targetId, boltName: targetId });
+                }
+                break;
+        }
+    }
+
+    render() {
+        if (!this._loaded) {
+            return html`
+                <div class="shell">
+                    <div class="shell-chrome">
+                        <div class="shell-brand">
+                            <span class="shell-mark">⚡</span>
+                            <div class="shell-brand-copy">
+                                <div class="shell-title">SpecsMD</div>
+                                <div class="shell-subtitle">Loading dashboard</div>
+                            </div>
+                        </div>
+                        <div class="shell-actions">
+                            ${this._renderThemeToggle()}
+                        </div>
+                    </div>
+                    <div class="loading">Loading...</div>
+                </div>
+            `;
+        }
+
+        // Render completely different apps based on active flow
+        const isFireFlow = this._activeFlow?.id === 'fire';
+
+        return html`
+            <div class="shell">
+                <div class="shell-chrome">
+                    <div class="shell-brand">
+                        <span class="shell-mark">⚡</span>
+                        <div class="shell-brand-copy">
+                            <div class="shell-title">SpecsMD</div>
+                            <div class="shell-subtitle">${isFireFlow ? 'FIRE dashboard' : 'AI-DLC dashboard'}</div>
+                        </div>
+                    </div>
+                    <div class="shell-actions">
+                        ${this._renderThemeToggle()}
+                    </div>
+                </div>
+
+                <div class="app-body">
+                    ${isFireFlow ? this._renderFireApp() : this._renderAidlcApp()}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Render the AI-DLC flow app (existing implementation).
+     */
+    private _renderAidlcApp() {
+        return html`
+            <flow-switcher
+                .activeFlow=${this._activeFlow}
+                .availableFlows=${this._availableFlows}
+                @flow-switch=${this._handleFlowSwitch}
+            ></flow-switcher>
+
+            <view-tabs
+                .activeTab=${this._activeTab}
+                @tab-change=${this._handleTabChange}
+            ></view-tabs>
+
+            <div class="view-container ${this._activeTab === 'bolts' ? 'active' : ''}" id="bolts-view">
+                ${this._boltsData
+                    ? html`
+                        <bolts-view
+                            .data=${this._boltsData}
+                            @toggle-focus=${this._handleToggleFocus}
+                            @filter-change=${this._handleFilterChange}
+                            @resize=${this._handleResize}
+                            @start-bolt=${this._handleStartBolt}
+                            @continue-bolt=${this._handleContinueBolt}
+                            @view-files=${this._handleViewFiles}
+                            @open-file=${this._handleOpenFile}
+                            @open-bolt=${this._handleOpenBolt}>
+                        </bolts-view>
+                    `
+                    : html`<div class="loading">Loading...</div>`
+                }
+            </div>
+
+            <div class="view-container ${this._activeTab === 'specs' ? 'active' : ''}" id="specs-view">
+                ${unsafeHTML(this._specsHtml)}
+            </div>
+
+            <div class="view-container ${this._activeTab === 'overview' ? 'active' : ''}" id="overview-view">
+                ${unsafeHTML(this._overviewHtml)}
+            </div>
+        `;
+    }
+
+    /**
+     * Render the FIRE flow app with proper visualization.
+     */
+    private _renderFireApp() {
+        if (!this._fireData) {
+            return html`
+                <flow-switcher
+                    .activeFlow=${this._activeFlow}
+                    .availableFlows=${this._availableFlows}
+                    @flow-switch=${this._handleFlowSwitch}
+                ></flow-switcher>
+
+                <div class="fire-app" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <div class="fire-placeholder" style="flex: 1; display: flex; align-items: center; justify-content: center;">
+                        <div style="text-align: center; padding: 24px;">
+                            <div style="font-size: 64px; margin-bottom: 16px;">🔥</div>
+                            <h2 style="margin: 0 0 8px 0; color: var(--vscode-foreground); font-size: 18px;">FIRE Flow</h2>
+                            <p style="color: var(--vscode-descriptionForeground); margin: 0; font-size: 13px;">
+                                Loading...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return html`
+            <flow-switcher
+                .activeFlow=${this._activeFlow}
+                .availableFlows=${this._availableFlows}
+                @flow-switch=${this._handleFlowSwitch}
+            ></flow-switcher>
+
+            <fire-view
+                .data=${this._fireData}
+                @tab-change=${this._handleFireTabChange}
+                @continue-run=${this._handleContinueRun}
+                @start-run=${this._handleStartRun}
+                @view-artifact=${this._handleViewArtifact}
+                @view-run=${this._handleViewRun}
+                @open-file=${this._handleFireOpenFile}
+                @filter-change=${this._handleFireFilterChange}
+                @toggle-expand=${this._handleFireToggleExpand}
+                @open-external=${this._handleOpenExternal}
+            ></fire-view>
+        `;
+    }
+
+    /**
+     * Render the theme toggle control.
+     */
+    private _renderThemeToggle() {
+        const isDark = this._theme === 'dark';
+        const nextTheme = isDark ? 'light' : 'dark';
+        const label = isDark ? 'Light' : 'Dark';
+        const title = `Switch to ${nextTheme} mode`;
+        const icon = isDark
+            ? svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Zm0-6a1 1 0 0 1 1 1.06l-.05 1.94a1 1 0 1 1-2 0l-.05-1.94A1 1 0 0 1 12 2.25Zm0 16.5a1 1 0 0 1 1 1.06l-.05 1.94a1 1 0 1 1-2 0l-.05-1.94a1 1 0 0 1 1.05-1.06Zm10.5-6a1 1 0 0 1-1.06 1l-1.94-.05a1 1 0 1 1 0-2l1.94-.05a1 1 0 0 1 1.06 1.1ZM4.5 12a1 1 0 0 1-1.06 1l-1.94-.05a1 1 0 1 1 0-2l1.94-.05A1 1 0 0 1 4.5 12Zm14.45-7.95a1 1 0 0 1 .04 1.41l-1.37 1.37a1 1 0 1 1-1.41-1.41l1.37-1.37a1 1 0 0 1 1.37 0Zm-11.14 11.1a1 1 0 0 1 .04 1.41l-1.37 1.37a1 1 0 1 1-1.41-1.41l1.37-1.37a1 1 0 0 1 1.37 0Zm11.14 2.78a1 1 0 0 1-1.41.04l-1.37-1.37a1 1 0 1 1 1.41-1.41l1.37 1.37a1 1 0 0 1 0 1.37ZM7.81 7.81a1 1 0 0 1-1.41.04L5.03 6.48a1 1 0 1 1 1.41-1.41l1.37 1.37a1 1 0 0 1 0 1.37Z"/></svg>`
+            : svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.75 14.2A9.7 9.7 0 0 1 9.8 2.25a1 1 0 0 0-1.16 1.16 8.5 8.5 0 1 0 12.95 11.95 1 1 0 0 0 .16-1.16Z"/></svg>`;
+
+        return html`
+            <button
+                class="theme-toggle"
+                type="button"
+                title=${title}
+                aria-label=${title}
+                @click=${this._toggleTheme}
+            >
+                <span class="theme-toggle-icon">${icon}</span>
+                <span class="theme-toggle-text">${label}</span>
+            </button>
+        `;
+    }
+
+    // ==================== FIRE Event Handlers ====================
+
+    private _handleFireTabChange(e: CustomEvent<{ tab: FireTabId }>): void {
+        this._fireActiveTab = e.detail.tab;
+        if (this._fireData) {
+            this._fireData = { ...this._fireData, activeTab: e.detail.tab };
+        }
+        vscode.postMessage({ type: 'fireTabChange', tab: e.detail.tab });
+    }
+
+    private _handleContinueRun(e: CustomEvent<{ runId: string }>): void {
+        vscode.postMessage({ type: 'continueRun', runId: e.detail.runId });
+    }
+
+    private _handleStartRun(e: CustomEvent<{ workItemIds: string[] }>): void {
+        vscode.postMessage({ type: 'startRun', workItemIds: e.detail.workItemIds });
+    }
+
+    private _handleViewArtifact(e: CustomEvent<{ runId: string; artifact: string }>): void {
+        vscode.postMessage({ type: 'viewArtifact', runId: e.detail.runId, artifact: e.detail.artifact });
+    }
+
+    private _handleViewRun(e: CustomEvent<{ runId: string; folderPath: string }>): void {
+        vscode.postMessage({ type: 'viewRun', runId: e.detail.runId, folderPath: e.detail.folderPath });
+    }
+
+    private _handleFireOpenFile(e: CustomEvent<{ path?: string; id?: string; intentId?: string }>): void {
+        if (e.detail.path) {
+            vscode.postMessage({ type: 'openArtifact', kind: 'file', path: e.detail.path });
+        } else if (e.detail.id && e.detail.intentId) {
+            vscode.postMessage({ type: 'openWorkItem', id: e.detail.id, intentId: e.detail.intentId });
+        }
+    }
+
+    private _handleFireFilterChange(e: CustomEvent<{ filter: string }>): void {
+        if (this._fireData) {
+            this._fireData = {
+                ...this._fireData,
+                intentsData: {
+                    ...this._fireData.intentsData,
+                    filter: e.detail.filter as typeof this._fireData.intentsData.filter
+                }
+            };
+        }
+        vscode.postMessage({ type: 'fireIntentsFilter', filter: e.detail.filter });
+    }
+
+    private _handleFireToggleExpand(e: CustomEvent<{ intentId: string; expanded: boolean }>): void {
+        vscode.postMessage({ type: 'fireToggleExpand', intentId: e.detail.intentId, expanded: e.detail.expanded });
+    }
+
+    private _handleOpenExternal(e: CustomEvent<{ url: string }>): void {
+        vscode.postMessage({ type: 'openExternal', url: e.detail.url });
+    }
+
+    private _handleFlowSwitch(e: CustomEvent): void {
+        vscode.postMessage({ type: 'switchFlow' });
+    }
+
+    /**
+     * Toggle the dashboard theme and persist it locally.
+     */
+    private _toggleTheme(): void {
+        this._theme = this._theme === 'dark' ? 'light' : 'dark';
+        this._applyTheme(this._theme);
+        vscode.setState(this._theme);
+        persistTheme(this._theme);
+    }
+
+    /**
+     * Apply the selected theme to the document root.
+     */
+    private _applyTheme(theme: ThemeMode): void {
+        applyTheme(theme, document.documentElement);
+    }
+
+    /**
+     * Handle messages from the extension.
+     */
+    private _handleMessage = (event: MessageEvent<ExtensionMessage>): void => {
+        const message = event.data;
+
+        switch (message.type) {
+            case 'setData':
+                if (message.activeTab) {
+                    this._activeTab = message.activeTab;
+                }
+                if (message.boltsData !== undefined) {
+                    this._boltsData = message.boltsData;
+                }
+                if (message.specsHtml !== undefined) {
+                    this._specsHtml = message.specsHtml;
+                    this._specsVersion++;
+                }
+                if (message.overviewHtml !== undefined) {
+                    this._overviewHtml = message.overviewHtml;
+                }
+                // Handle FIRE flow data
+                if (message.fireData !== undefined) {
+                    this._fireData = message.fireData;
+                    this._fireActiveTab = message.fireData.activeTab;
+                }
+                // Handle flow data
+                if (message.availableFlows !== undefined) {
+                    this._availableFlows = message.availableFlows;
+                }
+                if (message.activeFlowId !== undefined && this._availableFlows.length > 0) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === message.activeFlowId) || null;
+                }
+                // Default to FIRE if no active flow is set but flows are available
+                if (!this._activeFlow && this._availableFlows.length > 0) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === 'fire')
+                        || this._availableFlows.find(f => f.id === 'aidlc')
+                        || this._availableFlows[0];
+                }
+                this._loaded = true;
+                break;
+
+            case 'setBoltsData':
+                if (message.boltsData !== undefined) {
+                    this._boltsData = message.boltsData;
+                }
+                break;
+
+            case 'setTab':
+                if (message.activeTab) {
+                    this._activeTab = message.activeTab;
+                }
+                break;
+
+            case 'switchFlow':
+                // Handle flow switch from extension
+                if (message.availableFlows !== undefined) {
+                    this._availableFlows = message.availableFlows;
+                }
+                if (message.activeFlowId !== undefined) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === message.activeFlowId) || null;
+                }
+                // Default to FIRE if no active flow is set
+                if (!this._activeFlow && this._availableFlows.length > 0) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === 'fire')
+                        || this._availableFlows.find(f => f.id === 'aidlc')
+                        || this._availableFlows[0];
+                }
+                // Reset view data when switching flows
+                if (message.boltsData !== undefined) {
+                    this._boltsData = message.boltsData;
+                }
+                if (message.specsHtml !== undefined) {
+                    this._specsHtml = message.specsHtml;
+                    this._specsVersion++;
+                }
+                if (message.overviewHtml !== undefined) {
+                    this._overviewHtml = message.overviewHtml;
+                }
+                // Handle FIRE flow data
+                if (message.fireData !== undefined) {
+                    this._fireData = message.fireData;
+                    this._fireActiveTab = message.fireData.activeTab;
+                }
+                break;
+
+            case 'updateFlows':
+                // Update available flows list
+                if (message.availableFlows !== undefined) {
+                    this._availableFlows = message.availableFlows;
+                }
+                if (message.activeFlowId !== undefined) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === message.activeFlowId) || null;
+                }
+                // Default to FIRE if no active flow is set
+                if (!this._activeFlow && this._availableFlows.length > 0) {
+                    this._activeFlow = this._availableFlows.find(f => f.id === 'fire')
+                        || this._availableFlows.find(f => f.id === 'aidlc')
+                        || this._availableFlows[0];
+                }
+                break;
+        }
+    };
+
+    /**
+     * Handle tab change from the tabs component.
+     */
+    private _handleTabChange(e: CustomEvent<TabChangeDetail>): void {
+        this._activeTab = e.detail.tab;
+        vscode.postMessage({ type: 'tabChange', tab: e.detail.tab });
+    }
+
+    /**
+     * Handle focus card toggle.
+     */
+    private _handleToggleFocus(e: CustomEvent<{ expanded: boolean }>): void {
+        vscode.postMessage({ type: 'toggleFocus', expanded: e.detail.expanded });
+        // Optimistically update local state
+        if (this._boltsData) {
+            this._boltsData = { ...this._boltsData, focusCardExpanded: e.detail.expanded };
+        }
+    }
+
+    /**
+     * Handle activity filter change.
+     */
+    private _handleFilterChange(e: CustomEvent<{ filter: ActivityFilter }>): void {
+        vscode.postMessage({ type: 'activityFilter', filter: e.detail.filter });
+        // Optimistically update local state
+        if (this._boltsData) {
+            this._boltsData = { ...this._boltsData, activityFilter: e.detail.filter };
+        }
+    }
+
+    /**
+     * Handle activity section resize.
+     */
+    private _handleResize(e: CustomEvent<{ height: number }>): void {
+        vscode.postMessage({ type: 'activityResize', height: e.detail.height });
+        // Optimistically update local state
+        if (this._boltsData) {
+            this._boltsData = { ...this._boltsData, activityHeight: e.detail.height };
+        }
+    }
+
+    /**
+     * Handle start bolt button.
+     */
+    private _handleStartBolt(e: CustomEvent<{ boltId: string }>): void {
+        vscode.postMessage({ type: 'startBolt', boltId: e.detail.boltId });
+    }
+
+    /**
+     * Handle open file from activity.
+     */
+    private _handleOpenFile(e: CustomEvent<{ path: string }>): void {
+        vscode.postMessage({ type: 'openArtifact', kind: 'file', path: e.detail.path });
+    }
+
+    /**
+     * Handle continue bolt button - shows agent prompt.
+     */
+    private _handleContinueBolt(e: CustomEvent<{ boltId: string; boltName: string }>): void {
+        vscode.postMessage({ type: 'continueBolt', boltId: e.detail.boltId, boltName: e.detail.boltName });
+    }
+
+    /**
+     * Handle view files button - opens bolt files.
+     */
+    private _handleViewFiles(e: CustomEvent<{ boltId: string }>): void {
+        vscode.postMessage({ type: 'viewBoltFiles', boltId: e.detail.boltId });
+    }
+
+    /**
+     * Handle open bolt button - opens bolt.md file.
+     */
+    private _handleOpenBolt(e: CustomEvent<{ boltId: string }>): void {
+        vscode.postMessage({ type: 'openBoltMd', boltId: e.detail.boltId });
+    }
+}
+
+declare global {
+    interface HTMLElementTagNameMap {
+        'specsmd-app': SpecsmdApp;
+    }
+}

@@ -1,0 +1,169 @@
+{
+    "name": "specsmd",
+    "displayName": "specsmd - Memory Bank Extension - Spec Driven Development",
+    "description": "Dashboard sidebar for browsing AI-DLC memory-bank artifacts",
+    "version": "0.0.58",
+    "publisher": "fabriqaai",
+    "icon": "resources/favicon.png",
+    "homepage": "https://specs.md",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fabriqaai/specs.md.git"
+    },
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "workspaceContains:**/memory-bank",
+        "workspaceContains:**/.specsmd"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "specsmd",
+                    "title": "specsmd",
+                    "icon": "resources/extension_icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "specsmd": [
+                {
+                    "id": "specsmdExplorer",
+                    "name": "Explorer",
+                    "when": "specsmd.isProject",
+                    "type": "webview"
+                },
+                {
+                    "id": "specsmdWelcome",
+                    "name": "Welcome",
+                    "when": "!specsmd.isProject",
+                    "type": "webview"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "specsmd.refresh",
+                "title": "Refresh",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "specsmd.openFile",
+                "title": "Open File"
+            },
+            {
+                "command": "specsmd.revealInExplorer",
+                "title": "Reveal in Explorer"
+            },
+            {
+                "command": "specsmd.copyPath",
+                "title": "Copy Path"
+            },
+            {
+                "command": "specsmd.selectMarkdownEditor",
+                "title": "specsmd: Select Markdown Editor"
+            },
+            {
+                "command": "specsmd.switchFlow",
+                "title": "specsmd: Switch Flow",
+                "icon": "$(layers)"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "specsmd.switchFlow",
+                "key": "ctrl+alt+f",
+                "mac": "ctrl+cmd+f",
+                "when": "specsmd.hasMultipleFlows"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "specsmd.switchFlow",
+                    "when": "view == specsmdExplorer && specsmd.hasMultipleFlows",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "specsmd.refresh",
+                    "when": "view == specsmdExplorer",
+                    "group": "navigation@2"
+                }
+            ]
+        },
+        "configuration": [
+            {
+                "title": "specsmd",
+                "properties": {
+                    "specsmd.telemetry.enabled": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Enable anonymous usage telemetry to help improve specsmd. No personally identifiable information is collected."
+                    },
+                    "specsmd.markdownEditor": {
+                        "type": "string",
+                        "default": "default",
+                        "markdownDescription": "Markdown editor to use when opening files from specsmd. Use `default` for text editor, `preview` for markdown preview, `side-by-side` for both, or enter a custom editor viewType (e.g., `fabriqa.markdownEditor`). [Select from available editors](command:specsmd.selectMarkdownEditor)"
+                    }
+                }
+            },
+            {
+                "title": "Fire Flow",
+                "properties": {
+                    "specsmd.fireFlow.completedRunsDisplayLimit": {
+                        "type": "number",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Number of completed runs to display by default in the Runs view."
+                    }
+                }
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile -- --production",
+        "compile": "tsc -p ./ && tsc -p ./tsconfig.webview.json && node esbuild.webview.mjs",
+        "compile:ext": "tsc -p ./",
+        "compile:webview": "tsc -p ./tsconfig.webview.json && node esbuild.webview.mjs",
+        "typecheck:webview": "tsc -p ./tsconfig.webview.json",
+        "watch": "tsc -watch -p ./",
+        "watch:webview": "node esbuild.webview.mjs --watch",
+        "pretest": "npm run compile && npm run compile:test",
+        "compile:test": "tsc -p ./tsconfig.test.json",
+        "test": "mocha ./out-test/**/*.test.js",
+        "test:vscode": "node ./out/test/runTest.js",
+        "lint": "eslint src",
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "@types/eslint": "^9.6.1",
+        "@types/glob": "^8.1.0",
+        "@types/js-yaml": "^4.0.9",
+        "@types/mocha": "^10.0.6",
+        "@types/node": "^20.10.0",
+        "@types/vscode": "^1.85.0",
+        "@vscode/test-electron": "^2.3.8",
+        "@vscode/vsce": "^2.22.0",
+        "esbuild": "^0.27.2",
+        "eslint": "^9.39.2",
+        "glob": "^10.3.10",
+        "mocha": "^10.2.0",
+        "typescript": "^5.3.2",
+        "typescript-eslint": "^8.50.1"
+    },
+    "dependencies": {
+        "@lit/context": "^1.1.6",
+        "js-yaml": "^4.1.0",
+        "lit": "^3.3.2",
+        "mixpanel": "^0.18.0",
+        "yaml": "^2.8.2"
+    }
+}

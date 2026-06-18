@@ -1,0 +1,381 @@
+---
+title: FIRE Agents
+description: Orchestrator, Planner, and Builder - the three agents powering FIRE
+---
+
+## Three-Agent Architecture
+
+FIRE uses three specialized agents, each with a focused responsibility:
+
+```mermaid actions={false}
+flowchart TD
+    U(User):::build --> O(Orchestrator):::design
+    O --> P(Planner):::plan
+    O --> B(Builder):::build
+    P --> S[(State)]:::warn
+    B --> S
+    B --> C[(Codebase)]:::done
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef build fill:#fff,stroke:#0EA5E9,color:#0369A1,stroke-width:1.5px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+    classDef done fill:#fff,stroke:#10B981,color:#047857,stroke-width:1.5px,rx:8,ry:8
+```
+
+| Agent | Role | Invocation |
+|-------|------|------------|
+| **Orchestrator** | Entry point, routing, session management | `/specsmd-fire` |
+| **Planner** | Intent capture, work item decomposition | `/specsmd-fire-planner` |
+| **Builder** | Run execution, walkthrough generation | `/specsmd-fire-builder` |
+
+## Orchestrator Agent
+
+The **Orchestrator** is the entry point for all FIRE interactions.
+
+### Responsibilities
+
+- Read `state.yaml` to understand current phase
+- Route to appropriate agent based on context
+- Handle session resume and continuity
+- Suggest next actions based on state
+
+### When Orchestrator Routes
+
+```mermaid actions={false}
+flowchart TD
+    O(Orchestrator):::design --> Q{{"What's needed?"}}:::check
+    Q -->|No intents| P1(Planner: Capture):::plan
+    Q -->|Has pending| B1(Builder: Execute):::build
+    Q -->|Complete| P2(Planner: Next?):::plan
+    Q -->|Explicit| R(Route):::warn
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef build fill:#fff,stroke:#0EA5E9,color:#0369A1,stroke-width:1.5px,rx:8,ry:8
+    classDef check fill:#fff,stroke:#EC4899,color:#BE185D,stroke-width:2px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+```
+
+### Usage
+
+```
+/specsmd-fire
+
+---
+Reading project state...
+
+Current State:
+- Intent: User Authentication (in_progress)
+- Work Items: 1/3 complete
+- Next: login-endpoint (mode: Confirm)
+
+Routing to Builder for next work item execution.
+```
+
+### Session Resume
+
+Orchestrator maintains context across sessions:
+
+```
+/specsmd-fire
+
+---
+Resuming previous session...
+
+Last session ended with:
+- Run 2 in progress: login-endpoint
+- Status: Awaiting confirmation
+
+Would you like to:
+[c] Continue with login-endpoint
+[s] Skip to next work item
+[p] Return to Planner
+```
+
+## Planner Agent
+
+The **Planner** handles all planning activities.
+
+### Responsibilities
+
+- Capture intents through guided conversation
+- Decompose intents into work items
+- Assign complexity and execution modes
+- Generate design documents (Validate mode)
+- Initialize and update project standards
+
+### Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `intent-capture` | Guide user through intent definition |
+| `work-item-decompose` | Break intents into executable work items |
+| `design-doc-generate` | Create design documents for Validate mode |
+| `standards-init` | Initialize or update project standards |
+| `workspace-detect` | Analyze project structure (shared) |
+
+### Intent Capture Flow
+
+```mermaid actions={false}
+sequenceDiagram
+    participant U as User
+    participant P as Planner
+
+    U->>P: /specsmd-fire-planner
+    P->>U: What do you want to build?
+    U->>P: User authentication system
+    P->>U: Clarifying questions...
+    U->>P: Answers
+    P->>P: Create intent document
+    P->>P: Decompose into work items
+    P->>U: Present work items
+    U->>P: Approve/modify
+    P->>P: Save to state
+```
+
+### Example Session
+
+```
+/specsmd-fire-planner
+
+---
+What would you like to build?
+
+> User authentication with email/password login
+
+Got it. A few questions:
+
+1. Do you need password reset functionality?
+> Yes
+
+2. Session management (JWT, sessions, or both)?
+> JWT
+
+3. Any social login requirements?
+> Not for MVP
+
+---
+
+Intent captured: User Authentication System
+
+Work Items:
+1. user-schema (Low, Autopilot)
+   - Create users table with auth fields
+
+2. login-endpoint (Medium, Confirm)
+   - POST /auth/login with JWT generation
+
+3. password-reset (Medium, Confirm)
+   - Reset flow with email tokens
+
+4. session-middleware (High, Validate)
+   - JWT validation middleware
+
+[Approve work items? y/n]
+```
+
+### Design Document Generation
+
+For Validate mode work items, Planner generates design docs:
+
+```
+Generating design document for: session-middleware
+
+---
+# Session Middleware Design
+
+## Overview
+JWT-based session validation middleware for protected routes.
+
+## Architecture
+- Middleware extracts JWT from Authorization header
+- Validates signature and expiration
+- Attaches user context to request
+- Handles token refresh for near-expiry tokens
+
+## Security Considerations
+- Tokens signed with RS256
+- 15-minute access token expiry
+- Refresh tokens stored in httpOnly cookies
+
+## Error Handling
+- 401 for missing/invalid tokens
+- 403 for expired tokens (with refresh hint)
+
+---
+[Save design document? y/n]
+```
+
+## Builder Agent
+
+The **Builder** executes work items and generates walkthroughs.
+
+### Responsibilities
+
+- Select next work item based on dependencies
+- Execute runs with appropriate mode (Autopilot/Confirm/Validate)
+- Track file changes during execution
+- Generate walkthroughs after completion
+- Update state via scripts
+
+### Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `run-execute` | Execute work items with mode-specific flow |
+| `walkthrough-generate` | Document changes after completion |
+| `state-management` | Update state.yaml via scripts (shared) |
+
+### Execution Flow
+
+```mermaid actions={false}
+stateDiagram-v2
+    [*] --> SelectWorkItem
+    SelectWorkItem --> LoadContext
+    LoadContext --> CheckMode
+
+    CheckMode --> Execute: Autopilot
+    CheckMode --> Plan: Confirm/Validate
+
+    Plan --> Checkpoint
+    Checkpoint --> Execute: Approved
+    Checkpoint --> Plan: Revise
+
+    Execute --> TrackChanges
+    TrackChanges --> GenerateWalkthrough
+    GenerateWalkthrough --> UpdateState
+    UpdateState --> [*]
+```
+
+### Brownfield Rules
+
+Builder follows strict brownfield rules:
+
+<CardGroup cols={2}>
+  <Card title="Search Before Create" icon="magnifying-glass">
+    Check for existing similar code. Extend rather than duplicate.
+  </Card>
+  <Card title="Respect Patterns" icon="ruler-combined">
+    Follow existing naming, structure, and conventions.
+  </Card>
+  <Card title="Minimal Changes" icon="scalpel">
+    Targeted edits only. Don't rewrite files unnecessarily.
+  </Card>
+  <Card title="Preserve Tests" icon="vial">
+    Never delete tests without explicit approval.
+  </Card>
+</CardGroup>
+
+### Example Session
+
+```
+/specsmd-fire-builder
+
+---
+Selecting next work item...
+
+Work Item: login-endpoint
+Mode: Confirm
+Dependencies: ✓ user-schema (complete)
+
+---
+## Plan
+
+1. Create POST /auth/login endpoint
+2. Validate email/password against users table
+3. Generate JWT on successful auth
+4. Return token with user profile
+5. Add rate limiting (5 attempts/minute)
+6. Add unit tests
+
+Files to create/modify:
+- src/routes/auth.ts (create)
+- src/middleware/rateLimit.ts (create)
+- tests/routes/auth.test.ts (create)
+- src/routes/index.ts (modify)
+
+[Confirm to proceed? y/n]
+> y
+
+Executing...
+
+✓ Created src/routes/auth.ts
+✓ Created src/middleware/rateLimit.ts
+✓ Created tests/routes/auth.test.ts
+✓ Modified src/routes/index.ts
+
+Walkthrough generated: walkthroughs/run-fabriqa-2026-002-login-endpoint.md
+
+---
+Work item complete. Next: password-reset
+```
+
+## Agent Interaction Patterns
+
+### Direct Invocation
+
+Call agents directly when you know what you need:
+
+```
+/specsmd-fire-planner     # Capture new intent
+/specsmd-fire-builder     # Execute work items
+```
+
+### Orchestrator Routing
+
+Let Orchestrator decide based on state:
+
+```
+/specsmd-fire   # Routes to appropriate agent
+```
+
+### Mid-Session Switching
+
+You can switch agents mid-session:
+
+```
+/specsmd-fire-builder
+
+---
+Executing login-endpoint...
+
+> Actually, I want to add another work item first
+
+Switching to Planner...
+
+/specsmd-fire-planner
+```
+
+## Agent Communication
+
+Agents communicate through **state.yaml**, not directly:
+
+```mermaid actions={false}
+flowchart LR
+    P(Planner):::plan -->|writes| S[(state.yaml)]:::warn
+    B(Builder):::build -->|reads| S
+    B -->|writes| S
+    O(Orchestrator):::design -->|reads| S
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef build fill:#fff,stroke:#0EA5E9,color:#0369A1,stroke-width:1.5px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+```
+
+### Why File-Based State?
+
+- **Deterministic**: Scripts ensure consistent updates
+- **Auditable**: Git tracks all state changes
+- **Resumable**: State persists across sessions
+- **Debuggable**: Human-readable YAML
+
+## Command Reference
+
+| Command | Agent | Purpose |
+|---------|-------|---------|
+| `/specsmd-fire` | Orchestrator | Entry point, routing |
+| `/specsmd-fire-planner` | Planner | Intent capture, planning |
+| `/specsmd-fire-builder` | Builder | Execution, walkthroughs |
+
+<Info>
+  For most workflows, start with `/specsmd-fire` and let it route you.
+</Info>

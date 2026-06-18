@@ -1,0 +1,168 @@
+---
+title: Pluggable Flows
+description: Understanding the specs.md flow architecture
+---
+
+## Framework Architecture
+
+specs.md is built as a **pluggable framework** where development methodologies are implemented as **flows**. Choose the flow that matches your project needs.
+
+```mermaid actions={false}
+flowchart TB
+    subgraph Framework[specs.md Framework]
+        subgraph Flows[Available Flows]
+            Simple(Simple Flow):::plan
+            FIRE(FIRE Flow):::warn
+            AIDLC(AI-DLC Flow):::design
+        end
+    end
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+```
+
+## What is a Flow?
+
+A **flow** is a complete development methodology implementation that includes:
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot">
+    Specialized AI agents that guide development
+  </Card>
+  <Card title="Artifacts" icon="file-code">
+    Structured outputs for each phase
+  </Card>
+  <Card title="State Management" icon="database">
+    Tracking progress and context
+  </Card>
+  <Card title="Standards" icon="ruler">
+    Project guidelines and conventions
+  </Card>
+</CardGroup>
+
+## Available Flows
+
+| Flow | Checkpoints | Agents | Optimized For |
+|------|-------------|--------|---------------|
+| **[Simple](/simple-flow/overview)** | 3 (phase gates) | 1 | Spec generation only |
+| **[FIRE](/fire-flow/overview)** | Adaptive | 3 | Adaptive execution, brownfield |
+| **[AI-DLC](/core-concepts/intents)** | Comprehensive | 4 | Full traceability |
+
+<Info>
+  **Not sure which flow?** Check out our [Choose Your Flow](/architecture/choose-flow) guide.
+</Info>
+
+## Simple Flow
+
+**Simple Flow** generates structured specs without execution tracking—perfect for quick feature planning.
+
+| Aspect | Details |
+|--------|---------|
+| **Agent** | 1 (specsmd-agent) |
+| **Output** | `requirements.md`, `design.md`, `tasks.md` |
+| **Phases** | Requirements → Design → Tasks |
+| **Best For** | Prototypes, MVPs, spec handoff |
+
+<Card title="Simple Flow Documentation" icon="feather" href="/simple-flow/overview">
+  Learn more about Simple Flow
+</Card>
+
+## FIRE Flow
+
+**FIRE (Fast Intent-Run Engineering)** is an Adaptive Spec-Driven Development flow. It right-sizes the rigor to complexity—design docs when needed, implementation plans otherwise.
+
+```mermaid actions={false}
+flowchart LR
+    O(Orchestrator):::design --> P(Planner):::plan
+    O --> B(Builder):::build
+    P --> S[(State)]:::warn
+    B --> S
+    B --> C[(Codebase)]:::done
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef build fill:#fff,stroke:#0EA5E9,color:#0369A1,stroke-width:1.5px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+    classDef done fill:#fff,stroke:#10B981,color:#047857,stroke-width:1.5px,rx:8,ry:8
+```
+
+| Aspect | Details |
+|--------|---------|
+| **Agents** | 3 (Orchestrator, Planner, Builder) |
+| **Checkpoints** | Adaptive (based on complexity + config) |
+| **Optimized For** | Adaptive execution, brownfield, monorepos |
+| **Key Features** | Walkthrough generation, hierarchical standards |
+
+<Card title="FIRE Flow Documentation" icon="bolt" href="/fire-flow/overview">
+  Learn more about FIRE Flow
+</Card>
+
+## AI-DLC Flow
+
+**AI-DLC (AI-Driven Development Lifecycle)** is the full methodology with DDD and comprehensive traceability.
+
+```mermaid actions={false}
+flowchart TB
+    MA(Master Agent):::design --> IA(Inception):::plan
+    MA --> CA(Construction):::build
+    MA --> OA(Operations):::warn
+    IA --> CA --> OA
+    classDef design fill:#fff,stroke:#A855F7,color:#7E22CE,stroke-width:1.5px,rx:8,ry:8
+    classDef plan fill:#fff,stroke:#6366F1,color:#4338CA,stroke-width:1.5px,rx:8,ry:8
+    classDef build fill:#fff,stroke:#0EA5E9,color:#0369A1,stroke-width:1.5px,rx:8,ry:8
+    classDef warn fill:#fff,stroke:#F59E0B,color:#B45309,stroke-width:1.5px,rx:8,ry:8
+```
+
+| Aspect | Details |
+|--------|---------|
+| **Agents** | 4 (Master, Inception, Construction, Operations) |
+| **Phases** | Inception → Construction → Operations |
+| **Best For** | Teams, complex domains, regulated environments |
+| **Key Features** | DDD integration, Mob rituals, full traceability |
+
+### Bolt Types (AI-DLC)
+
+| Type | Best For | Stages |
+|------|----------|--------|
+| **DDD Construction** | Complex domain logic | Model → Design → ADR → Code → Test |
+| **Simple Construction** | UI, integrations | Plan → Implement → Test |
+
+<Card title="AI-DLC Documentation" icon="building" href="/methodology/what-is-ai-dlc">
+  Learn more about AI-DLC Flow
+</Card>
+
+## Tool Integration
+
+All flows integrate with AI coding tools:
+
+| Tool | Integration Method |
+|------|-------------------|
+| **Claude Code** | Slash commands in `.claude/commands/` |
+| **Cursor** | Rules in `.cursor/rules/` |
+| **GitHub Copilot** | Agents in `.github/agents/` |
+| **Google Antigravity** | Agents in `.agent/agents/` |
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card
+    title="Choose Your Flow"
+    icon="compass"
+    href="/architecture/choose-flow"
+  >
+    Detailed comparison guide
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/getting-started/installation"
+  >
+    Install and select your flow
+  </Card>
+  <Card
+    title="VS Code Extension"
+    icon="puzzle-piece"
+    href="/getting-started/ide-extension"
+  >
+    Track progress visually
+  </Card>
+</CardGroup>

@@ -1,0 +1,146 @@
+---
+title: "specs.md vs GitHub Spec Kit"
+description: "Compare specs.md with GitHub's Spec Kit toolkit"
+---
+
+## Overview
+
+**GitHub Spec Kit** is a toolkit that provides agent prompts and 7 slash commands (`/speckit.constitution`, `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, `/speckit.analyze`, `/speckit.implement`, `/speckit.clarify`) for 15+ AI coding assistants including Claude Code, Cursor, GitHub Copilot, and Gemini CLI.
+
+**specs.md** is a full methodology implementation with phase-based agents, Mob rituals, and DDD integration.
+
+<Info>
+**Available Now**: [specs.md (Simple Flow)](/simple-flow/overview) provides Spec Kit-like simple flows for teams wanting a lighter entry point.
+</Info>
+
+---
+
+## Side-by-Side Comparison
+
+| Aspect | specs.md | Spec Kit |
+|--------|-------------------|----------|
+| **Type** | Full methodology | Toolkit + Agent Prompts |
+| **Target** | Complex systems requiring trade-offs | Small-medium projects |
+| **Approach** | Structured AI-DLC phases with methodology | 6-phase workflow with agent prompts |
+| **Structure** | Intents → Units → Stories | Constitution → Specify → Plan → Tasks → Analyze → Implement |
+| **Agent Model** | 3 phase-based agents | Prompts for 15+ AI assistants |
+| **Design Integration** | DDD default (extensible via bolt types) | Constitution file |
+| **Rituals** | Mob Elaboration, Mob Construction | None |
+| **Memory** | Memory Bank (persistent context) | Constitution file + .specify folder |
+| **Customization** | Skills, templates, memory bank | Constitution file, scripts, templates |
+| **Learning Curve** | Moderate | Low |
+| **VS Code Extension** | Yes ([visual dashboard](/getting-started/vscode-extension)) | No |
+
+---
+
+## When to Choose Each
+
+<CardGroup cols={2}>
+  <Card title="Choose specs.md (AI-DLC) if:" icon="check">
+    - You're building complex systems with architectural trade-offs
+    - You need DDD integration and domain modeling
+    - You want Mob rituals for team alignment
+    - You have multiple teams needing coordination
+    - You want a proven AWS methodology
+    - You want a [VS Code extension](/getting-started/vscode-extension) to track progress visually
+  </Card>
+  <Card title="Choose Spec Kit if:" icon="check">
+    - You want minimal workflow change
+    - You're working on simpler projects
+    - You prefer command-driven interaction
+    - You want the lowest learning curve
+    - You want minimal ceremony
+  </Card>
+</CardGroup>
+
+---
+
+## Key Differences
+
+### 1. Methodology vs Toolkit
+
+**Spec Kit** is a toolkit—a set of commands that structure your prompts. It doesn't prescribe how you work, just helps you write better specs.
+
+**specs.md** is a full methodology with:
+- Defined phases (Inception → Construction → Operations)
+- Rituals (Mob Elaboration, Mob Construction)
+- Role definitions (AI drives, human validates)
+- Artifact specifications (Intents, Units, Bolts)
+
+### 2. Conversation Direction
+
+**Spec Kit**: Agent-driven via structured prompts
+```
+Human: /speckit.specify [high-level description]
+AI: [generates detailed specification with user journeys]
+AI: [asks clarifying questions via /speckit.clarify]
+Human: [validates and refines]
+```
+
+**specs.md**: AI drives with Mob rituals
+```
+Human: [provides intent]
+AI: "I've analyzed your intent. Here are 3 Units I propose.
+     I have 5 clarifying questions before we proceed..."
+Human: [validates, approves, or redirects in Mob session]
+```
+
+### 3. Design Integration
+
+**Spec Kit**: Constitution file sets project principles and constraints. Technical plan phase handles architecture decisions.
+
+**specs.md**: DDD is the default methodology. AI applies domain-driven design principles during decomposition, creating bounded contexts, aggregates, and domain models. Extensible via bolt types for BDD, TDD, or custom flows.
+
+---
+
+## AI-DLC's Opinionated Approach
+
+Unlike toolkit-based approaches, AI-DLC is an opinionated methodology with specific patterns:
+
+**Bolts, Not Sprints**: Instead of 2-week sprints with variable scope, AI-DLC uses Bolts—focused execution units measured in hours or days. Each Bolt batches related stories together and executes them with full DDD construction steps.
+
+**DDD Baked In**: Domain-Driven Design isn't optional—it's integral. Every Bolt follows DDD patterns: domain modeling, bounded contexts, aggregates, and entities. This creates consistent, high-quality designs regardless of who's working.
+
+**Agent Drives, Human Validates**: In AI-DLC, the AI proposes breakdown, trade-offs, and designs. Humans validate and approve. This reversed conversation direction keeps humans in control while leveraging AI's synthesis capabilities.
+
+**Full Traceability**: Artifacts created during construction show exactly what was built and how—from Intent to Unit to Story to Bolt execution.
+
+---
+
+## Migration Path
+
+If you're currently using Spec Kit and want more structure:
+
+<Steps>
+  <Step title="Start with Simple Flow">
+    [specs.md (Simple Flow)](/simple-flow/overview) provides Kiro-style Requirements → Design → Tasks workflow
+  </Step>
+  <Step title="Add Memory Bank">
+    Enable persistent context across sessions
+  </Step>
+  <Step title="Adopt Phase Structure">
+    Organize work into Inception, Construction, Operations
+  </Step>
+  <Step title="Graduate to Full AI-DLC">
+    When complexity demands it, adopt full Mob rituals and DDD integration
+  </Step>
+</Steps>
+
+---
+
+## Summary
+
+| For This Need | Use This |
+|---------------|----------|
+| Quick spec generation | Spec Kit or specs.md (Simple Flow) |
+| Minimal learning curve | Spec Kit |
+| Complex system development | specs.md |
+| Team coordination | specs.md |
+| Enterprise/regulated environments | specs.md |
+| DDD integration | specs.md |
+
+<Info>
+**Bottom Line**: Spec Kit is great for adding light structure. specs.md is for when you need a complete methodology for complex systems.
+
+*Can't decide? Try [specs.md (Simple Flow)](/simple-flow/overview)—start simple, graduate when needed.*
+</Info>

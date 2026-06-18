@@ -1,0 +1,46 @@
+name: NPM Package CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+
+jobs:
+  npm-package-test:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    strategy:
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src
+        run: npm ci
+
+      - name: Lint markdown files
+        working-directory: src
+        run: npm run lint:md
+
+      - name: Run schema validation tests
+        working-directory: src
+        run: npm run test:schema
+
+      - name: Run all tests
+        working-directory: src
+        run: npm test

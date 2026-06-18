@@ -1,0 +1,443 @@
+import * as vscode from 'vscode';
+import { handleInstallCommand } from './installHandler';
+import {
+    trackWelcomeViewDisplayed,
+    trackWelcomeCopyCommandClicked,
+    trackWelcomeInstallClicked,
+    trackWelcomeWebsiteClicked,
+    trackWelcomeInstallCompleted,
+    trackError,
+} from '../analytics';
+
+/**
+ * Provides the welcome view webview for non-specsmd workspaces.
+ * Shows a branded onboarding experience with installation instructions.
+ */
+export class WelcomeViewProvider implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'specsmdWelcome';
+
+    private _view?: vscode.WebviewView;
+    private _installClickedAt?: number;
+
+    constructor(
+        private readonly _extensionUri: vscode.Uri,
+        private readonly _context?: vscode.ExtensionContext
+    ) {}
+
+    public resolveWebviewView(
+        webviewView: vscode.WebviewView,
+        _context: vscode.WebviewViewResolveContext,
+        _token: vscode.CancellationToken
+    ): void {
+        this._view = webviewView;
+
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(this._extensionUri, 'resources')
+            ]
+        };
+
+        webviewView.webview.html = this._getHtmlContent(webviewView.webview);
+
+        // Track welcome view displayed
+        trackWelcomeViewDisplayed();
+
+        // Handle messages from the webview
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            try {
+                switch (message.command) {
+                    case 'openWebsite':
+                        trackWelcomeWebsiteClicked();
+                        vscode.env.openExternal(vscode.Uri.parse('https://specs.md'));
+                        break;
+                    case 'openFabriqa':
+                        trackWelcomeWebsiteClicked();
+                        vscode.env.openExternal(vscode.Uri.parse('https://fabriqa.ai'));
+                        break;
+                    case 'openDashboardDocs':
+                        trackWelcomeWebsiteClicked();
+                        vscode.env.openExternal(vscode.Uri.parse('https://specs.md/getting-started/cli-dashboard'));
+                        break;
+                    case 'copyCommand':
+                        trackWelcomeCopyCommandClicked();
+                        await vscode.env.clipboard.writeText('npx specsmd@latest install');
+                        vscode.window.showInformationMessage('Command copied to clipboard!');
+                        break;
+                    case 'install':
+                        trackWelcomeInstallClicked();
+                        this._installClickedAt = Date.now();
+                        await handleInstallCommand();
+                        break;
+                }
+            } catch {
+                trackError('webview', 'MESSAGE_ERROR', 'welcomeViewProvider', true);
+            }
+        });
+    }
+
+    /**
+     * Called when installation is detected complete by the installation watcher
+     * Used to track the welcome_install_completed event with duration
+     */
+    public onInstallationComplete(): void {
+        try {
+            const durationMs = this._installClickedAt
+                ? Date.now() - this._installClickedAt
+                : undefined;
+            trackWelcomeInstallCompleted(durationMs);
+            // Reset the timestamp
+            this._installClickedAt = undefined;
+        } catch {
+            // Silent failure
+        }
+    }
+
+    private _getHtmlContent(webview: vscode.Webview): string {
+        const logoUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'resources', 'logo.png')
+        );
+
+        const nonce = getNonce();
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <title>Welcome to specsmd</title>
+    <style>
+        body {
+            padding: 16px;
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background: transparent;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 24px;
+            cursor: pointer;
+        }
+
+        .logo {
+            max-width: 120px;
+            height: auto;
+            image-rendering: pixelated;
+        }
+
+        .logo:hover {
+            opacity: 0.8;
+        }
+
+        h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+            color: var(--vscode-foreground);
+        }
+
+        p {
+            margin: 0 0 16px 0;
+            line-height: 1.5;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .command-box {
+            display: flex;
+            align-items: center;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+        }
+
+        .command-text {
+            flex: 1;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 12px;
+            color: var(--vscode-input-foreground);
+            user-select: all;
+        }
+
+        .copy-button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: var(--vscode-foreground);
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-button:hover {
+            opacity: 1;
+        }
+
+        .copy-button svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .install-button {
+            width: 100%;
+            padding: 10px 16px;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .install-button:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .install-button:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 2px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--vscode-panel-border);
+            margin: 16px 0;
+        }
+
+        .fabriqa-card {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 18px 0 16px;
+            background: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-button-background));
+        }
+
+        .fabriqa-kicker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: var(--vscode-foreground);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .fabriqa-mark {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--vscode-button-foreground);
+            background: var(--vscode-button-background);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .fabriqa-title {
+            margin: 0 0 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+        }
+
+        .fabriqa-copy {
+            margin: 0 0 12px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .fabriqa-button {
+            width: 100%;
+            padding: 9px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--vscode-button-background);
+            background: transparent;
+            color: var(--vscode-textLink-foreground);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .fabriqa-button:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+
+        .dashboard-tip {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 0 0 16px;
+            background: var(--vscode-input-background);
+        }
+
+        .dashboard-tip-title {
+            margin: 0 0 6px;
+            color: var(--vscode-foreground);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .dashboard-tip-copy {
+            margin: 0 0 10px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .dashboard-tip code {
+            display: block;
+            padding: 7px 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: var(--vscode-editor-background);
+            color: var(--vscode-input-foreground);
+            font-family: var(--vscode-editor-font-family);
+            font-size: 11px;
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+
+        .dashboard-link {
+            color: var(--vscode-textLink-foreground);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .dashboard-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .footer a {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo-container" title="Visit specs.md">
+        <img src="${logoUri}" alt="specsmd logo" class="logo" />
+    </div>
+
+    <h2>Welcome to specsmd</h2>
+
+    <p>
+        AI-native software development with multi-agent orchestration.
+        Capture requirements, build iteratively, and deploy with confidence.
+    </p>
+
+    <p>Get started by running:</p>
+
+    <div class="command-box">
+        <code class="command-text">npx specsmd@latest install</code>
+        <button class="copy-button" title="Copy to clipboard" aria-label="Copy command">
+            <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/>
+            </svg>
+        </button>
+    </div>
+
+    <button class="install-button">
+        Install specsmd
+    </button>
+
+    <div class="fabriqa-card">
+        <div class="fabriqa-kicker">
+            <span class="fabriqa-mark">FA</span>
+            <span>From the founder of specs.md</span>
+        </div>
+        <h3 class="fabriqa-title">Try Fabriqa.AI</h3>
+        <p class="fabriqa-copy">
+            Fabriqa.AI is a spec-native agentic development environment that works with your existing AI subscription. It is free to try and pairs naturally with spec-driven workflows.
+        </p>
+        <button class="fabriqa-button" id="fabriqaLink">
+            Explore Fabriqa.AI
+        </button>
+    </div>
+
+    <div class="dashboard-tip">
+        <div class="dashboard-tip-title">Did you know?</div>
+        <p class="dashboard-tip-copy">
+            You can use the specsmd dashboard outside VS Code and VS Code variants. Run this from your project folder:
+        </p>
+        <code>npx specsmd@latest dashboard</code>
+        <a href="#" class="dashboard-link" id="dashboardDocsLink">Open dashboard docs</a>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="footer">
+        <a href="#" id="learnMoreLink">Learn more at specs.md</a>
+    </div>
+
+    <script nonce="${nonce}">
+        const vscode = acquireVsCodeApi();
+
+        function openWebsite(e) {
+            if (e) e.preventDefault();
+            vscode.postMessage({ command: 'openWebsite' });
+        }
+
+        function copyCommand() {
+            vscode.postMessage({ command: 'copyCommand' });
+        }
+
+        function install() {
+            vscode.postMessage({ command: 'install' });
+        }
+
+        function openFabriqa() {
+            vscode.postMessage({ command: 'openFabriqa' });
+        }
+
+        function openDashboardDocs(e) {
+            if (e) e.preventDefault();
+            vscode.postMessage({ command: 'openDashboardDocs' });
+        }
+
+        // Set up event listeners after DOM is ready
+        document.getElementById('learnMoreLink').addEventListener('click', openWebsite);
+        document.getElementById('fabriqaLink').addEventListener('click', openFabriqa);
+        document.getElementById('dashboardDocsLink').addEventListener('click', openDashboardDocs);
+        document.querySelector('.logo-container').addEventListener('click', openWebsite);
+        document.querySelector('.copy-button').addEventListener('click', copyCommand);
+        document.querySelector('.install-button').addEventListener('click', install);
+    </script>
+</body>
+</html>`;
+    }
+}
+
+/**
+ * Generate a nonce for Content Security Policy
+ */
+function getNonce(): string {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}

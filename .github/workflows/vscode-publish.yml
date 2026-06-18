@@ -1,0 +1,119 @@
+name: VS Code Extension CI/Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'vs-code-extension/**'
+      - '.github/workflows/vscode-publish.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'vs-code-extension/**'
+
+jobs:
+  vs-code-extension-test:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vs-code-extension/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vs-code-extension
+        run: npm ci
+
+      - name: Lint
+        working-directory: vs-code-extension
+        run: npm run lint
+
+      - name: Compile
+        working-directory: vs-code-extension
+        run: npm run compile
+
+      - name: Run tests
+        working-directory: vs-code-extension
+        run: npm test
+
+  vs-code-extension-publish:
+    needs: vs-code-extension-test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: vs-code-extension
+        run: npm ci
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version
+        id: version
+        working-directory: vs-code-extension
+        run: |
+          # Bump patch version (e.g., 1.0.5 -> 1.0.6)
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped to version $NEW_VERSION"
+
+      - name: Commit version bump
+        run: |
+          git add vs-code-extension/package.json vs-code-extension/package-lock.json
+          git commit -m "chore(vscode): bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git push origin main
+
+      - name: Package extension
+        working-directory: vs-code-extension
+        run: npm run package
+
+      - name: Validate package
+        working-directory: vs-code-extension
+        run: |
+          # Check VSIX was created
+          ls -la *.vsix
+          # Verify package contents
+          npx vsce ls
+
+      - name: Publish to VS Code Marketplace
+        working-directory: vs-code-extension
+        run: npx vsce publish -p ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        working-directory: vs-code-extension
+        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+
+      - name: Create GitHub Release with VSIX
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create tag
+          git tag -a "vscode-v${{ steps.version.outputs.version }}" -m "VS Code Extension v${{ steps.version.outputs.version }}"
+          git push origin "vscode-v${{ steps.version.outputs.version }}"
+          # Create GitHub release with VSIX attached
+          gh release create "vscode-v${{ steps.version.outputs.version }}" \
+            --title "VS Code Extension v${{ steps.version.outputs.version }}" \
+            --notes "## specsmd VS Code Extension v${{ steps.version.outputs.version }}
+
+          Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fabriqaai.specsmd), [Open VSX](https://open-vsx.org/extension/fabriqaai/specsmd), or download the VSIX below." \
+            vs-code-extension/*.vsix

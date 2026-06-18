@@ -1,0 +1,231 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "banner": {
+    "content": "**New from the specs.md team** — [fabriqa](https://fabriqa.ai/?utm_source=specsmd&utm_medium=referral&utm_campaign=specsmd_crosslink) orchestrates Claude Code, Codex, Gemini CLI & more in one workflow. [Download free →](https://fabriqa.ai/?utm_source=specsmd&utm_medium=referral&utm_campaign=specsmd_crosslink)",
+    "dismissible": true
+  },
+  "theme": "mint",
+  "name": "specs.md",
+  "description": "AI-native software development framework with pluggable flows. Choose Simple for specs, FIRE for rapid execution, or AI-DLC for full methodology. Works with Claude Code, Cursor, and GitHub Copilot.",
+  "metadata": {
+    "og:site_name": "specs.md",
+    "og:type": "website",
+    "og:image": "/images/logo.png",
+    "og:locale": "en_US",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@specsmd",
+    "twitter:image": "/images/logo.png",
+    "keywords": "AI-native development, FIRE flow, AI-DLC, Simple flow, spec-driven development, multi-agent orchestration, Claude Code, Cursor, GitHub Copilot, brownfield development, monorepo"
+  },
+  "seo": {
+    "indexHiddenPages": true
+  },
+  "logo": {
+    "dark": "/images/logo-with-tagline.png",
+    "light": "/images/logo-with-tagline.png"
+  },
+  "favicon": "/images/favicon.png",
+  "colors": {
+    "primary": "#CD6B4D",
+    "light": "#D17A5E",
+    "dark": "#B85A3D"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "fabriqa.ai",
+        "href": "https://fabriqa.ai/?utm_source=specsmd&utm_medium=referral&utm_campaign=specsmd_crosslink"
+      },
+      {
+        "label": "github",
+        "href": "https://github.com/fabriqaai/specs.md"
+      },
+      {
+        "label": "npm",
+        "href": "https://www.npmjs.com/package/specsmd"
+      },
+      {
+        "label": "IDE Extension",
+        "href": "/getting-started/ide-extension"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "/getting-started/installation"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index",
+              "getting-started/installation",
+              "getting-started/ide-extension",
+              {
+                "title": "Dashboard",
+                "href": "getting-started/specs-md-dashboard"
+              },
+              "getting-started/quick-start",
+              "deepwiki"
+            ]
+          },
+          {
+            "group": "Framework",
+            "pages": [
+              "architecture/flows",
+              "architecture/choose-flow"
+            ]
+          },
+          {
+            "group": "FIRE Flow",
+            "pages": [
+              "fire-flow/overview",
+              "fire-flow/quick-start",
+              "fire-flow/execution-modes",
+              "fire-flow/work-items",
+              "fire-flow/monorepo-support",
+              "fire-flow/agents"
+            ]
+          },
+          {
+            "group": "AI-DLC Flow",
+            "pages": [
+              "aidlc/overview",
+              "agents/quick-start",
+              {
+                "group": "Methodology",
+                "pages": [
+                  "methodology/sdlc-reimagined",
+                  "methodology/what-is-ai-dlc",
+                  "methodology/ai-dlc-vs-agile",
+                  "methodology/three-phases"
+                ]
+              },
+              {
+                "group": "Concepts",
+                "pages": [
+                  "core-concepts/intents",
+                  "core-concepts/units",
+                  "core-concepts/bolts",
+                  "core-concepts/memory-bank",
+                  "core-concepts/standards"
+                ]
+              },
+              {
+                "group": "Agents",
+                "pages": [
+                  "agents/overview",
+                  "agents/master-agent",
+                  "agents/inception-agent",
+                  "agents/construction-agent",
+                  "agents/operations-agent"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "guides/bolt-types"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Simple Flow",
+            "pages": [
+              "simple-flow/overview",
+              "simple-flow/quick-start",
+              "simple-flow/three-phases",
+              "simple-flow/agent"
+            ]
+          },
+          {
+            "group": "Compare",
+            "pages": [
+              "compare/overview",
+              "compare/vs-speckit",
+              "compare/vs-bmad",
+              "compare/vs-kiro",
+              "compare/vs-openspec"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "changelog",
+              "faq",
+              "feedback",
+              "community"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Video Tutorials",
+        "groups": [
+          {
+            "group": "Videos",
+            "pages": [
+              "learn/index",
+              "learn/fire-flow-intro",
+              "learn/fire-flow-resume-run",
+              "learn/aidlc-bolt-execution",
+              "learn/specs-md-dashboard",
+              "learn/specsmd-in-fabriqa"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/fabriqaai/specs.md",
+      "discord": "https://discord.specs.md/",
+      "x": "https://x.com/specsmd"
+    }
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-Z6L00G5P4N"
+    }
+  },
+  "redirects": [
+    {
+      "source": "/getting-started/vscode-extension",
+      "destination": "/getting-started/ide-extension"
+    },
+    {
+      "source": "/getting-started/cli-dashboard",
+      "destination": "/getting-started/specs-md-dashboard"
+    },
+    {
+      "source": "/learn/cli-dashboard-codex",
+      "destination": "/learn/specs-md-dashboard"
+    }
+  ],
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      {
+        "title": "Explore with DeepWiki",
+        "description": "Explore with DeepWiki",
+        "icon": "book",
+        "href": "https://deepwiki.com/fabriqaai/specs.md"
+      },
+      {
+        "title": "Feature Request",
+        "description": "Suggest a new feature",
+        "icon": "lightbulb",
+        "href": "https://github.com/fabriqaai/specs.md/issues/new?template=feature_request.md"
+      }
+    ]
+  }
+}

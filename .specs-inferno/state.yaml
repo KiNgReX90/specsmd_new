@@ -1,0 +1,78 @@
+project:
+  name: specsmd-inferno-flow
+  description: Source-of-truth repo for the SPECSMD INFERNO flow (src/flows/inferno)
+  created: 2026-06-17T00:00:00Z
+  inferno_version: "0.1.75"
+workspace:
+  type: brownfield
+  structure: monolith
+  autonomy_bias: review
+intents:
+  - id: inferno-authoring-and-delivery
+    title: Parallel scribe authoring, config-driven tiers, and delivery modes
+    status: pending
+    base_branch: feat/inferno-flow
+    work_items:
+      - id: writer-agent
+        title: INFERNO pure-scribe writer agent + command
+        status: pending
+        complexity: medium
+        mode: autopilot
+        depends_on: []
+      - id: writer-drift-guard
+        title: Drift guard for writer command vs agent body
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: [writer-agent]
+      - id: decompose-fanout
+        title: Fan out work-item writing to parallel scribe subagents
+        status: pending
+        complexity: medium
+        mode: autopilot
+        depends_on: [writer-agent]
+      - id: planner-agent-updates
+        title: Planner agent — document fan-out + first-run config gate
+        status: pending
+        complexity: medium
+        mode: autopilot
+        depends_on: [writer-agent, config-wizard-ux]
+      - id: config-template
+        title: Config template — writer tier, effort, delivery mode
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: []
+      - id: config-wizard-ux
+        title: Config wizard — display defaults and confirm
+        status: pending
+        complexity: medium
+        mode: autopilot
+        depends_on: [config-template]
+      - id: builder-effort
+        title: Builder runs at xhigh effort
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: []
+      - id: delivery-mode-design
+        title: Design — merge-request delivery mode
+        status: pending
+        complexity: high
+        mode: autopilot
+        depends_on: [config-template]
+      - id: delivery-mode-impl
+        title: Orchestrator — implement delivery.mode toggle
+        status: pending
+        complexity: high
+        mode: autopilot
+        depends_on: [delivery-mode-design]
+      - id: readme-docs
+        title: README — document authoring, tiers, and delivery modes
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on: [decompose-fanout, config-wizard-ux, delivery-mode-impl]
+runs:
+  active: []
+  completed: []

@@ -1,0 +1,72 @@
+---
+id: {{id}}
+title: {{title}}
+intent: {{intent}}
+kind: {{kind}}
+complexity: {{complexity}}
+mode: autopilot
+status: {{status}}
+depends_on: [{{#each depends_on}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}]
+created: {{created}}
+---
+
+# Work Item: {{title}}
+
+## Description
+
+{{description}}
+
+## Acceptance Criteria
+
+{{#each acceptance_criteria}}
+- [ ] {{this}}
+{{/each}}
+
+## Execution Manifest
+
+context:
+  required:
+{{#each context.required}}
+    - path: {{this.path}}
+      reason: {{this.reason}}
+{{/each}}
+  patterns:
+{{#each context.patterns}}
+    - path: {{this.path}}
+      reason: {{this.reason}}
+{{/each}}
+  tests:
+{{#each context.tests}}
+    - path: {{this.path}}
+      reason: {{this.reason}}
+{{/each}}
+ownership:
+  editable:
+{{#each ownership.editable}}
+    - {{this}}
+{{/each}}
+{{#if finalize_check}}
+
+# One-line shell invariant the ORCHESTRATOR runs at finalize (not a subagent).
+# Non-zero exit blocks close. Use for cheap mechanical checks (dangling-ref
+# sweep, key parity) instead of a standalone verify item.
+finalize_check: {{finalize_check}}
+{{/if}}
+
+## Technical Notes
+
+{{#if technical_notes}}
+{{technical_notes}}
+{{else}}
+(none)
+{{/if}}
+
+## Dependencies
+
+{{#if depends_on}}
+{{#each depends_on}}
+- {{this}}
+{{/each}}
+{{else}}
+(none)
+{{/if}}

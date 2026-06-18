@@ -1,0 +1,140 @@
+---
+title: "specs.md vs OpenSpec"
+description: "Compare specs.md with OpenSpec's change-centric approach"
+---
+
+## Overview
+
+**OpenSpec** is a lightweight, brownfield-first CLI tool focused on change management. It separates current truth (`specs/`) from proposed changes (`changes/`).
+
+**specs.md** is a full lifecycle methodology covering Inception through Operations, with support for both greenfield and brownfield development.
+
+---
+
+## Side-by-Side Comparison
+
+| Aspect | specs.md | OpenSpec |
+|--------|-------------------|----------|
+| **Primary Focus** | Full lifecycle (Inception → Operations) | Change management |
+| **Best For** | Greenfield + brownfield | Greenfield + brownfield (brownfield-focused) |
+| **Philosophy** | Complete methodology | Lightweight, change-centric |
+| **Structure** | Intents → Units → Stories | Specs + Changes separation |
+| **Brownfield Support** | Supported (with model elevation) | Excellent (primary design focus) |
+| **Token Efficiency** | Both (Units scope context) | Both (spec deltas) |
+| **Design Integration** | DDD as core | Design-agnostic (your choice) |
+| **Rituals** | Mob Elaboration, Mob Construction | None |
+| **Learning Curve** | Moderate | Low |
+| **VS Code Extension** | Yes ([visual dashboard](/getting-started/vscode-extension)) | CLI dashboard |
+
+---
+
+## When to Choose Each
+
+<CardGroup cols={2}>
+  <Card title="Choose specs.md (AI-DLC) if:" icon="check">
+    - You need full project lifecycle support
+    - You're building new features (greenfield)
+    - You want DDD integration
+    - You need Mob rituals for team alignment
+    - You want formal methodology structure
+    - You want a [VS Code extension](/getting-started/vscode-extension) to track progress visually
+  </Card>
+  <Card title="Choose OpenSpec if:" icon="check">
+    - You primarily make incremental changes
+    - You're working with existing codebases
+    - You want maximum token efficiency
+    - You prefer minimal overhead
+    - You want the simplest possible setup
+    - You make high-volume, small-scope changes
+  </Card>
+</CardGroup>
+
+---
+
+## Key Differences
+
+### 1. Design Philosophy
+
+**OpenSpec**: Brownfield-first. Designed for modifying existing systems with a clear separation between current state and proposed changes.
+
+```
+openspec/
+├── specs/      # Current truth (what exists)
+└── changes/    # Proposed updates (what's changing)
+```
+
+**specs.md**: Full lifecycle. Designed for complex systems from inception through operations.
+
+```
+memory-bank/
+├── intents/           # High-level goals
+├── units/             # Decomposed work
+├── construction/      # Domain models, code
+└── operations/        # Deployment, monitoring
+```
+
+### 2. Token Efficiency
+
+**OpenSpec**: Excellent token efficiency. Only sends "spec deltas" (proposed changes) to the LLM, not the full codebase context.
+
+**specs.md**: Memory Bank provides structured context. You can achieve similar change-focused efficiency by creating Units specifically for changes—keeping context scoped to what matters.
+
+| Approach | Token Usage | Best For |
+|----------|-------------|----------|
+| OpenSpec | Lower | High-volume small changes |
+| specs.md | Higher | Complex decisions requiring full context |
+
+### 3. Brownfield Handling
+
+**OpenSpec**: Primary design focus. Every change is explicit with clear before/after separation.
+
+**specs.md**: Supported via "model elevation" - AI first converts existing code to semantic models (domain components, relationships) before making changes. *More advanced brownfield process coming soon.*
+
+```
+AI-DLC Brownfield Flow:
+Existing Code → Semantic Models → Changes → Updated Code
+```
+
+### 4. Methodology vs Tool
+
+**OpenSpec**: A tool for managing specs and changes. No prescribed methodology.
+
+**specs.md**: A complete methodology with:
+- Defined phases (Inception → Construction → Operations)
+- Rituals (Mob Elaboration, Mob Construction)
+- Design integration (DDD as core)
+- Role definitions (AI drives, human validates)
+
+---
+
+## Use Case Comparison
+
+| Use Case | OpenSpec | specs.md |
+|----------|----------|-------------------|
+| Small bug fix | Excellent | Overkill |
+| Feature tweak | Excellent | Good |
+| New feature (existing codebase) | Good | Excellent |
+| New system (greenfield) | Limited | Excellent |
+| Complex refactoring | Good | Excellent |
+| Multi-team coordination | Limited | Excellent |
+
+---
+
+## Summary
+
+| For This Need | Use This |
+|---------------|----------|
+| Brownfield changes | OpenSpec (excellent) or specs.md (good) |
+| Greenfield development | specs.md |
+| Token efficiency | Both |
+| Full lifecycle | specs.md |
+| Minimal setup | OpenSpec |
+| DDD integration | specs.md |
+| Team rituals | specs.md |
+| High-volume small changes | OpenSpec |
+
+<Info>
+**Bottom Line**: OpenSpec excels at brownfield changes with minimal overhead. specs.md provides full lifecycle support for complex systems.
+
+*For brownfield work within a larger project, consider using both together.*
+</Info>

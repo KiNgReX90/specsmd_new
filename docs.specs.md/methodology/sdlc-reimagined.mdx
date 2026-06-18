@@ -1,0 +1,283 @@
+---
+title: "The AI-Native SDLC: Reimagined"
+description: "Why the Agentic Age demands a new methodology—and why retrofitting AI into Agile doesn't work."
+---
+
+## The End of "Faster Horse Chariots"
+
+For decades, software development methodologies evolved incrementally. Waterfall gave way to Agile. Sprints replaced long release cycles. Story points replaced time estimates. Each iteration made us marginally faster.
+
+Then AI arrived—and broke the entire model.
+
+<Info>
+**"Retrofitting AI into existing methods not only limits its potential, but also reinforces outdated inefficiencies. To fully leverage AI's transformative power, SDLC methods need to be reimagined."**
+
+— [AWS AI-DLC Whitepaper](https://github.com/fabriqaai/specsmd/blob/main/resources/aidlc.pdf)
+</Info>
+
+We don't need faster horse chariots. We need automobiles.
+
+---
+
+## Three Eras of AI in Development
+
+| Era | Human Role | AI Role | Paradigm |
+|-----|------------|---------|----------|
+| **AI-Assisted** (2020-2023) | Primary creator | Autocomplete, suggestions | Human drives, AI helps |
+| **AI-Driven** (2023-2025) | Validator, decision-maker | Generates code, plans, tests | AI proposes, human approves |
+| **Agentic** (2025+) | Supervisor, architect | Autonomous multi-step execution | AI executes, human oversees |
+
+We're now in the **Agentic Age**—where AI agents don't just assist; they autonomously plan, reason, and execute complex workflows.
+
+This isn't a minor upgrade. It's a paradigm shift that renders traditional methodologies obsolete.
+
+---
+
+## Why Sprints Don't Work Anymore
+
+### Two Weeks Is No Longer Fast
+
+<Warning>
+AI-enabled development produces working prototypes in hours. A two-week sprint is not rapid iteration—it's an artificial delay that queues work behind an arbitrary time boundary.
+</Warning>
+
+When concept-to-working-code happens in an afternoon, waiting twelve more days for a sprint boundary serves no purpose except ceremony compliance.
+
+### The Cost of Code Has Collapsed
+
+Agile assumed producing code was expensive because human effort was expensive. The methodology optimized for producing *less code more carefully*.
+
+AI inverted this assumption. Code generation now costs minutes, not days.
+
+### Estimation Becomes Meaningless
+
+| Traditional Metric | Problem in AI Era |
+|-------------------|-------------------|
+| **Story Points** | AI execution time bears no relation to human effort estimates |
+| **Velocity** | Fluctuates wildly based on AI tool usage, not team capability |
+| **Sprint Planning** | Creates artificial delays for completed work waiting for ceremonies |
+| **Daily Standups** | Consume time sharing information automated systems could surface instantly |
+
+<Info>
+**"Would effort estimation (story points) be as critical if AI diminishes the boundaries between simple, medium, and hard tasks? Would metrics like velocity be relevant, or should we replace it with Business Value?"**
+
+— AWS AI-DLC Whitepaper
+</Info>
+
+---
+
+## The V-Bounce Model: Humans as Validators
+
+The [V-Bounce paper](https://arxiv.org/abs/2408.03416) from Crowdbotics introduced a foundational insight:
+
+<Card title="Core Insight" icon="lightbulb">
+**The role of humans shifts from primary implementers to validators and verifiers.**
+</Card>
+
+### Traditional V-Model vs V-Bounce
+
+| Aspect | Traditional V-Model | V-Bounce |
+|--------|---------------------|----------|
+| **Implementation Phase** | Substantial (weeks/months) | Drastically reduced (hours/days) |
+| **Human Role** | Hands-on coding | Validation and verification |
+| **Emphasis** | Code production | Requirements + Architecture + Continuous validation |
+| **AI Role** | None/minimal | End-to-end: planning → code → tests → maintenance |
+
+### Three Core Assumptions
+
+<Steps>
+  <Step title="Near-Instantaneous Code Generation">
+    LLMs enable rapid generation of high-quality code
+  </Step>
+  <Step title="Natural Language as Primary Interface">
+    Programming is becoming language-driven
+  </Step>
+  <Step title="Humans as Verifiers">
+    Human roles shift from creators to sophisticated validators
+  </Step>
+</Steps>
+
+### Empirical Results
+
+- **55.8%** faster task completion with AI tools (GitHub Copilot study)
+- **70%+** efficiency in generating test suites with AI
+- Enhanced early bug detection and overall software quality
+
+---
+
+## AI-DLC: The Methodology for the Agentic Age
+
+AWS's **AI-Driven Development Lifecycle (AI-DLC)** takes these insights and builds a complete, production-ready methodology.
+
+### Core Principle: Reimagine, Don't Retrofit
+
+<Info>
+**"We need automobiles, not faster horse chariots."**
+</Info>
+
+AI-DLC doesn't bolt AI onto existing processes. It rebuilds from first principles for an AI-native world.
+
+### The Reversed Conversation
+
+In traditional development, humans prompt AI:
+
+```
+Human: "Write a function that calculates tax"
+AI: [generates code]
+Human: "Now add error handling"
+AI: [updates code]
+```
+
+In AI-DLC, **AI drives the conversation**:
+
+```
+AI: "I've analyzed your intent. Here are 3 Units I propose,
+     with 12 user stories. I have 5 clarifying questions
+     before we proceed. Question 1: What's your compliance
+     framework for tax calculations?"
+Human: [validates, approves, or redirects]
+```
+
+This is like Google Maps: *humans set the destination, AI provides step-by-step directions, humans maintain oversight.*
+
+### Three Phases, Not Endless Sprints
+
+| Phase | Ritual | Duration | Output |
+|-------|--------|----------|--------|
+| **Inception** | Mob Elaboration | Hours | Intents → Units → Stories |
+| **Construction** | Mob Construction | Hours/Days (Bolts) | Domain Design → Code → Tests |
+| **Operations** | Continuous | Ongoing | Deployment, monitoring, maintenance |
+
+### Bolts Replace Sprints
+
+| Sprints | Bolts |
+|---------|-------|
+| 2-4 weeks | Hours or days |
+| Fixed timeboxes | Flexible, intent-driven |
+| Velocity measured | Business value measured |
+| Story points estimated | AI executes, humans validate |
+
+### Mob Rituals: Collaborative AI Alignment
+
+<AccordionGroup>
+  <Accordion title="Mob Elaboration (Inception)">
+    - Product managers, developers, QA collaborate with AI from the start
+    - AI proposes breakdown into Units and Stories
+    - Team validates in single room with shared screen
+    - *What took months now takes hours*
+  </Accordion>
+  <Accordion title="Mob Construction (Construction)">
+    - Teams work in parallel after domain modeling
+    - AI generates component models, sequence diagrams, functional flows
+    - Team provides real-time clarification on technical decisions
+    - *Prevents hallucinations and poor design*
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Why You Don't Need Other Spec-Driven Tools
+
+### The Landscape Today
+
+| Tool | Philosophy | Limitation |
+|------|------------|------------|
+| **Spec Kit** | Lightweight toolkit | No methodology, human-driven |
+| **BMAD** | 19-agent simulation | Complex, no formal methodology |
+| **OpenSpec** | Change-centric | No lifecycle, brownfield-only |
+| **Kiro** | IDE-integrated | Vendor lock-in, no team rituals |
+
+### What They're Missing
+
+These tools focus on **specifications**—they help you write better prompts and structure your requirements.
+
+But specifications alone don't solve the fundamental problem:
+
+<Warning>
+Traditional methods were built for longer iteration durations (months and weeks), which led to rituals like daily standups and retrospectives. With AI, iteration cycles are measured in hours or days. This needs continuous, real-time validation and feedback mechanisms, rendering many traditional rituals less relevant.
+</Warning>
+
+### AI-DLC Is Different
+
+AI-DLC isn't a tool—it's a **methodology** that includes:
+
+- **Formal phases** (Inception → Construction → Operations)
+- **Defined rituals** (Mob Elaboration, Mob Construction)
+- **Design integration** (DDD as core, not optional)
+- **Reversed conversation** (AI proposes, human validates)
+- **New artifacts** (Intents, Units, Bolts)
+
+---
+
+## specs.md: Three Flows for Every Use Case
+
+**specs.md** is an AI-native development framework with pluggable flows. Choose the level of methodology that matches your project needs.
+
+<CardGroup cols={3}>
+  <Card title="Simple Flow" icon="feather" href="/simple-flow/overview">
+    **Spec Generation Only**
+
+    Quick requirements, design, and task documents without execution tracking.
+
+    - 1 agent, 3 phase gates
+    - Kiro-style workflow
+    - Best for: prototypes, handoff
+  </Card>
+  <Card title="FIRE Flow" icon="bolt" href="/fire-flow/overview">
+    **Adaptive Execution**
+
+    Ship in hours with adaptive checkpoints and first-class brownfield support.
+
+    - 3 agents, adaptive checkpoints
+    - Monorepo & brownfield ready
+    - Optimized for: teams who hate friction
+  </Card>
+  <Card title="AI-DLC Flow" icon="building" href="/methodology/what-is-ai-dlc">
+    **Full Methodology**
+
+    Complete AI-DLC implementation with DDD and comprehensive traceability.
+
+    - 4 agents, 10-26 checkpoints
+    - Mob rituals, DDD as core
+    - Best for: teams, complex domains
+  </Card>
+</CardGroup>
+
+<Info>
+  **Not sure which flow?** Check out our [Choose Your Flow](/architecture/choose-flow) guide.
+</Info>
+
+---
+
+## The Bottom Line
+
+| Old World | New World |
+|-----------|-----------|
+| Sprints (weeks) | Bolts (hours/days) |
+| Story points | Business value |
+| Human codes, AI assists | AI proposes, human validates |
+| Retrofit AI into Agile | Reimagine from first principles |
+| Specification tools | Complete methodology (AI-DLC) |
+
+<Info>
+**"AI might be the death of Agile, but it's the beginning of true agility."**
+</Info>
+
+---
+
+## Further Reading
+
+<CardGroup cols={2}>
+  <Card title="AI-DLC Whitepaper (AWS)" icon="file-pdf" href="https://github.com/fabriqaai/specsmd/blob/main/resources/aidlc.pdf">
+    The original AWS whitepaper defining AI-DLC methodology
+  </Card>
+  <Card title="V-Bounce Paper (arXiv)" icon="book" href="https://arxiv.org/abs/2408.03416">
+    The AI-Native Software Development Lifecycle research paper
+  </Card>
+  <Card title="AWS Blog: AI-DLC" icon="aws" href="https://aws.amazon.com/blogs/devops/ai-driven-development-life-cycle/">
+    AWS DevOps blog post on reimagining software engineering
+  </Card>
+  <Card title="Compare Tools" icon="scale-balanced" href="/compare/overview">
+    See how specs.md compares to Spec Kit, BMAD, Kiro, and OpenSpec
+  </Card>
+</CardGroup>

@@ -1,0 +1,16 @@
+# Project Configuration
+# Created during project initialization
+
+project_type: cli-tool
+initialized_at: 2024-12-06T10:00:00Z
+
+# Project metadata
+name: specsmd
+description: AI-DLC flow installer for agentic coding tools
+repository: https://github.com/fabriqaai/specs.md
+
+# CLI-specific configuration
+cli:
+  package_name: specsmd
+  entry_command: specsmd
+  install_method: npx
