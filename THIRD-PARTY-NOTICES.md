@@ -1,0 +1,37 @@
+# Third-Party Notices
+
+This repository bundles third-party open-source components. They are governed by
+their own licenses, reproduced/located below, and are NOT covered by the
+proprietary `LICENSE` that governs the original work in this repository. These
+notices are retained to satisfy the bundled components' license terms.
+
+## specsmd package — under `src/`
+
+```
+MIT License
+
+Copyright (c) 2025 Fabriqa AI
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## VS Code extension — under `vs-code-extension/`
+
+MIT License, Copyright (c) 2025 specsmd. Full text retained in
+[`vs-code-extension/LICENSE`](vs-code-extension/LICENSE).

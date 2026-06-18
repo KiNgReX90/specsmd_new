@@ -8,8 +8,9 @@ permission of Rubèn Plantinga.
 Exception — bundled third-party components: portions of this repository (notably
 under src/ and vs-code-extension/) are third-party works distributed under the
 MIT License by their respective authors. Those components remain subject to
-their own MIT terms and notices, retained in their source; this license governs
-only the combined work and the original contributions of the copyright holder.
+their own MIT terms, reproduced in THIRD-PARTY-NOTICES.md and retained in their
+source; this license governs only the combined work and the original
+contributions of the copyright holder.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
