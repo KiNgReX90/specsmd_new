@@ -10,69 +10,83 @@ workspace:
 intents:
   - id: inferno-authoring-and-delivery
     title: Parallel scribe authoring, config-driven tiers, and delivery modes
-    status: pending
+    status: completed
+    completed_at: 2026-06-17T15:58:28+02:00
     base_branch: feat/inferno-flow
     work_items:
       - id: writer-agent
         title: INFERNO pure-scribe writer agent + command
-        status: pending
+        status: completed
         complexity: medium
         mode: autopilot
         depends_on: []
       - id: writer-drift-guard
         title: Drift guard for writer command vs agent body
-        status: pending
+        status: completed
         complexity: low
         mode: autopilot
         depends_on: [writer-agent]
       - id: decompose-fanout
         title: Fan out work-item writing to parallel scribe subagents
-        status: pending
+        status: completed
         complexity: medium
         mode: autopilot
         depends_on: [writer-agent]
       - id: planner-agent-updates
         title: Planner agent — document fan-out + first-run config gate
-        status: pending
+        status: completed
         complexity: medium
         mode: autopilot
         depends_on: [writer-agent, config-wizard-ux]
       - id: config-template
         title: Config template — writer tier, effort, delivery mode
-        status: pending
+        status: completed
         complexity: low
         mode: autopilot
         depends_on: []
       - id: config-wizard-ux
         title: Config wizard — display defaults and confirm
-        status: pending
+        status: completed
         complexity: medium
         mode: autopilot
         depends_on: [config-template]
       - id: builder-effort
         title: Builder runs at xhigh effort
-        status: pending
+        status: completed
         complexity: low
         mode: autopilot
         depends_on: []
       - id: delivery-mode-design
         title: Design — merge-request delivery mode
-        status: pending
+        status: completed
         complexity: high
         mode: autopilot
         depends_on: [config-template]
       - id: delivery-mode-impl
         title: Orchestrator — implement delivery.mode toggle
-        status: pending
+        status: completed
         complexity: high
         mode: autopilot
         depends_on: [delivery-mode-design]
       - id: readme-docs
         title: README — document authoring, tiers, and delivery modes
-        status: pending
+        status: completed
         complexity: low
         mode: autopilot
         depends_on: [decompose-fanout, config-wizard-ux, delivery-mode-impl]
 runs:
   active: []
-  completed: []
+  completed:
+    # Reconciled close-out, not a live local run. The intent was planned and built
+    # upstream on feat/inferno-flow, then vendored into main via merge 0bf0fb9.
+    # All 12 work items were verified present in src/flows/inferno/ against their
+    # acceptance criteria before this ledger was closed.
+    - id: reconciled-upstream
+      status: completed
+      completed_at: 2026-06-17T15:58:28+02:00
+      note: >-
+        Implemented upstream and merged into main; ledger reconciled to match the
+        shipped source. Implementing commits: 14c3988 (parallel scribe authoring,
+        config tiers/effort, delivery modes), bdca0e7 (builder xhigh / writer low
+        effort CI guard); planning artifacts e27764a; vendored into main via 0bf0fb9.
+      work_items: [writer-agent, writer-drift-guard, decompose-fanout, planner-agent-updates, config-template, config-wizard-ux, builder-effort, delivery-mode-design, delivery-mode-impl, readme-docs]
