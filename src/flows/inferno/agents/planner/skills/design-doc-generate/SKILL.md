@@ -1,16 +1,18 @@
 ---
 name: design-doc-generate
-description: Generate design documents for high-complexity work items (planning-time design review). Required for high-complexity items.
+description: Generate design documents for high-complexity work items. Optional planner capability; never a mandatory gate.
 version: 1.0.0
 ---
 
 <objective>
-Generate design documents for high-complexity work items (planning-time design review).
+Generate design documents for high-complexity work items when an up-front design genuinely helps. Optional — never a flow-halting gate.
 </objective>
 
 <triggers>
-  - Work item has complexity: high
-  - Design review warranted before implementation
+  - Work item has complexity: high AND an up-front design doc genuinely helps
+  - The planner opts to capture key decisions before the build
+
+This skill is an OPTIONAL planner capability, not a mandatory gate. Generating a design doc never halts the planning → build flow: under `autonomy.level: review` the only pause is the single urgent-only review point in the planner's `<handoff_format>`; under `full` there is none. Surface any genuinely open design question there rather than blocking on a separate approval.
 </triggers>
 
 <degrees_of_freedom>
@@ -18,7 +20,6 @@ Generate design documents for high-complexity work items (planning-time design r
 </degrees_of_freedom>
 
 <llm critical="true">
-  <mandate>Design doc MUST be approved before implementation</mandate>
   <mandate>Document DECISIONS with RATIONALE, not just choices</mandate>
   <mandate>Keep concise - enough detail to implement, no more</mandate>
   <mandate>Include risks upfront - don't hide complexity</mandate>
@@ -86,58 +87,11 @@ Generate design documents for high-complexity work items (planning-time design r
     <action>Keep granular but not excessive</action>
   </step>
 
-  <step n="8" title="Present Design Doc">
-    <checkpoint message="Design document ready for review">
-      <output>
-        # Design: {work-item-title}
-
-        ## Summary
-        {brief description}
-
-        ## Key Decisions
-        {decisions table}
-
-        ## Technical Approach
-        {component diagram, API contracts}
-
-        ## Execution Assumptions
-        {context and ownership assumptions, if applicable}
-
-        ## Risks
-        {risks table}
-
-        ## Implementation Checklist
-        {ordered steps}
-
-        ---
-        This is the planning-time design review (Checkpoint 1).
-
-        Approve design? [Y/n/edit]
-      </output>
-    </checkpoint>
-  </step>
-
-  <step n="9" title="Handle Response">
-    <check if="response == y">
-      <action>Generate design doc using template: templates/design.md.hbs</action>
-      <action>Save to: .specs-inferno/intents/{intent-id}/work-items/{id}-design.md</action>
-      <action>Mark checkpoint 1 as passed</action>
-      <output>
-        Design approved. Ready for work-item planning.
-
-        Route to INFERNO Planner decomposition? [Y/n]
-      </output>
-    </check>
-    <check if="response == edit">
-      <ask>What changes are needed?</ask>
-      <action>Incorporate feedback</action>
-      <goto step="8"/>
-    </check>
-    <check if="response == n">
-      <output>Design rejected. What concerns need to be addressed?</output>
-      <action>Gather feedback, revise approach</action>
-      <goto step="3"/>
-    </check>
+  <step n="8" title="Generate and Save Design Doc">
+    <action>Generate design doc using template: templates/design.md.hbs</action>
+    <action>Save to: .specs-inferno/intents/{intent-id}/work-items/{id}-design.md</action>
+    <action>Update state.yaml</action>
+    <note>Do NOT block on a separate approval gate. This skill never halts the planning → build flow. If a genuine design question, risky assumption, or ambiguity remains open, carry it into the planner's single urgent-only review point (`<handoff_format>` under `autonomy.level: review`) so the user can weigh in there — not via a per-doc checkpoint.</note>
   </step>
 </flow>
 
@@ -156,6 +110,5 @@ Generate design documents for high-complexity work items (planning-time design r
   <criterion>Context and ownership assumptions documented when relevant</criterion>
   <criterion>Risks identified with mitigations</criterion>
   <criterion>Implementation checklist created</criterion>
-  <criterion>Design doc approved at checkpoint</criterion>
-  <criterion>Design doc saved to correct location</criterion>
+  <criterion>Design doc saved to correct location (no blocking approval gate; open questions carried to the planner's urgent-only review point)</criterion>
 </success_criteria>

@@ -26,7 +26,7 @@ through every key one at a time.
    - **Complex work items** (the reasoning-heavy ones) → handled by the strong model at maximum effort. *(default: `opus`, xhigh)*
    - **Simple work items** (mechanical: config, docs, small swaps) → handled by the fast model. *(default: `sonnet`)*
    - **Plan writing** → drafted in parallel by fast scribe agents. *(default: same as simple)*
-   - **Before building** → the plan is shown for your review first. *(default: `review`; the alternative is fully autonomous)*
+   - **After planning** → the planner pauses once to flag only the urgent or questionable points (open questions, risky assumptions, ambiguities) and let you weigh in / inspect the work items, then stops. Either way the build is a separate step you start later with `/specsmd-inferno`; the planner never starts it. *(default: `review`; the alternative, `full`, skips that review pause and stops straight after writing the work items)*
    - **Delivery** → *autonomous* (build, merge, and close automatically) or *production* (open merge requests for review — per work item into the intent, and the whole intent into your base branch). *(default: autonomous)*
    - **Final check before closing** → the project's build + tests. *(propose what you discover from the repo, e.g. `package.json` scripts)*
    Keep the model names parenthetical/secondary — the user reasons about "complex vs simple work", not about `opus`/`sonnet`.

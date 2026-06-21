@@ -6,10 +6,17 @@
 # machine-specific values live; the flow files stay portable.
 
 # Autonomy level for the planning -> build transition (read by the planner).
-#   full   - after decomposition, automatically route into the orchestrator and
-#            start building, with no pause to review the work items.
-#   review - stop after decomposition so you can read the work-item plans, then
-#            start /specsmd-inferno yourself.
+# The planner ALWAYS stops after writing the work items — it NEVER starts the
+# build. The build is always a separate, explicit /specsmd-inferno step you run
+# later. autonomy.level controls ONLY whether the planner pauses for review after
+# writing the work items:
+#   full   - write the work items and stop, with no review pause.
+#   review - after writing, pause EXACTLY ONCE to surface only the urgent or
+#            questionable points (open design questions, risky assumptions,
+#            ambiguous requirements, deferred items) and invite you to weigh in /
+#            inspect the work items, then stop. Not a full work-item dump, and not
+#            a stop-and-wait — one focused, urgent-only review point. The
+#            design-doc step is never a mandatory gate.
 # Omit or leave unset to behave as `review`.
 autonomy:
   level: review        # full | review

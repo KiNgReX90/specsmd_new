@@ -16,8 +16,8 @@ INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIR
 
 ## What's different from FIRE
 
-- **No friction gates during planning.** Intent capture flows straight into work-item decomposition with no confirmation prompt. Whether decomposition then flows straight into the build is governed by `autonomy.level` in `.specs-inferno/config.yaml` (`full` = auto-build; `review`/unset = stop so you can read the plans).
-- **Every work item runs in autopilot.** Review happens at planning time and at the orchestrator's verified finalize, not via per-item checkpoints.
+- **No friction gates during planning.** Intent capture flows straight into work-item decomposition with no confirmation prompt. The planner writes the work items and STOPS — it never starts the build; the build is always a separate, explicit step you run later with `/specsmd-inferno` (or `/schedule-inferno`). `autonomy.level` in `.specs-inferno/config.yaml` controls only whether the planner pauses for review after writing: `full` = write the items and stop with no review pause; `review`/unset = pause EXACTLY ONCE right after planning to surface only the urgent or questionable points (open design questions, risky assumptions, ambiguities, deferred items) and let you weigh in / inspect the work items, then stop. `review` is not a full plan dump and not a stop-and-wait — it's one focused, urgent-only review point.
+- **Every work item runs in autopilot.** Oversight under `review` is the single urgent-only review point right after planning; otherwise it's the orchestrator's verified finalize. No per-item checkpoints, and the design-doc step is never a mandatory gate.
 - **Parallel scribe authoring.** The planner (a strong model) does ALL decomposition reasoning, then fans the *writing* out to parallel `specsmd-inferno-writer` scribes — one file per work item — so authoring many work items doesn't serialize. Scribes make no decisions and never touch state; the planner alone updates `state.yaml`.
 
 ## Model tiers & effort

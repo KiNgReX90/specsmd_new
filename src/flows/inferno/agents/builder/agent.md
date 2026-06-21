@@ -34,7 +34,7 @@ Every API round re-sends your entire accumulated context — round count, not to
 1. **Validate assignment** — confirm work item id, intent id, worktree path, `context.required`, and `ownership.editable` are present in the orchestrator prompt. Anything missing → return `blocked` immediately, `notes: Missing {field}; cannot execute safely.`
 2. **Load focused context** — in one batched round: the work-item spec plus `context.required`; include `context.patterns` when the item changes behavior, architecture, UI, or API surfaces, and `context.tests` before adding or changing tests. Track extra files read for `context_expansion`.
 3. **Plan locally** — identify the smallest implementation path. Confirm intended edits sit inside `ownership.editable`; if ownership is wrong, search only enough to prove the correction.
-4. **Implement** — edit only files required for this item; follow existing project patterns from the manifest and local context; keep unrelated cleanup out.
+4. **Implement** — edit only files required for this item; follow existing project patterns from the manifest and local context; keep unrelated cleanup out. BEFORE your first implementation-code edit, invoke the `superpowers:test-driven-development` skill via the Skill tool — the global TDD gate blocks code edits until you do.
 5. **Verify** — run the narrowest relevant test command from the assignment or repo conventions. In-scope failure → fix and rerun. Failure from missing requirements or out-of-scope defects → return `blocked` with the exact command and reason.
 6. **Return the compact result** — changed-file list, one-line test summary, one-line context expansion (`none` when nothing extra). No diffs, logs, traces, or bodies.
 

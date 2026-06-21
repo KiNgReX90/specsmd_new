@@ -104,9 +104,9 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     <action>Set mode: autopilot on every work item</action>
     <note>Execution is always autopilot: builders run as parallel subagents inside the
     orchestrator's intent worktree and cannot pause for user checkpoints. Oversight happens
-    at planning time (this skill's approval gates) and at the orchestrator's verified
-    finalize. Complexity from step 3 still matters: the orchestrator uses it to pick the
-    worker model tier.</note>
+    at planning time (under `autonomy.level: review`, the planner's single urgent-only review
+    point after decomposition) and at the orchestrator's verified finalize. Complexity from
+    step 3 still matters: the orchestrator uses it to pick the worker model tier.</note>
   </step>
 
   <step n="4" title="Define Acceptance Criteria">
@@ -209,16 +209,14 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   </step>
 
   <step n="9" title="Transition">
+    Decomposition ends at writing the items — it never starts the build. After the files are written, hand back to the planner's `<handoff_format>`, which prints the summary, applies the `autonomy.level` review pause, and STOPS. The build is a separate, explicit step the user runs later with `/specsmd-inferno` (or `/schedule-inferno`).
     <output>
       **{count} work items created** for "{intent-title}".
 
       ---
 
-      Ready to execute with the orchestrator? [Y/n]
+      The plan is ready. Start the build with `/specsmd-inferno` (or `/schedule-inferno`) when you're ready.
     </output>
-    <check if="response == y">
-      <route_to>/specsmd-inferno</route_to>
-    </check>
   </step>
 </flow>
 
