@@ -60,6 +60,9 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <step n="1" title="Load Intent">
     <action>Read intent brief from .specs-inferno/intents/{intent-id}/brief.md</action>
     <action>Understand goal, users, success criteria</action>
+    <append_mode>
+      When invoked in APPEND mode (an `integrate` outcome from intent-capture's cross-intent overlap check), the target intent already has work items. ALSO read its existing `.specs-inferno/intents/{intent-id}/work-items/*.md` and its `work_items` list in state.yaml. You are ADDING items, not replacing: new work-item ids must not collide with existing ones, and wire each new item's `depends_on` to the existing items it genuinely builds on. In step 8.5 you MERGE the new items into the intent's `work_items` list — never overwrite the existing entries.
+    </append_mode>
   </step>
 
   <step n="2" title="Identify Deliverables">
@@ -141,6 +144,12 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     </check>
   </step>
 
+  <step n="6b" title="Cross-Intent Ownership Cross-Check" critical="true">
+    <action>Now that ownership is known, cross-check it against the OTHER open intents. Read `.specs-inferno/state.yaml` plus the `ownership.editable` of every non-completed intent's work items (`.specs-inferno/intents/{other-id}/work-items/*.md`).</action>
+    <action>If any of THIS intent's `ownership.editable` paths collide with a `pending` intent's work-item ownership AND this intent is not already integrated into or dependent on it, you have a cross-intent file collision: two intents that edit the same files cannot safely build in arbitrary order across separate worktrees. Record an intent-level dependency — add `depends_on: [<that-intent-id>]` to THIS intent's state.yaml entry and brief — so the orchestrator serializes them. Under `autonomy.level: review` surface the collision and the added dependency; under `full` apply it and note it.</action>
+    <action>Never point the dependency at a `completed` intent and never create a cycle. A genuine same-file integration may instead warrant folding the two intents together — surface that option under `review`.</action>
+  </step>
+
   <step n="7" title="Present Plan">
     <output>
       ## Work Items for "{intent-title}"
@@ -199,7 +208,10 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
       <substep n="8.5" title="Update state (planner only)">
         After ALL scribes return `written`, YOU — not any scribe — update
         `state.yaml` once with the work-items list. Scribes never touch
-        `state.yaml`.
+        `state.yaml`. In APPEND mode, MERGE the new items into the target
+        intent's existing `work_items` list (and keep any intent-level
+        `depends_on` the cross-checks added) — never overwrite the existing
+        items.
       </substep>
       <substep n="8.6" title="Fallback (host without subagents)">
         On a host without subagents, skip the dispatch: render each item from the
@@ -233,6 +245,8 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <criterion>Complexity assessed for each item</criterion>
   <criterion>Every work item has mode: autopilot (execution is checkpoint-free)</criterion>
   <criterion>Dependencies validated (no circular dependencies)</criterion>
+  <criterion>Ownership cross-checked against other open intents; cross-intent file collisions resolved by an intent-level `depends_on` (or folding), never left to race</criterion>
+  <criterion>In APPEND mode, new items merged into the existing intent without overwriting its current work items</criterion>
   <criterion>Every work item has context and ownership fields</criterion>
   <criterion>Ownership is accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>Work items saved to correct locations</criterion>

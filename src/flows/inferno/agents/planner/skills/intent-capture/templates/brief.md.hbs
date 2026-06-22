@@ -2,7 +2,8 @@
 id: {{id}}
 title: {{title}}
 status: {{status}}
-created: {{created}}
+{{#if depends_on}}depends_on: [{{#each depends_on}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}]
+{{/if}}created: {{created}}
 ---
 
 # Intent: {{title}}

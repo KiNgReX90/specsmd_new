@@ -24,6 +24,12 @@ Running elsewhere (claimed, not selectable):
   - {{id}} · claimed {{claimed_at}} · {{claimed_by}}
 {{/each}}
 {{/if}}
+{{#if blocked}}
+Blocked (waiting on prerequisites, not selectable):
+{{#each blocked}}
+  - {{id}} · waits on: {{waits_on}}
+{{/each}}
+{{/if}}
 {{#if single}}
 Run this intent with the orchestrator? [Y/n]
 {{else}}
