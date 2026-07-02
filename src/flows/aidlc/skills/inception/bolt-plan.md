@@ -2,6 +2,22 @@
 
 ---
 
+## Mode Gate (CRITICAL — check FIRST)
+
+This skill is **skipped entirely in lean mode**.
+
+If the inception mode resolved by the agent is **`lean`**: do **nothing** — author no
+bolts, create no `memory-bank/bolts/` directories, write no `bolt.md` files. Return
+immediately to the agent so it proceeds straight to the `review` skill. In lean mode the
+intent's terminal state is "stories authored, no bolts," which is valid (the
+inception → INFERNO converter recomputes grouping/ordering natively, so bolts are
+redundant).
+
+Only proceed with the rest of this skill in **full mode** (the default). In full mode
+nothing below changes — bolts are planned exactly as today.
+
+---
+
 ## Progress Display
 
 Show at start of this skill:
@@ -366,7 +382,9 @@ memory-bank/bolts/{BBB}-{unit-name}/bolt.md  ← CREATE THIS DIRECTORY AND FILE
 ## Test Contract
 
 ```yaml
-input: Stories for unit
-output: Bolt directories with bolt.md files
+input: Stories for unit, mode (full|lean)
+output:
+  full: Bolt directories with bolt.md files
+  lean: none — skill is skipped, no bolts authored
 checkpoints: 0 (part of Checkpoint 3 batch)
 ```

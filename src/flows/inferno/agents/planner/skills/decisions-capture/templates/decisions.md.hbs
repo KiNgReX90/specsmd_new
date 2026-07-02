@@ -1,0 +1,32 @@
+---
+intent: {{intent}}
+scope: {{scope}}
+---
+
+# Decisions & Caveats — {{title}}
+
+## Key decisions (dated)
+
+| Date | Decision | Rationale | Status |
+|------|----------|-----------|--------|
+{{#each decisions}}
+| {{this.date}} | {{this.decision}} | {{this.rationale}} | {{this.status}} |
+{{/each}}
+
+## Open questions & caveats
+
+Load-bearing facts. Each MUST survive into at least one work item (inlined in its
+`## Caveats` and linked via `context.required`). The build rule states exactly what a
+builder must do — or must NOT assume.
+
+| ID | Status | Build rule (what to do / what NOT to assume) |
+|----|--------|----------------------------------------------|
+{{#each caveats}}
+| {{this.id}} | {{this.status}} | {{this.rule}} |
+{{/each}}
+
+## Release gates
+
+{{#each gates}}
+- {{this}}
+{{/each}}

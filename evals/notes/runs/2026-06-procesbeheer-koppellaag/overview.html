@@ -1,0 +1,270 @@
+<title>Doc-slanker eval — Run #2 · procesbeheer + koppellaag</title>
+<style>
+  :root{
+    --ground:#0E1722; --surface:#17242F; --surface-2:#1E2E3A;
+    --text:#E7EEF3; --muted:#8A9BA8; --faint:#5E707D;
+    --accent:#46B7E6; --pass:#46C28A; --fail:#EA6253; --soft:#E7B964;
+    --hair:rgba(231,238,243,0.12); --hair-strong:rgba(231,238,243,0.22);
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);line-height:1.6;font-size:16px;
+    background-image:radial-gradient(circle at 84% -10%,rgba(70,183,230,0.10),transparent 44%);background-attachment:fixed}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent)}
+  h1,h2,h3{font-weight:800;letter-spacing:-0.02em;line-height:1.08;margin:0}
+  p{margin:0 0 1rem}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.24em;color:var(--accent);display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--accent);display:inline-block}
+
+  .topbar{border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:0.74rem;color:var(--muted);letter-spacing:0.04em}
+  .topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;gap:16px;flex-wrap:wrap}
+  .topbar b{color:var(--text);font-weight:600}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pass);margin-right:7px;vertical-align:middle}
+
+  .hero{padding:88px 0 64px;border-bottom:1px solid var(--hair)}
+  .hero h1{font-size:clamp(2.3rem,5.6vw,4.1rem)}
+  .hero h1 .hl{color:var(--accent)}
+  .lede{font-size:clamp(1.05rem,2vw,1.32rem);color:var(--muted);max-width:52ch;margin-top:24px;line-height:1.5}
+  .lede b{color:var(--text);font-weight:600}
+
+  section{padding:70px 0;border-bottom:1px solid var(--hair)}
+  .sec-h{font-size:clamp(1.55rem,3.3vw,2.2rem);margin-bottom:8px}
+  .sec-sub{color:var(--muted);max-width:66ch;margin-top:14px}
+
+  .winners{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:8px}
+  .winner{background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:24px 22px;position:relative;overflow:hidden}
+  .winner.rec{border-color:rgba(70,183,230,0.55);background:linear-gradient(180deg,rgba(70,183,230,0.13),var(--surface))}
+  .w-axis{font-family:var(--mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);font-weight:600}
+  .w-arm{font-size:1.9rem;font-weight:800;letter-spacing:-0.03em;margin:12px 0 2px}
+  .w-score{font-family:var(--mono);font-size:0.92rem;color:var(--muted)}
+  .w-score b{color:var(--text);font-weight:700}
+  .w-why{font-size:0.9rem;color:var(--muted);margin:14px 0 0}
+  .w-badge{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.12em;color:var(--accent);border:1px solid rgba(70,183,230,0.5);border-radius:4px;padding:3px 7px}
+  .verdict-strip{display:flex;gap:16px;flex-wrap:wrap;margin-top:26px}
+  .loser,.choose{flex:1 1 300px;background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:18px 20px;font-size:0.92rem}
+  .loser{border-left:3px solid var(--fail)}
+  .choose{border-left:3px solid var(--accent)}
+  .loser .k,.choose .k{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px}
+  .loser .k{color:var(--fail)} .choose .k{color:var(--accent)}
+  .loser p,.choose p{margin:0;color:var(--muted)}
+  .choose b{color:var(--text)}
+
+  .bars{margin-top:34px;display:flex;flex-direction:column;gap:12px}
+  .bar-row{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:center}
+  .bar-lab{font-family:var(--mono);font-size:0.8rem;text-align:right;color:var(--text)}
+  .bar-lab .sub{display:block;font-size:0.62rem;color:var(--faint);letter-spacing:0.04em}
+  .bar-track{position:relative;height:30px;background:var(--surface);border-radius:3px;overflow:hidden}
+  .bar-fill{position:absolute;inset:0 auto 0 0;height:100%;border-radius:3px;transform-origin:left center;
+    background:linear-gradient(90deg,rgba(70,183,230,0.55),rgba(70,183,230,0.9));animation:grow 1s cubic-bezier(.22,.61,.36,1) both}
+  .bar-fill.dim{background:linear-gradient(90deg,rgba(138,155,168,0.3),rgba(138,155,168,0.5))}
+  .bar-fill.base{background:linear-gradient(90deg,rgba(234,98,83,0.45),rgba(234,98,83,0.72))}
+  .bar-fill.win{background:linear-gradient(90deg,rgba(70,194,138,0.5),rgba(70,194,138,0.85))}
+  @keyframes grow{from{transform:scaleX(0)}}
+  .bar-val{position:absolute;top:50%;transform:translateY(-50%);right:10px;font-family:var(--mono);font-size:0.76rem;font-weight:600;color:var(--text);text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .bars-note{margin-top:20px;font-size:0.82rem;color:var(--faint);font-family:var(--mono)}
+
+  .scroll{overflow-x:auto;margin-top:30px;border:1px solid var(--hair);border-radius:6px}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:0.86rem}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--hair);white-space:nowrap}
+  thead th{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;background:var(--surface)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody td:first-child{font-family:var(--mono);color:var(--text);font-weight:600}
+  td .n,td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tr.lead{background:rgba(70,183,230,0.10)} tr.lead td:first-child{color:var(--accent)}
+  tr.control td:first-child::after{content:"controle";margin-left:8px;font-family:var(--mono);font-size:0.58rem;color:var(--faint);letter-spacing:0.08em;border:1px solid var(--hair-strong);padding:1px 5px;border-radius:3px}
+  tr.fail td:first-child{color:var(--fail)}
+  .tag-pass{color:var(--pass);font-weight:700}.tag-fail{color:var(--fail);font-weight:700}.tag-star{color:var(--accent);font-weight:700}
+
+  .points{margin-top:30px;display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .point{background:var(--surface);padding:18px 22px}
+  .point h4{margin:0 0 5px;font-size:0.98rem;font-weight:700}
+  .point p{margin:0;font-size:0.89rem;color:var(--muted)}
+  .point .em{color:var(--text);font-weight:600}
+
+  .callout{margin-top:32px;border:1px solid var(--hair-strong);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:var(--surface);padding:22px 24px}
+  .callout .k{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);margin-bottom:10px}
+  .callout p{margin:0;color:var(--text)} .callout p+p{margin-top:10px;color:var(--muted);font-size:0.92rem}
+
+  .statusrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+  .chip{font-family:var(--mono);font-size:0.72rem;background:var(--surface);border:1px solid var(--hair-strong);border-radius:5px;padding:7px 11px;color:var(--muted)}
+  .chip b{color:var(--pass);font-weight:700}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px}
+  .twocol .card{background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:22px 24px}
+  .twocol .card h4{margin:0 0 8px;font-size:1.02rem;font-weight:800;letter-spacing:-0.01em}
+  .twocol .card .spread{font-family:var(--mono);font-size:0.78rem;color:var(--accent);font-weight:600}
+  .twocol .card p{margin:10px 0 0;font-size:0.9rem;color:var(--muted)}
+  .twocol .card p b{color:var(--text)}
+
+  footer{padding:52px 0 78px;color:var(--faint);font-family:var(--mono);font-size:0.77rem;line-height:1.8}
+  footer b{color:var(--muted);font-weight:600}
+  .prov{margin-top:16px;padding-top:16px;border-top:1px solid var(--hair);display:flex;gap:26px;flex-wrap:wrap}
+
+  @media(max-width:680px){.bar-row{grid-template-columns:100px 1fr}.hero{padding:60px 0 48px}.twocol{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){.bar-fill{animation:none}}
+</style>
+
+<div class="topbar"><div class="wrap">
+  <span><b>SPECSMD</b> · doc-slanker eval · <b>run #2</b> · procesbeheer + koppellaag</span>
+  <span><span class="dot"></span>Compleet — 10/10 builds groen · jurypanel afgerond</span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Gecontroleerd experiment · run #2 · 2 intents · 7 bolts · 19 stories</div>
+  <h1>Het houdt stand — en <span class="hl">scherper</span>. Een <span class="hl">73% slankere</span> doc-vorm verslaat de zware controle op álle assen.</h1>
+  <p class="lede">Tweede run, een grotere en bredere intent, dezelfde TDD-bouwer. De zware AI-DLC-controle wordt nu <b>Pareto-gedomineerd</b>: <b>aidlc-turbo</b> levert betere code met 73% minder documentatie. De lean-controle is opnieuw de slechtste build én zakt voor de caveat-gate — precies waar ze caveats liet vallen.</p>
+</div></header>
+
+<!-- ===== 1. UITSLAG & WINNAARS ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">01 · Uitslag &amp; winnaars</div>
+  <h2 class="sec-h">De Pareto-grens, in één oogopslag</h2>
+  <p class="sec-sub">Vier vormen halen beide harde gates (build groen + caveats 100%). De grens bestaat uit twee armen — beste kwaliteit en beste economie. Anders dan bij run #1 (BTW) <b>domineert</b> de aanbevolen arm de zware controle volledig: ≥ op beide assen.</p>
+
+  <div class="winners">
+    <div class="winner rec">
+      <div class="w-badge">AANBEVOLEN</div>
+      <div class="w-axis">Beste balans &amp; kwaliteit</div>
+      <div class="w-arm">aidlc-turbo</div>
+      <div class="w-score">jurypanel <b>8,06</b>/10 · docs <b>&minus;73%</b></div>
+      <p class="w-why">Domineert de zware controle op beide assen: betere code én 73% minder regels. Sterk op zowel de service- als de UI-bolt — de robuuste keuze over intents heen.</p>
+    </div>
+    <div class="winner">
+      <div class="w-axis">Laagste reviewlast</div>
+      <div class="w-arm">turbo-a</div>
+      <div class="w-score">economie <b>8,72</b> · docs <b>&minus;83%</b></div>
+      <p class="w-why">Slankste volledige vorm (835 regels), binnen ε van de controle op kwaliteit (7,60). Kies dit als reviewlast de bindende factor is — de kl double-encode-slip is een lint-gate, geen vormgebrek.</p>
+    </div>
+  </div>
+
+  <div class="verdict-strip">
+    <div class="loser">
+      <div class="k">De verliezer</div>
+      <p>De lean INFERNO-controle eindigt laatste (<b style="color:var(--fail)">6,96</b>/10) en zakt voor de gate. Caveats verstopt achter onopgeloste links → <b style="color:var(--fail)">echte build-defecten</b>: soort op de retirende kolom <span class="num">BPS_INDELING_SOORT</span>, lijstfilter op de verkeerde kolom, en een delete-guard die nooit in het echte pad wordt aangeroepen. Stage-A voorspelde dit bij 40% caveat-survival.</p>
+    </div>
+    <div class="choose">
+      <div class="k">Wat kies je?</div>
+      <p><b>Beste balans / code</b> → aidlc-turbo (start hier) · <b>Laagste reviewlast</b> → turbo-a. Beide liggen op de grens; beide snoeien 73–83% van de docs zonder kwaliteit te verliezen.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== 2. CODEKWALITEIT ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">02 · Codekwaliteit — de build-uitslag</div>
+  <h2 class="sec-h">Tien builds, allemaal groen — blind gescoord</h2>
+  <p class="sec-sub">Vijf vormen bouwden elk twee stacks (procesbeheer 002+003+004 · koppellaag 007), door dezelfde canonieke TDD-bouwer. Tien echt-compilerende builds, geanonimiseerd en geschud, blind gescoord door drie lenzen op een gewogen 0–10 rubriek (8 dimensies).</p>
+
+  <div class="statusrow">
+    <span class="chip">aidlc-turbo <b>10/10 EXIT 0</b> · 29 nieuwe UT · TDD R→G</span>
+    <span class="chip">turbo-a <b>EXIT 0</b> · 37 UT</span>
+    <span class="chip">aidlc <b>EXIT 0</b> · 27 UT</span>
+    <span class="chip">turbo-b <b>EXIT 0</b> · 31 UT</span>
+    <span class="chip">inferno <b>EXIT 0</b> · 34 UT</span>
+  </div>
+
+  <div class="bars">
+    <div class="bar-row"><div class="bar-lab">aidlc-turbo<span class="sub">aanbevolen</span></div><div class="bar-track"><div class="bar-fill win" style="transform:scaleX(0.806)"></div><div class="bar-val num">8,06</div></div></div>
+    <div class="bar-row"><div class="bar-lab">AI-DLC<span class="sub">zware controle</span></div><div class="bar-track"><div class="bar-fill dim" style="transform:scaleX(0.767)"></div><div class="bar-val num">7,67</div></div></div>
+    <div class="bar-row"><div class="bar-lab">turbo-a<span class="sub">slankste docs</span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.760)"></div><div class="bar-val num">7,60</div></div></div>
+    <div class="bar-row"><div class="bar-lab">turbo-b<span class="sub"></span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.732)"></div><div class="bar-val num">7,32</div></div></div>
+    <div class="bar-row"><div class="bar-lab">INFERNO<span class="sub">lean controle</span></div><div class="bar-track"><div class="bar-fill base" style="transform:scaleX(0.696)"></div><div class="bar-val num">6,96</div></div></div>
+  </div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>procesbeheer (gem / spreiding)</th><th>koppellaag (gem / spreiding)</th><th>Overall</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>aidlc-turbo</td><td class="n">8,01 / 0,83</td><td class="n">8,12 / 0,35</td><td class="n">8,06</td></tr>
+      <tr class="control"><td>AI-DLC</td><td class="n">7,40 / 0,30</td><td class="n">7,94 / 0,50</td><td class="n">7,67</td></tr>
+      <tr><td>turbo-a</td><td class="n">7,87 / 1,14</td><td class="n">7,32 / 0,91</td><td class="n">7,60</td></tr>
+      <tr><td>turbo-b</td><td class="n">6,70 / 1,25</td><td class="n">7,94 / 0,52</td><td class="n">7,32</td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">6,59 / 2,20</td><td class="n">7,32 / 0,80</td><td class="n">6,96</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="points">
+    <div class="point"><h4>De lean-controle zakt op precies de dimensies waar de gevallen caveats wonen</h4><p>INFERNO scoort laagst op Correctheid (<span class="num">6,23</span>), Caveat-afhandeling (<span class="num">6,23</span>), Getrouwheid (<span class="num">6,77</span>) en Robuustheid (<span class="num">6,13</span>). De schade concentreert in de <span class="em">service-bolt</span>: gebouwd vanuit het lean work-item (caveats achter onopgeloste links), met load-bearing defecten die de caveat-dragende armen <span class="em">wél</span> vermeden.</p></div>
+    <div class="point"><h4>aidlc-turbo domineert de zware controle — op beide assen</h4><p>8,06 vs 7,67 op kwaliteit, <span class="em">en</span> 73% minder regels (1.282 vs 4.789). Het documentvolume kocht geen correctheid of getrouwheid; de gedisciplineerde beslissingen-ledger + getrimde stories bouwden <span class="em">betere</span> code met veel minder om te reviewen. De schoonste bevestiging van de hypothese die je kunt krijgen.</p></div>
+    <div class="point"><h4>Eén dispuut, heradjudiceerd — niet stil gemiddeld</h4><p>De correctheids-lenzen scoorden inferno-pb <span class="num">3,2</span> en <span class="num">4,8</span> (load-bearing kolomfout), de idioom-lens <span class="num">7,8</span> ("intern consistent"). De caveats noemen <span class="num">BPS_PROCES_TYPE</span> expliciet als discriminator en markeren <span class="num">BPS_INDELING_SOORT</span> als retirend → twee correctheidslezingen + caveat-bewijs dragen het. De lage scores blijven staan; de spreiding zélf is het signaal van een dubbelzinnige doc.</p></div>
+  </div>
+</div></section>
+
+<!-- ===== 3. TWEE SCHERPE BEVINDINGEN ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">03 · Waar de documentvorm telt — en waar niet</div>
+  <h2 class="sec-h">Twee scherpe bevindingen</h2>
+  <p class="sec-sub">Niet elke bolt is even gevoelig voor de documentvorm, en de beste slanke vorm bleek intent-afhankelijk. Beide nuances sturen de aanbeveling.</p>
+
+  <div class="twocol">
+    <div class="card">
+      <h4>De service-bolt discrimineert · de UI-bolt niet</h4>
+      <span class="spread">spreiding pb 6,59→8,01 &nbsp;·&nbsp; kl 7,32→8,12</span>
+      <p>Documentvorm telt het meest waar er échte businesslogica is om goed te krijgen. Op de logica-zware <b>procesbeheer-service</b> waaieren de armen ver uit; op de delegatie-zware <b>koppellaag-UI</b> (dunne laag over een bestaande business-API) klitten ze samen. Het caveat-verlies van de lean-doc bijt het hardst precies daar waar de build het moeilijkst is — en is vrijwel onzichtbaar waar de UI alleen delegeert.</p>
+    </div>
+    <div class="card">
+      <h4>turbo-a herhaalt #1 niet → aidlc-turbo is de robuuste default</h4>
+      <span class="spread">BTW: turbo-a 8,65 (1e) &nbsp;→&nbsp; hier 7,60 (3e)</span>
+      <p>turbo-a wás de beste build op run #1, maar zakt hier naar de derde plek, getrokken door zijn kl-build: een handgerolde HTML-encoder die <b>dubbel-encodet</b> tegen DomUI's eigen escaping. De gefuseerde één-item-vorm is gevoeliger voor per-bolt bouwer-slips. <b>aidlc-turbo</b> is de enige arm die op beide stacks sterk is (8,01 / 8,12) — daarom de veilige cross-intent keuze.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== 4. PARETO-VERDICT ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">04 · Het oordeel</div>
+  <h2 class="sec-h">Documenteconomie vs. bouwkwaliteit</h2>
+  <p class="sec-sub">Documenteconomie uit Stage A (0–10, build-loos) tegen bouwkwaliteit uit het jurypanel. Elke gate-geschikte slanke arm blijft binnen ε = 0,5 van de controle (7,17) terwijl ze 73–83% van de docs snoeit.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>Doc-economie</th><th>Bouwkwaliteit</th><th>Gate</th><th>Pareto-grens?</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>aidlc-turbo</td><td class="n">6,98</td><td class="n">8,06</td><td><span class="tag-pass">PASS</span></td><td><span class="tag-star">★ beste kwaliteit</span></td></tr>
+      <tr class="lead"><td>turbo-a</td><td class="n">8,72</td><td class="n">7,60</td><td><span class="tag-pass">PASS</span></td><td><span class="tag-star">★ beste economie</span></td></tr>
+      <tr><td>turbo-b</td><td class="n">6,90</td><td class="n">7,32</td><td><span class="tag-pass">PASS</span></td><td>gedomineerd</td></tr>
+      <tr class="control"><td>AI-DLC</td><td class="n">0,00</td><td class="n">7,67</td><td><span class="tag-pass">PASS</span></td><td><b style="color:var(--fail)">gedomineerd</b></td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">10,0</td><td class="n">6,96</td><td><span class="tag-fail">FAIL</span></td><td>ongeschikt (40%)</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">Grens = {aidlc-turbo, turbo-a}. aidlc-turbo domineert de zware controle én turbo-b (≥ op beide assen). INFERNO is gate-ongeschikt (40% caveat-survival) en telt alleen als lean-controle.</p>
+
+  <div class="callout">
+    <div class="k">Aanbeveling</div>
+    <p>Neem <b>aidlc-turbo</b> als standaard slanke vorm — beste code, sterk op beide stacks, kleinste migratie vanaf het huidige AI-DLC (ceremonie eruit, getrimde stories + beslissingen-ledger erin).</p>
+    <p>Vouw vóór adoptie twee gates in de flow: een <b>idioom/lint-gate</b> (ASCII-only, strings in <span class="num">.properties</span>, geen dubbele encoding, geen cross-layer enum-plaatsing) en een <b>caveat-inline-check</b> — zodat geen arm herhaalt wat dit panel signaleerde. Daarna de derde poot draaien: de financial-middleware cross-app check (4 intents).</p>
+  </div>
+</div></section>
+
+<!-- ===== 5. GENERALISEERT ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">05 · Generaliseert het?</div>
+  <h2 class="sec-h">Run #1 (BTW) vs. run #2 — dezelfde load-bearing conclusies</h2>
+  <p class="sec-sub">De twee ViewPoint-runs zijn het eens over wat telt: lean-controle laatste + gate-fail, slanke vormen verslaan de zware controle, en de winst is structureel — schrijf elk load-bearing feit één keer, in de bouwer-doc, en link in plaats van te herhalen of achter een onopgeloste hop te verstoppen.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>Run #1 · BTW (units 002/003)</th><th>Run #2 · procesbeheer + koppellaag (7 bolts)</th></tr></thead>
+    <tbody>
+      <tr><td>lean controle (INFERNO)</td><td>laatste · 6,74 · <span class="tag-fail">gate-FAIL</span></td><td>laatste · 6,96 · <span class="tag-fail">gate-FAIL</span></td></tr>
+      <tr class="lead"><td>aidlc-turbo</td><td>8,55 — 2e, beste balans</td><td><b>8,06 — 1e, domineert de zware controle</b></td></tr>
+      <tr class="control"><td>zware controle (AI-DLC)</td><td>gate-fail / descoped</td><td>7,67 · <b style="color:var(--fail)">Pareto-gedomineerd</b></td></tr>
+      <tr><td>slanke vormen vs zwaar</td><td>alle 3 verslaan beide controles</td><td>aidlc-turbo verslaat zwaar; turbo-a/-b binnen ε</td></tr>
+      <tr><td>beste build</td><td>turbo-a (8,65)</td><td>aidlc-turbo (8,06) — turbo-a zakt naar 3e</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">Het enige dat níet repliceerde: turbo-a was run #1's beste build maar slechts 3e hier (kl double-encode) → <b style="color:var(--text)">aidlc-turbo is de veiligere cross-intent default</b>, turbo-a de keuze als reviewlast domineert. Nog open: de derde poot — financial-middleware <b style="color:var(--text)">cross-app</b> check, 4 intents.</p>
+</div></section>
+
+<footer><div class="wrap">
+  <div>Doc-slanker eval · run #2 · procesbeheer + koppellaag · ViewPoint (JDK8 / Maven / Oracle).<br>
+  <b>Methode (constant gehouden t.o.v. run #1):</b> 5 documentvormen → vastgezette canonieke TDD-bouwer → documenteconomie + caveat-survival (Stage A) → 10 echte builds parallel (geïsoleerde Maven-repos) + blind 3-lenzen jurypanel (Stage B) → gewogen 0–10 rubriek → Pareto-grens achter 2 harde gates.<br>
+  <b>Status:</b> compleet · 10/10 builds groen (TDD-geverifieerd) · jurypanel afgerond · niets gecommit naar default, niets gepusht naar remote.</div>
+  <div class="prov">
+    <span>artefacten · evals/doc-slimming/procesbeheer-koppellaag/</span>
+    <span>kader · doc-slimming-eval-framework.md</span>
+    <span>uitslag · results/stage-b.md</span>
+    <span>cross-run index · evals/notes/runs/README.md</span>
+  </div>
+</div></footer>

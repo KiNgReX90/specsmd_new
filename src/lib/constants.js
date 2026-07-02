@@ -11,31 +11,45 @@ const THEME_COLORS = {
     dim: '#666666'           // Gray shadow (visible on dark/light terminals)
 };
 
+// `entryCommand` is the slash command a user runs first after installing a flow.
+// The installer prints it in the next-steps message (installer.js). Not every flow
+// ships a `/specsmd-master-agent`; each names its own real entry command here.
 const FLOWS = {
     fire: {
         name: 'FIRE',
         description: 'Adaptive execution - Brownfield/monorepo ready, right-sizes rigor to complexity',
-        path: 'fire'
+        path: 'fire',
+        entryCommand: '/specsmd-fire'
     },
     aidlc: {
         name: 'AI-DLC',
         description: 'Full methodology - Comprehensive traceability, DDD or Simple bolt types',
-        path: 'aidlc'
+        path: 'aidlc',
+        entryCommand: '/specsmd-master-agent'
+    },
+    'aidlc-turbo': {
+        name: 'AI-DLC Turbo',
+        description: 'Slim AI-DLC - lean inception (requirements + decisions-and-gates ledger + stories, no ceremony) and story-driven construction, no bolts',
+        path: 'aidlc-turbo',
+        entryCommand: '/specsmd-aidlc-turbo'
     },
     simple: {
         name: 'Simple',
         description: 'Spec generation only (Kiro style) - Creates requirement/design/task docs, no execution tracking',
-        path: 'simple'
+        path: 'simple',
+        entryCommand: '/specsmd-agent'
     },
     ideation: {
         name: 'Ideation',
         description: 'Creative ideation - Spark → Flame → Forge idea generation and shaping',
-        path: 'ideation'
+        path: 'ideation',
+        entryCommand: '/specsmd-ideation'
     },
     inferno: {
         name: 'INFERNO',
         description: 'Autonomous parallel execution - decomposes an intent into work items and runs parallel autopilot builders in one worktree',
-        path: 'inferno'
+        path: 'inferno',
+        entryCommand: '/specsmd-inferno-planner'
     }
 };
 

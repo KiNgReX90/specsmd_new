@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-DLC · AI-DLC Turbo · INFERNO — the doc-slimming experiment</title>
+<style>
+  :root{
+    --ground:#17130E;
+    --surface:#1F1911;
+    --surface-2:#2A2218;
+    --raised:#332A1E;
+    --line:#3B3126;
+    --line-soft:#2E2619;
+    --ink:#F0E8DB;
+    --ink-dim:#B7AB97;
+    --ink-faint:#7F7460;
+    /* flow identities */
+    --fa:#B98A57;    --fa-soft:#3A2F1E;    /* AI-DLC (full) — heavy bronze baseline */
+    --tu:#63B3C7;    --tu-soft:#233E46;    /* AI-DLC Turbo — cool, methodical */
+    --inf:#FF6A33;   --inf-glow:#FFA766;   --inf-soft:#3E271A; /* INFERNO — autonomous flame */
+    /* semantic */
+    --ok:#67C08A;
+    --pause:#E0A94B;
+    --stop:#E24D6A;
+    --mono: ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 24px;}
+  h1,h2,h3,h4{margin:0;text-wrap:balance;line-height:1.15;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);}
+  .mono{font-family:var(--mono);}
+  .dim{color:var(--ink-dim);}
+  .faint{color:var(--ink-faint);}
+  b{color:var(--ink);}
+  a{color:var(--tu);}
+  :focus-visible{outline:2px solid var(--inf-glow);outline-offset:2px;}
+
+  /* hero */
+  .hero{position:relative;padding:76px 0 42px;overflow:hidden;border-bottom:1px solid var(--line);}
+  .hero::before{content:"";position:absolute;inset:-40% 0 auto 0;height:520px;
+    background:radial-gradient(58% 90% at 82% 0%, rgba(255,106,51,.16), transparent 60%),
+      radial-gradient(46% 90% at 52% 0%, rgba(99,179,199,.10), transparent 60%),
+      radial-gradient(46% 90% at 18% 0%, rgba(185,138,87,.10), transparent 60%);
+    pointer-events:none;}
+  .hero .wrap{position:relative;}
+  .hero h1{font-family:var(--mono);font-weight:600;font-size:clamp(27px,4.2vw,46px);letter-spacing:-.01em;margin:16px 0 0;}
+  .hero h1 .fa{color:var(--fa);}
+  .hero h1 .tu{color:var(--tu);}
+  .hero h1 .inf{color:var(--inf);}
+  .lede{font-size:clamp(16px,1.7vw,19px);color:var(--ink-dim);max-width:66ch;margin:18px 0 0;}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 20px;margin-top:28px;font-family:var(--mono);font-size:12.5px;}
+  .legend .k{display:inline-flex;align-items:center;gap:8px;color:var(--ink-dim);}
+  .swatch{width:12px;height:12px;border-radius:3px;flex:none;}
+
+  section{padding:56px 0;border-bottom:1px solid var(--line-soft);}
+  .sec-head{margin-bottom:26px;max-width:74ch;}
+  .sec-head h2{font-size:clamp(22px,2.6vw,30px);margin-top:10px;}
+  .sec-head p{color:var(--ink-dim);margin:12px 0 0;}
+
+  /* experiment method */
+  .method{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media (max-width:820px){ .method{grid-template-columns:1fr;} }
+  .panel{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--surface);}
+  .panel h3{font-size:15px;font-family:var(--mono);margin-bottom:10px;}
+  .panel p{margin:0 0 10px;color:var(--ink-dim);font-size:14px;}
+  .panel p:last-child{margin-bottom:0;}
+  .gates{display:flex;flex-direction:column;gap:10px;}
+  .gate{display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);}
+  .gate .g{color:var(--ok);font-family:var(--mono);flex:none;font-size:13px;}
+  .gate .gt{font-family:var(--mono);font-size:13px;}
+  .gate .gd{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);}
+
+  /* results */
+  .tbl-scroll{overflow-x:auto;border-radius:12px;border:1px solid var(--line);}
+  table.data{border-collapse:collapse;width:100%;min-width:640px;font-size:14px;}
+  table.data th,table.data td{padding:13px 15px;text-align:left;border-bottom:1px solid var(--line-soft);}
+  table.data thead th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface);font-weight:400;vertical-align:bottom;}
+  table.data tbody tr:last-child td{border-bottom:none;}
+  table.data td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;}
+  table.data .flowname{font-family:var(--mono);font-weight:600;}
+  table.data .fa .flowname,.fa-ink{color:var(--fa);}
+  table.data .tu .flowname,.tu-ink{color:var(--tu);}
+  table.data .inf .flowname,.inf-ink{color:var(--inf);}
+  .best{color:var(--inf-glow);font-weight:600;}
+  .tnote{font-size:12px;color:var(--ink-faint);margin:10px 2px 0;font-family:var(--mono);}
+
+  .findings{display:grid;grid-template-columns:1fr;gap:12px;margin-top:26px;}
+  .find{display:flex;gap:13px;align-items:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:11px;background:var(--surface);border-left-width:3px;}
+  .find.win{border-left-color:var(--inf);}
+  .find.solid{border-left-color:var(--tu);}
+  .find.dom{border-left-color:var(--fa);}
+  .find .ft{font-family:var(--mono);font-size:13px;}
+  .find p{margin:5px 0 0;font-size:13.5px;color:var(--ink-dim);}
+
+  /* doc economy bars */
+  .econ{margin-top:26px;border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--surface);}
+  .econ h3{font-family:var(--mono);font-size:13px;margin-bottom:14px;}
+  .erow{display:grid;grid-template-columns:120px 1fr 128px;gap:12px;align-items:center;margin:9px 0;}
+  .erow .el{font-family:var(--mono);font-size:12.5px;}
+  .ebar{height:12px;border-radius:6px;background:var(--surface-2);overflow:hidden;}
+  .ebar i{display:block;height:100%;border-radius:6px;}
+  .erow .ev{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);text-align:right;font-variant-numeric:tabular-nums;}
+  .econ .concl{margin:14px 0 0;font-size:13.5px;color:var(--ink-dim);}
+
+  /* what each does */
+  .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media (max-width:860px){ .cards3{grid-template-columns:1fr;} }
+  .fcard{border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--surface);border-top-width:3px;}
+  .fcard.fa{border-top-color:var(--fa);}
+  .fcard.tu{border-top-color:var(--tu);}
+  .fcard.inf{border-top-color:var(--inf);}
+  .fcard .fh{font-family:var(--mono);font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .fcard.fa .fh{color:var(--fa);}
+  .fcard.tu .fh{color:var(--tu);}
+  .fcard.inf .fh{color:var(--inf);}
+  .fcard .role{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:5px;letter-spacing:.03em;}
+  .fcard p{font-size:13.5px;color:var(--ink-dim);margin:12px 0 0;}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+
+  /* documents matrix */
+  .matrix-scroll{overflow-x:auto;border-radius:12px;border:1px solid var(--line);}
+  table.matrix{border-collapse:collapse;width:100%;min-width:820px;font-size:13px;}
+  table.matrix th,table.matrix td{padding:14px 15px;text-align:left;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  table.matrix thead th{font-family:var(--mono);font-weight:600;font-size:14px;background:var(--surface);}
+  table.matrix thead th.ph{font-weight:400;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);}
+  table.matrix thead th.fa{color:var(--fa);background:linear-gradient(180deg,var(--fa-soft),var(--surface));}
+  table.matrix thead th.tu{color:var(--tu);background:linear-gradient(180deg,var(--tu-soft),var(--surface));}
+  table.matrix thead th.inf{color:var(--inf);background:linear-gradient(180deg,var(--inf-soft),var(--surface));}
+  table.matrix td.rl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface);white-space:nowrap;}
+  table.matrix tbody tr:last-child td{border-bottom:none;}
+  table.matrix td.c{color:var(--ink-dim);}
+  table.matrix td.c b{color:var(--ink);}
+  table.matrix td.em{color:var(--ink-faint);}
+  .matrix-note{font-size:13.5px;color:var(--ink-dim);margin-top:16px;font-style:italic;}
+
+  /* phases schematic */
+  .emph{border:1px solid rgba(255,106,51,.4);background:rgba(255,106,51,.05);border-radius:11px;padding:13px 16px;margin-bottom:22px;font-size:14px;color:var(--ink-dim);}
+  .emph b{color:var(--inf-glow);}
+  .phaseflow{display:flex;flex-direction:column;gap:16px;}
+  .pf{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+  .pf .plabel{font-family:var(--mono);font-weight:600;font-size:13px;min-width:118px;padding-top:6px;}
+  .pf.fa .plabel{color:var(--fa);}
+  .pf.tu .plabel{color:var(--tu);}
+  .pf.inf .plabel{color:var(--inf);}
+  .pchain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .pnode{font-family:var(--mono);font-size:12px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);white-space:nowrap;}
+  .pnode.plan{border-color:rgba(99,179,199,.45);color:var(--tu);}
+  .pnode.build{border-color:rgba(103,192,138,.4);color:var(--ok);}
+  .pnode.cfg{border-color:rgba(255,106,51,.5);color:var(--inf-glow);}
+  .pnode.fin{border-color:var(--line);color:var(--ink-dim);}
+  .arrow{color:var(--ink-faint);font-size:14px;}
+  .pf .pnote{font-size:12.5px;color:var(--ink-faint);width:100%;padding-left:132px;}
+  @media (max-width:620px){ .pf .pnote{padding-left:0;} }
+
+  /* config */
+  .cfgblock{border:1px solid rgba(255,106,51,.45);border-radius:12px;padding:16px 18px;background:rgba(255,106,51,.05);margin-bottom:18px;}
+  .cfgblock .ch{font-family:var(--mono);font-size:12px;color:var(--inf-glow);letter-spacing:.05em;margin-bottom:10px;}
+  .cfgblock .row{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);margin:6px 0;display:flex;gap:9px;}
+  .cfgblock .row .ic{color:var(--inf);flex:none;}
+  .cfgset{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .cfgset .s{font-family:var(--mono);font-size:11.5px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-dim);}
+  .cfgset .s.opt{border-style:dashed;color:var(--ink-faint);}
+  .fork{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:720px){ .fork{grid-template-columns:1fr;} }
+  .forkpath{border:1px solid var(--line);border-radius:11px;padding:15px 16px;background:var(--surface);}
+  .forkpath .fk{font-family:var(--mono);font-size:12.5px;color:var(--inf-glow);margin-bottom:7px;}
+  .forkpath .fk .lbl{color:var(--ink-faint);}
+  .forkpath p{margin:0;font-size:13px;color:var(--ink-dim);}
+
+  /* two families */
+  .families{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:820px){ .families{grid-template-columns:1fr;} }
+  .fam{border:1px solid var(--line);border-radius:16px;padding:20px;}
+  .fam.serial{background:linear-gradient(180deg,rgba(99,179,199,.05),transparent 42%);}
+  .fam.parallel{background:linear-gradient(180deg,rgba(255,106,51,.05),transparent 42%);}
+  .fam .fh{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+  .fam.serial .fh{color:var(--tu);}
+  .fam.parallel .fh{color:var(--inf);}
+  .fam h3{font-size:16px;margin-bottom:14px;}
+  .fam dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:9px 14px;}
+  .fam dt{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);padding-top:2px;}
+  .fam dd{margin:0;font-size:13px;color:var(--ink-dim);}
+
+  /* takeaway */
+  .take{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media (max-width:860px){ .take{grid-template-columns:1fr;} }
+  .tk{border:1px solid var(--line);border-radius:12px;padding:17px;background:var(--surface);border-top-width:3px;}
+  .tk.fa{border-top-color:var(--fa);}  .tk.tu{border-top-color:var(--tu);}  .tk.inf{border-top-color:var(--inf);}
+  .tk .nm{font-family:var(--mono);font-weight:600;font-size:14px;}
+  .tk.fa .nm{color:var(--fa);}  .tk.tu .nm{color:var(--tu);}  .tk.inf .nm{color:var(--inf);}
+  .tk p{margin:9px 0 0;font-size:13px;color:var(--ink-dim);}
+
+  .callout{display:flex;gap:12px;align-items:flex-start;margin-top:20px;padding:14px 16px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line);font-size:13.5px;color:var(--ink-dim);}
+  .callout .ic{font-family:var(--mono);flex:none;color:var(--inf);}
+
+  footer{padding:32px 0 60px;color:var(--ink-faint);font-family:var(--mono);font-size:12px;}
+  footer .wrap{max-width:74ch;}
+
+  .reveal{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease;}
+  .reveal.in{opacity:1;transform:none;}
+  @media (prefers-reduced-motion:reduce){ .reveal{opacity:1;transform:none;transition:none;} }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">specsmd · the doc-slimming experiment</div>
+    <h1><span class="fa">AI-DLC</span> · <span class="tu">AI-DLC&nbsp;Turbo</span> · <span class="inf">INFERNO</span></h1>
+    <p class="lede">How much documentation does an AI agent actually need to build good code? We measured it — same code change, different documentation shapes, blind-judged. This is what the experiment showed, and the three flows it settles on.</p>
+    <div class="legend">
+      <span class="k"><span class="swatch" style="background:var(--fa)"></span> AI-DLC — the full methodology, heaviest docs</span>
+      <span class="k"><span class="swatch" style="background:var(--tu)"></span> AI-DLC Turbo — same phases, slim docs</span>
+      <span class="k"><span class="swatch" style="background:var(--inf)"></span> INFERNO — autonomous, parallel</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ THE EXPERIMENT ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">What we did</div>
+      <h2>The experiment</h2>
+      <p>We had the same code change built from several different <b>documentation shapes</b> (flows) — from the full, heavy AI-DLC documentation down to sharply slimmed variants. Under the hood the build process was identical everywhere; only the <em>form and amount of documentation</em> changed. That isolates exactly one variable: does more documentation help at all?</p>
+    </div>
+    <div class="method">
+      <div class="panel">
+        <h3>How it was judged</h3>
+        <p>Outcomes were <b>blind-judged by a panel of three independent reviewers</b> on a weighted <b>0–10 rubric</b> (correctness, completeness, fidelity to the requirements, maintainability, and more).</p>
+        <p>We repeated the experiment across three changes of <b>increasing difficulty</b>, so we could see whether the ranking holds. No single score counts — the question is whether the same flow keeps winning as the work gets harder.</p>
+        <div class="chips">
+          <span class="chip">3 independent judges</span>
+          <span class="chip">blind panel</span>
+          <span class="chip">0–10 weighted rubric</span>
+          <span class="chip">3 difficulty levels</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Two hard gates</h3>
+        <p style="margin-bottom:14px">A flow had to clear both of these just to count:</p>
+        <div class="gates">
+          <div class="gate"><span class="g">✓</span><div><div class="gt">Green build</div><div class="gd">The code compiles and the tests pass.</div></div></div>
+          <div class="gate"><span class="g">✓</span><div><div class="gt">100% caveat survival</div><div class="gd">Not one load-bearing exception or constraint may get lost along the way.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">Side by side</div>
+      <h2>The results</h2>
+      <p>Build quality (0–10, blind-judged) per flow, across three difficulty levels.</p>
+    </div>
+    <div class="tbl-scroll">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Flow</th>
+            <th>Small, scoped change</th>
+            <th>Large, multi-part feature</th>
+            <th>Complex integration (caveat-dense, different stack)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="fa"><td class="flowname">AI-DLC (full)</td><td class="num em">—</td><td class="num">7.67</td><td class="num">8.43</td></tr>
+          <tr class="tu"><td class="flowname">AI-DLC Turbo</td><td class="num">8.55</td><td class="num best">8.06</td><td class="num">8.42</td></tr>
+          <tr class="inf"><td class="flowname">INFERNO</td><td class="num best">8.65</td><td class="num">7.60</td><td class="num best">8.58</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tnote">— = not fully built in that run.</div>
+
+    <div class="findings">
+      <div class="find win"><div><div class="ft"><span class="inf-ink">INFERNO delivers the highest build quality.</span></div><p>It won two of the three levels and dominated the hardest integration (caveat-dense, on a different codebase and stack) on <em>both</em> axes at once: highest quality and the least documentation.</p></div></div>
+      <div class="find solid"><div><div class="ft"><span class="tu-ink">AI-DLC Turbo is the most consistent all-rounder.</span></div><p>Strong at every level — the safest default when you want to lock in one shape that performs well enough everywhere.</p></div></div>
+      <div class="find dom"><div><div class="ft"><span class="fa-ink">The full AI-DLC flow was Pareto-dominated.</span></div><p>On the harder levels there was always a slim flow that produced at least as good code with a fraction of the documentation.</p></div></div>
+    </div>
+
+    <div class="econ">
+      <h3>And with far less documentation</h3>
+      <div class="erow"><span class="el fa-ink">AI-DLC (full)</span><div class="ebar"><i style="width:100%;background:var(--fa)"></i></div><span class="ev">baseline · 100%</span></div>
+      <div class="erow"><span class="el tu-ink">AI-DLC Turbo</span><div class="ebar"><i style="width:23%;background:var(--tu)"></i></div><span class="ev">−73 to −81%</span></div>
+      <div class="erow"><span class="el inf-ink">INFERNO</span><div class="ebar"><i style="width:13%;background:var(--inf)"></i></div><span class="ev">−83 to −91%</span></div>
+      <p class="concl">The bottom line: the full flow's extra documentation bought <b>no</b> better correctness or fidelity. Slimmer isn't worse — as long as each load-bearing fact sits in exactly one place, instead of being restated or buried behind a link.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHAT EACH FLOW DOES ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">The three flows</div>
+      <h2>What each flow does</h2>
+    </div>
+    <div class="cards3">
+      <div class="fcard fa">
+        <div class="fh"><span class="dot" style="background:var(--fa)"></span>AI-DLC</div>
+        <div class="role">the full methodology</div>
+        <p>AI-DLC is the full methodology with the <b>heaviest documentation</b> — it's the documentation that's heavy, not the process. Its inception phase produces an extensive set of documents: a domain model, detailed technical design, architecture decision records (ADRs), and a fine-grained breakdown into stories and bolts with full traceability. Lots of documentation, lots of mandatory paperwork, with facts written out again in several places. In the experiment, all that extra documentation bought no quality gain.</p>
+      </div>
+      <div class="fcard tu">
+        <div class="fh"><span class="dot" style="background:var(--tu)"></span>AI-DLC Turbo</div>
+        <div class="role">same process, slim docs</div>
+        <p>AI-DLC Turbo runs the <b>exact same phases</b> as AI-DLC — the inception itself is not shortened. What gets lighter is the <b>documentation</b>, not the process: no mandatory paperwork, no repetition. Inception produces only requirements, one decisions-and-gates ledger, and stories (no bolts). Then story-driven construction with human checkpoints. Same process, same steering, a fraction of the documentation.</p>
+      </div>
+      <div class="fcard inf">
+        <div class="fh"><span class="dot" style="background:var(--inf)"></span>INFERNO</div>
+        <div class="role">autonomous · parallel</div>
+        <p>INFERNO is the autonomous, parallel build flow. It decomposes an intent automatically into work items and lets parallel builders build them at the same time in one worktree. Coupled work serializes on its own via dependencies; independent work builds concurrently, without the builders stepping on each other. This is the shape that scored the highest build quality in the experiment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DOCUMENTS MATRIX ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">What gets written</div>
+      <h2>Which documents each flow produces</h2>
+      <p>Concretely, each flow produces these documents. On a narrow screen the table scrolls sideways.</p>
+    </div>
+    <div class="matrix-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="ph">Phase</th>
+            <th class="fa">AI-DLC (full)</th>
+            <th class="tu">AI-DLC Turbo</th>
+            <th class="inf">INFERNO</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="rl">Config</td>
+            <td class="c em">—</td>
+            <td class="c em">—</td>
+            <td class="c">config file <span class="faint">(model tiers, autonomy, verification, delivery mode)</span></td>
+          </tr>
+          <tr>
+            <td class="rl">Planning / inception</td>
+            <td class="c">requirements, system-context, units + unit-briefs, stories</td>
+            <td class="c">requirements, <b>one decisions-and-gates ledger</b>, stories</td>
+            <td class="c">intent brief, requirements, decisions, <b>auto-derived work items</b> (with a design per item)</td>
+          </tr>
+          <tr>
+            <td class="rl">Execution / build</td>
+            <td class="c">DDD bolts — per bolt a domain model, technical design, ADR(s) and test report; plus coding standards</td>
+            <td class="c">story-driven implementation + tests</td>
+            <td class="c">implementation by parallel builders in one worktree; a state file tracking every work item</td>
+          </tr>
+          <tr>
+            <td class="rl">Finalize</td>
+            <td class="c em">— <span class="faint">(code lands via your normal branch workflow)</span></td>
+            <td class="c em">— <span class="faint">(code lands via your normal branch workflow)</span></td>
+            <td class="c">verification result + merge or merge request</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="matrix-note">The pattern: AI-DLC writes the heaviest set of documents (and repeats core facts per bolt), AI-DLC Turbo replaces that per-bolt paperwork with a single decisions-and-gates ledger, and INFERNO derives its work items automatically and keeps status in one state file.</p>
+  </div>
+</section>
+
+<!-- ============ PHASES SCHEMATIC ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">Phases, schematically</div>
+      <h2>The phases per flow</h2>
+    </div>
+    <div class="emph"><b>Note: it's the documentation that's light or heavy, not the process.</b> AI-DLC and AI-DLC Turbo run the same phases — the difference is purely in how much documentation each phase produces.</div>
+    <div class="phaseflow">
+      <div class="pf fa">
+        <div class="plabel">AI-DLC</div>
+        <div class="pchain">
+          <span class="pnode plan">Inception</span><span class="arrow">→</span><span class="pnode build">Construction</span>
+        </div>
+        <div class="pnote">heavy documentation; human checkpoints throughout.</div>
+      </div>
+      <div class="pf tu">
+        <div class="plabel">AI-DLC Turbo</div>
+        <div class="pchain">
+          <span class="pnode plan">Inception</span><span class="arrow">→</span><span class="pnode build">Story-driven construction</span>
+        </div>
+        <div class="pnote">slim documentation; same phases, but without the mandatory paperwork.</div>
+      </div>
+      <div class="pf inf">
+        <div class="plabel">INFERNO</div>
+        <div class="pchain">
+          <span class="pnode cfg">Config</span><span class="arrow">→</span><span class="pnode plan">Plan (auto-decompose)</span><span class="arrow">→</span><span class="pnode build">Build (parallel)</span><span class="arrow">→</span><span class="pnode fin">Finalize (verify + merge)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INFERNO CONFIG ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">Configure first</div>
+      <h2>INFERNO starts with configuration</h2>
+      <p>INFERNO opens with a <b>Config phase</b>. On install the flow looks for its configuration file; if it's missing, you're guided to the configuration wizard. What you set here decides how the rest of the flow behaves.</p>
+    </div>
+    <div class="cfgblock">
+      <div class="ch">PHASE 0 · CONFIG — read before anything runs</div>
+      <div class="row"><span class="ic">→</span><span>On install, look for the config file; if it's absent, the wizard walks you through it.</span></div>
+      <div class="row"><span class="ic">→</span><span>What you configure:</span></div>
+      <div class="cfgset">
+        <span class="s">model tiers <span class="faint">— strong vs cheap</span></span>
+        <span class="s">autonomy level</span>
+        <span class="s">finalize verification <span class="faint">— build / test / lint gate</span></span>
+        <span class="s">delivery mode</span>
+        <span class="s opt">optional: budget-cap halt</span>
+        <span class="s opt">optional: knowledge index</span>
+      </div>
+    </div>
+    <p style="color:var(--ink-dim);font-size:14px;margin:0 0 12px">The crucial one is the <b>delivery mode</b>. It picks between two ways the work lands:</p>
+    <div class="fork">
+      <div class="forkpath">
+        <div class="fk"><span class="lbl">delivery.mode =</span> auto-close</div>
+        <p>INFERNO verifies the intent worktree itself against your gates, merges it into your main branch, and pushes. Fully hands-off — no human in between.</p>
+      </div>
+      <div class="forkpath">
+        <div class="fk"><span class="lbl">delivery.mode =</span> merge-request</div>
+        <p>INFERNO stops after verification and opens a merge request (or leaves the branch for review). You review everything before it lands.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GIT ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">In your repository</div>
+      <h2>What gets created in Git</h2>
+      <p>A common question: what does each flow actually create in your Git repository — branches, worktrees, merge/pull requests? And does it happen per work item, or only per intent? The answer differs sharply between the human-in-the-loop flows and INFERNO, and within INFERNO between its two delivery modes.</p>
+    </div>
+    <div class="emph"><b>First, one thing to untangle.</b> INFERNO has two separate settings that are easy to confuse. The <b>autonomy level</b> (<em>full</em> / <em>review</em>) only controls whether the planner pauses for your sign-off after planning and before the build — it says nothing about Git. What gets created in Git is decided entirely by the <b>delivery mode</b>: <em>auto-close</em> or <em>merge-request</em>.</div>
+    <div class="matrix-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="ph">&nbsp;</th>
+            <th class="tu">AI-DLC &amp; AI-DLC Turbo</th>
+            <th class="inf">INFERNO — auto-close</th>
+            <th class="inf">INFERNO — merge request</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="rl">Who manages Git?</td>
+            <td class="c">You. The flow doesn't touch Git.</td>
+            <td class="c">The orchestrator, fully autonomous.</td>
+            <td class="c">The orchestrator, with you as the final gatekeeper.</td>
+          </tr>
+          <tr>
+            <td class="rl">Worktree</td>
+            <td class="c">None — you work in your normal checkout.</td>
+            <td class="c">One per intent (<span class="mono faint">inferno-intent/&lt;id&gt;</span>), where all builders work in parallel.</td>
+            <td class="c">Same — one per intent.</td>
+          </tr>
+          <tr>
+            <td class="rl">Branch per intent</td>
+            <td class="c">None; you decide your own branches.</td>
+            <td class="c">One intent branch, in that worktree.</td>
+            <td class="c">One intent branch, in that worktree.</td>
+          </tr>
+          <tr>
+            <td class="rl">Per work item / story</td>
+            <td class="c">Nothing. The flow writes code and documents into your working tree; committing and branching stays yours, as always.</td>
+            <td class="c">No separate branch or MR — each builder's result is committed <b>directly onto the intent branch</b>.</td>
+            <td class="c"><b>Yes</b>: each work item gets its own branch (<span class="mono faint">inferno-item/&lt;intent&gt;/&lt;item&gt;</span>) and a <b>non-blocking</b> merge request into the intent branch (for traceability / auto-merge).</td>
+          </tr>
+          <tr>
+            <td class="rl">At finalize</td>
+            <td class="c">You commit and merge in your own workflow.</td>
+            <td class="c">The intent branch is merged locally into the base branch, the worktree is torn down, and the base branch is pushed.</td>
+            <td class="c">The intent branch is pushed and <b>one</b> merge request is opened into the base branch. The orchestrator stops there; the worktree stays for review.</td>
+          </tr>
+          <tr>
+            <td class="rl">Merge / pull request</td>
+            <td class="c">Only if you open one yourself.</td>
+            <td class="c">None.</td>
+            <td class="c">One per work item (non-blocking) + one into the base branch (the review gate). Works with GitLab (merge request) and GitHub (pull request).</td>
+          </tr>
+          <tr>
+            <td class="rl">Review gate</td>
+            <td class="c">Your normal review, outside the flow.</td>
+            <td class="c">None — the code lands with no one in between.</td>
+            <td class="c">That one merge request into the base branch. Nothing lands before you approve it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="matrix-note">In short: AI-DLC and AI-DLC Turbo create nothing in Git themselves — you branch and commit as usual. INFERNO always works in one worktree with one branch per intent, never per work item. Only the <b>merge-request</b> mode also creates something per work item (its own branch plus a non-blocking merge request); in <b>auto-close</b> everything stays on that single intent branch and INFERNO merges it itself.</p>
+  </div>
+</section>
+
+<!-- ============ TWO FAMILIES ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="sec-head">
+      <div class="eyebrow">Where they fit</div>
+      <h2>Two flows, two ways of working</h2>
+      <p>Under the hood the flows fall into two families. This is the real distinction.</p>
+    </div>
+    <div class="families">
+      <div class="fam serial">
+        <div class="fh">◆ serial · human-in-the-loop</div>
+        <h3 class="tu-ink">AI-DLC / AI-DLC Turbo</h3>
+        <dl>
+          <dt>Rhythm</dt><dd>One step at a time; you approve between phases.</dd>
+          <dt>Execution</dt><dd>On branches, inside your normal development flow.</dd>
+          <dt>Steering</dt><dd>You steer continuously while it builds.</dd>
+          <dt>Fits</dt><dd>When the design is still uncertain and you want to steer.</dd>
+        </dl>
+      </div>
+      <div class="fam parallel">
+        <div class="fh">◇ parallel · autonomous</div>
+        <h3 class="inf-ink">INFERNO</h3>
+        <dl>
+          <dt>Rhythm</dt><dd>The intent is decomposed; builders build in parallel.</dd>
+          <dt>Execution</dt><dd>In one separate worktree.</dd>
+          <dt>Steering</dt><dd>Set it up front and let it run — but you can also require that everything goes through a merge request for review. "Autonomous" is a setting, not a mandate.</dd>
+          <dt>Fits</dt><dd>When the work is well-understood and parallelizable.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAKEAWAY ============ -->
+<section style="border-bottom:none">
+  <div class="wrap reveal">
+    <div class="sec-head"><div class="eyebrow">In one line each</div><h2>Which to reach for</h2></div>
+    <div class="take">
+      <div class="tk fa"><div class="nm">AI-DLC</div><p>The full methodology with the heaviest documentation — kept as the baseline the experiment measured against. The extra paperwork didn't buy quality.</p></div>
+      <div class="tk tu"><div class="nm">AI-DLC Turbo</div><p>Same process and same steering as AI-DLC, a fraction of the documentation. The most consistent all-rounder and the safest default to lock in.</p></div>
+      <div class="tk inf"><div class="nm">INFERNO</div><p>Highest build quality, autonomous and parallel in one worktree — delivering either by self-merge or by opening a merge request, whichever the config says.</p></div>
+    </div>
+    <div class="callout"><span class="ic">🔥</span><div><b>The win is structural, not a specific tool.</b> Write each load-bearing fact once and link to it — rather than restate it (heavy) or defer it behind an unresolved hop (too lean). That's what a slim shape gets right and the heavy baseline never does.</div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">specsmd · the doc-slimming experiment · AI-DLC vs AI-DLC Turbo vs INFERNO · build quality is a blind 3-judge weighted 0–10 panel; doc economy is relative to the full AI-DLC baseline · drawn from src/flows and the eval ledger</div>
+</footer>
+
+<script>
+  (function(){
+    var els = document.querySelectorAll('.reveal');
+    if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in');});return;}
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} });
+    },{threshold:.1});
+    els.forEach(function(e){io.observe(e);});
+  })();
+</script>
+</body>
+</html>

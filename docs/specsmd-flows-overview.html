@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPECSMD flows — output documents & execution models</title>
+<style>
+  :root{
+    /* forge / ember palette — grounded in SPECSMD's own vernacular (FIRE, INFERNO, spark, flame, forge) */
+    --ground:#17120D; --surface:#1F1812; --surface-2:#2A2016; --raise:#332617;
+    --text:#F2EADE; --muted:#A89683; --faint:#6E6052;
+    --ember:#FF7A3C;            /* page accent */
+    --pass:#5FBE8C; --fail:#E5604A; --warn:#E8B24C;
+    --hair:rgba(242,234,222,0.10); --hair-strong:rgba(242,234,222,0.22);
+    /* per-flow identity hues — warm fire-family for the build flows, cool azure for the formal heavyweight */
+    --inferno:#FF6B3D; --fire:#E8A33C; --aidlc:#5B9BE0; --ideation:#B58AF0; --simple:#4FC2A0;
+    --turbo:#FFA24C; --aidlclight:#7FB3E8;   /* the two winning eval arms — warm (INFERNO-side) / cool (AI-DLC-side) */
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);line-height:1.62;font-size:16px;
+    background-image:radial-gradient(circle at 86% -8%,rgba(255,122,60,0.12),transparent 46%),radial-gradient(circle at 2% 102%,rgba(91,155,224,0.07),transparent 40%);
+    background-attachment:fixed}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 26px}
+  a{color:var(--ember)}
+  h1,h2,h3,h4{font-weight:800;letter-spacing:-0.022em;line-height:1.08;margin:0;text-wrap:balance}
+  p{margin:0 0 1rem}
+  .mono{font-family:var(--mono)}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.24em;color:var(--ember);display:flex;align-items:center;gap:11px;margin:0 0 20px}
+  .eyebrow::before{content:"";width:28px;height:1px;background:var(--ember);display:inline-block}
+
+  /* ---- top bar ---- */
+  .topbar{border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:0.73rem;color:var(--muted);letter-spacing:0.04em;position:sticky;top:0;background:rgba(23,18,13,0.86);backdrop-filter:blur(8px);z-index:20}
+  .topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:13px 26px;gap:16px;flex-wrap:wrap}
+  .topbar b{color:var(--text);font-weight:600}
+  .topbar .flames{display:flex;gap:6px;align-items:center}
+  .fl{width:8px;height:8px;border-radius:2px;transform:rotate(45deg);display:inline-block}
+
+  /* ---- hero ---- */
+  .hero{padding:84px 0 60px;border-bottom:1px solid var(--hair)}
+  .hero h1{font-size:clamp(2.2rem,5.4vw,3.9rem)}
+  .hero h1 .w{color:var(--ember)} .hero h1 .b{color:var(--aidlc)}
+  .lede{font-size:clamp(1.04rem,2vw,1.28rem);color:var(--muted);max-width:62ch;margin-top:24px;line-height:1.5}
+  .lede b{color:var(--text);font-weight:600}
+
+  section{padding:62px 0;border-bottom:1px solid var(--hair)}
+  .sec-h{font-size:clamp(1.5rem,3.2vw,2.1rem);margin-bottom:10px}
+  .sec-sub{color:var(--muted);max-width:74ch;margin-top:6px}
+  .lead-no{font-family:var(--mono);font-size:0.72rem;letter-spacing:0.2em;color:var(--faint);display:block;margin-bottom:14px}
+
+  /* ---- glance table ---- */
+  .scroll{overflow-x:auto;margin-top:30px;border:1px solid var(--hair);border-radius:8px}
+  table{border-collapse:collapse;width:100%;min-width:920px;font-size:0.85rem}
+  th,td{padding:13px 15px;text-align:left;border-bottom:1px solid var(--hair);vertical-align:top}
+  thead th{font-family:var(--mono);font-size:0.64rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;background:var(--surface);white-space:nowrap;position:sticky;top:0}
+  tbody tr:last-child td{border-bottom:none}
+  tbody td:first-child{font-family:var(--mono);font-weight:700;white-space:nowrap}
+  td .ns{font-family:var(--mono);font-size:0.78rem;color:var(--muted)}
+  .flow-dot{display:inline-block;width:9px;height:9px;border-radius:2px;transform:rotate(45deg);margin-right:9px;vertical-align:middle}
+  .yes{color:var(--pass);font-weight:700} .no{color:var(--faint)} .part{color:var(--warn);font-weight:600}
+
+  /* ---- flow panels ---- */
+  .flows{display:flex;flex-direction:column;gap:22px;margin-top:34px}
+  .flow{background:var(--surface);border:1px solid var(--hair);border-left:3px solid var(--c,var(--ember));border-radius:10px;padding:0;overflow:hidden}
+  .flow-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:20px 24px 16px}
+  .flow-name{font-family:var(--mono);font-size:1.35rem;font-weight:800;color:var(--c);letter-spacing:-0.01em}
+  .flow-tag{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);border:1px solid var(--hair-strong);border-radius:4px;padding:3px 8px}
+  .flow-ns{font-family:var(--mono);font-size:0.8rem;color:var(--c);opacity:0.9;margin-left:auto}
+  .flow-sub{padding:0 24px 18px;color:var(--muted);max-width:80ch;font-size:0.94rem}
+  .flow-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:0;border-top:1px solid var(--hair)}
+  .col{padding:20px 24px;min-width:0}
+  .col + .col{border-left:1px solid var(--hair)}
+  .col-h{font-family:var(--mono);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--faint);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .col-h .meta{color:var(--c);margin-left:auto;letter-spacing:0.04em}
+
+  /* output doc tree */
+  .tree{font-family:var(--mono);font-size:0.795rem;line-height:1.72;color:var(--text);white-space:pre;overflow-x:auto}
+  .tree .d{color:var(--c)}                /* directory / namespace */
+  .tree .c{color:var(--muted)}            /* comment */
+  .tree .o{color:var(--faint)}            /* optional / conditional marker */
+
+  /* lifecycle pipeline */
+  .pipe-scroll{overflow-x:auto;padding-bottom:6px}
+  .pipe{display:flex;align-items:stretch;gap:0;min-width:min-content}
+  .ph{display:flex;flex-direction:column;gap:7px}
+  .ph + .ph{margin-left:14px;padding-left:14px;border-left:1px dashed var(--hair-strong)}
+  .ph-name{font-family:var(--mono);font-size:0.6rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--c);opacity:0.85}
+  .stages{display:flex;align-items:center;gap:7px}
+  .stage{font-family:var(--mono);font-size:0.74rem;background:var(--surface-2);border:1px solid var(--hair-strong);border-radius:5px;padding:5px 9px;white-space:nowrap;color:var(--text)}
+  .stage.gate{border-color:var(--warn);color:var(--warn)}
+  .stage.par{border-color:var(--c);color:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02)}
+  .arr{color:var(--faint);font-family:var(--mono);font-size:0.8rem;padding:0 1px}
+  .pipe-note{margin-top:13px;font-size:0.82rem;color:var(--muted)}
+  .pipe-note b{color:var(--text);font-weight:600}
+  .legend-inline{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:0.66rem;color:var(--faint)}
+  .legend-inline span{display:flex;align-items:center;gap:6px}
+  .lz{width:20px;height:0;border-top:1px solid;border-radius:2px}
+
+  /* ---- head-to-head ---- */
+  .h2h{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:34px}
+  .h2h-card{background:var(--surface);border:1px solid var(--hair);border-top:3px solid var(--c);border-radius:10px;padding:24px}
+  .h2h-card h3{font-family:var(--mono);color:var(--c);font-size:1.25rem;margin-bottom:4px}
+  .h2h-card .sg{font-family:var(--mono);font-size:0.72rem;color:var(--muted);margin-bottom:18px}
+  .depth{font-family:var(--mono);font-size:0.82rem;line-height:1.9;white-space:pre;color:var(--text);background:var(--ground);border:1px solid var(--hair);border-radius:7px;padding:14px 16px;overflow-x:auto}
+  .depth .lvl{color:var(--c);font-weight:700}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;margin-top:18px;font-size:0.88rem}
+  .kv dt{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);padding-top:2px}
+  .kv dd{margin:0;color:var(--text)}
+  .kv dd b{color:var(--c)}
+
+  .callout{margin-top:30px;border:1px solid var(--hair-strong);border-left:3px solid var(--warn);border-radius:0 8px 8px 0;background:var(--surface);padding:22px 24px}
+  .callout.fix{border-left-color:var(--inferno)}
+  .callout .k{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--warn);margin-bottom:11px;display:flex;align-items:center;gap:9px}
+  .callout.fix .k{color:var(--inferno)}
+  .callout p{margin:0;color:var(--text)} .callout p+p{margin-top:10px;color:var(--muted);font-size:0.93rem}
+  .callout b{color:var(--text);font-weight:700}
+  .callout .mono{color:var(--ember)}
+
+  /* ---- arms / turbo-a ---- */
+  .verdict-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .win{background:var(--surface);border:1px solid var(--hair);border-radius:9px;padding:22px;position:relative}
+  .win.rec{border-color:rgba(255,122,60,0.5);background:linear-gradient(180deg,rgba(255,122,60,0.10),var(--surface))}
+  .win .badge{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:0.58rem;font-weight:700;letter-spacing:0.12em;border:1px solid var(--hair-strong);border-radius:4px;padding:3px 7px;color:var(--muted)}
+  .win.rec .badge{color:var(--ember);border-color:rgba(255,122,60,0.5)}
+  .win .arm{font-family:var(--mono);font-size:1.5rem;font-weight:800;letter-spacing:-0.02em;margin:6px 0 2px}
+  .win .role{font-family:var(--mono);font-size:0.72rem;color:var(--muted)}
+  .win .sc{font-family:var(--mono);font-size:0.84rem;color:var(--text);margin:13px 0 0}
+  .win .sc b{color:var(--pass)}
+  .win .why{font-size:0.9rem;color:var(--muted);margin-top:10px}
+  .arms-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+  .arm-chip{font-family:var(--mono);font-size:0.74rem;border:1px solid var(--hair-strong);border-radius:5px;padding:6px 11px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .arm-chip.ctrl{border-style:dashed}
+  .arm-chip.fr{border-color:var(--pass);color:var(--text)}
+  .arm-chip .m{font-size:0.6rem;color:var(--faint);letter-spacing:0.06em;text-transform:uppercase}
+
+  .points{margin-top:30px;display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+  .point{background:var(--surface);padding:18px 22px}
+  .point h4{margin:0 0 5px;font-size:0.98rem}
+  .point p{margin:0;font-size:0.89rem;color:var(--muted)}
+  .point .em{color:var(--text);font-weight:600}
+
+  footer{padding:50px 0 80px;color:var(--faint);font-family:var(--mono);font-size:0.76rem;line-height:1.8}
+  footer b{color:var(--muted);font-weight:600}
+  .prov{margin-top:16px;padding-top:16px;border-top:1px solid var(--hair);display:flex;gap:26px;flex-wrap:wrap}
+
+  @media(max-width:860px){
+    .flow-body{grid-template-columns:1fr}
+    .col + .col{border-left:none;border-top:1px solid var(--hair)}
+    .h2h{grid-template-columns:1fr}
+    .verdict-grid{grid-template-columns:1fr}
+    .flow-ns{margin-left:0;width:100%}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  :focus-visible{outline:2px solid var(--ember);outline-offset:2px;border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <span><b>SPECSMD</b> · flow reference · output documents &amp; execution models</span>
+  <span class="flames" aria-hidden="true">
+    <i class="fl" style="background:var(--inferno)"></i><i class="fl" style="background:var(--fire)"></i><i class="fl" style="background:var(--aidlc)"></i><i class="fl" style="background:var(--ideation)"></i><i class="fl" style="background:var(--simple)"></i>
+    <span style="margin-left:8px">5 flows</span>
+  </span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <p class="eyebrow">SPECSMD · flow reference</p>
+  <h1>What each flow <span class="w">writes</span>, and how it <span class="b">builds</span>.</h1>
+  <p class="lede">Five installable flows ship in one package. They diverge on two axes: the <b>documents they leave behind</b>, and how work is <b>decomposed and executed</b>. This is a schematic map of both — plus a straight answer on <b>Turbo-A</b>, which is not a flow at all.</p>
+</div></header>
+
+<!-- ============ AT A GLANCE ============ -->
+<section><div class="wrap">
+  <span class="lead-no">01 — orientation</span>
+  <h2 class="sec-h">The five flows at a glance</h2>
+  <p class="sec-sub">One row per flow. The split that matters most: AI-DLC is a deep, checkpoint-gated lifecycle; INFERNO is a flat, autonomous, parallel build; FIRE sits between them; IDEATION is pre-build; SIMPLE is the minimum.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Flow</th><th>Namespace</th><th>Decomposition</th><th>Execution model</th><th>Parallel</th><th>Worktrees</th><th>What it's for</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--aidlc)"><span class="flow-dot" style="background:var(--aidlc)"></span>AI-DLC</td>
+          <td><span class="ns">memory-bank/</span></td>
+          <td>Intent ▸ Unit ▸ Story ▸ Bolt ▸ DDD&nbsp;stage</td>
+          <td>3 phases (Inception → Construction → Operations); DDD stages; human gate at every stage</td>
+          <td class="part">cross-unit only</td>
+          <td class="no">not core</td>
+          <td>Full, governed lifecycle from idea to production</td>
+        </tr>
+        <tr>
+          <td style="color:var(--fire)"><span class="flow-dot" style="background:var(--fire)"></span>FIRE</td>
+          <td><span class="ns">.specs-fire/</span></td>
+          <td>Intent ▸ Work&nbsp;item ▸ Run</td>
+          <td>Complexity sets mode (autopilot / confirm / validate → 0–2 gates); runs are single / batch / wide</td>
+          <td class="part">opt-in batching</td>
+          <td class="part">implicit</td>
+          <td>Fast intent→run engineering, adaptive ceremony</td>
+        </tr>
+        <tr>
+          <td style="color:var(--inferno)"><span class="flow-dot" style="background:var(--inferno)"></span>INFERNO</td>
+          <td><span class="ns">.specs-inferno/</span></td>
+          <td>Intent ▸ Work&nbsp;item</td>
+          <td>Planner decomposes → orchestrator dispatches parallel autopilot builders → verified merge</td>
+          <td class="yes">yes — by file ownership</td>
+          <td class="yes">one shared intent worktree</td>
+          <td>Autonomous, parallel build of a whole intent</td>
+        </tr>
+        <tr>
+          <td style="color:var(--ideation)"><span class="flow-dot" style="background:var(--ideation)"></span>IDEATION</td>
+          <td><span class="ns">.specs-ideation/</span></td>
+          <td>Topic ▸ Session</td>
+          <td>Spark → Flame → Forge (generate → evaluate → shape); no code</td>
+          <td class="no">n/a</td>
+          <td class="no">no</td>
+          <td>Creative idea generation → concept briefs</td>
+        </tr>
+        <tr>
+          <td style="color:var(--simple)"><span class="flow-dot" style="background:var(--simple)"></span>SIMPLE</td>
+          <td><span class="ns">specs/&lt;feature&gt;/</span></td>
+          <td>Feature ▸ 3 docs</td>
+          <td>Requirements → Design → Tasks, each approval-gated; execute one task at a time</td>
+          <td class="no">no</td>
+          <td class="no">no</td>
+          <td>Lightweight spec-driven dev for solo / small work</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<!-- ============ PER-FLOW DETAIL ============ -->
+<section><div class="wrap">
+  <span class="lead-no">02 — per flow</span>
+  <h2 class="sec-h">Output documents &amp; lifecycle, flow by flow</h2>
+  <p class="sec-sub">Left column = the files left on disk (every path is literal). Right column = the order work moves through. <span style="color:var(--warn)">Amber chips</span> are human approval gates; <span style="color:var(--inferno)">accent-bordered chips</span> run in parallel.</p>
+
+  <div class="flows">
+
+    <!-- AI-DLC -->
+    <article class="flow" style="--c:var(--aidlc)">
+      <div class="flow-head">
+        <span class="flow-name">AI-DLC</span>
+        <span class="flow-tag">heavyweight · governed</span>
+        <span class="flow-ns">memory-bank/</span>
+      </div>
+      <p class="flow-sub">The deepest flow: a five-level decomposition driven by four agents (Master, Inception, Construction, Operations) across three sequential phases, with a human checkpoint at every DDD stage. Documentation comes <b>before</b> code — model and design stages write no code at all.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents <span class="meta">~29 files · ~3,454 lines*</span></div>
+<pre class="tree"><span class="d">memory-bank/</span>
+├ <span class="d">project.yaml</span>            <span class="c"># type, phases enabled</span>
+├ <span class="d">standards/</span>            <span class="c"># tech-stack, coding-standards,</span>
+│   └ decision-index.md  <span class="c">#   +architecture/api/ux, ADR registry</span>
+├ <span class="d">intents/</span>&lt;id&gt;<span class="d">/</span>
+│   ├ requirements.md     <span class="c"># FR / NFR</span>
+│   ├ system-context.md   <span class="c"># actors, boundaries</span>
+│   ├ units.md            <span class="c"># unit + dependency graph</span>
+│   ├ inception-log.md    <span class="c"># progress tracker</span>
+│   └ units/&lt;u&gt;/
+│       ├ unit-brief.md
+│       ├ construction-log.md
+│       └ stories/&lt;s&gt;.md   <span class="c"># AC, edges, deps</span>
+├ <span class="d">bolts/</span>&lt;b&gt;<span class="d">/</span>
+│   ├ bolt.md               <span class="c"># stories, deps, status</span>
+│   ├ ddd-01-domain-model.md
+│   ├ ddd-02-technical-design.md
+│   ├ adr-&lt;n&gt;-&lt;slug&gt;.md     <span class="o"># optional</span>
+│   └ ddd-03-test-report.md
+└ <span class="d">operations/</span>&lt;unit&gt;<span class="d">/</span>   <span class="c"># build / deploy /</span>
+    └ verify · monitoring  <span class="c">#   verify / monitoring</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Inception</span><div class="stages">
+              <span class="stage gate">clarify</span><span class="arr">→</span><span class="stage">requirements</span><span class="arr">→</span><span class="stage">context</span><span class="arr">→</span><span class="stage">units</span><span class="arr">→</span><span class="stage">stories</span><span class="arr">→</span><span class="stage">bolts</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Construction · per bolt</span><div class="stages">
+              <span class="stage">model</span><span class="arr">→</span><span class="stage">design</span><span class="arr">→</span><span class="stage o">adr?</span><span class="arr">→</span><span class="stage">implement</span><span class="arr">→</span><span class="stage">test</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Operations</span><div class="stages">
+              <span class="stage gate">build</span><span class="arr">→</span><span class="stage">dev</span><span class="arr">→</span><span class="stage gate">staging</span><span class="arr">→</span><span class="stage gate">prod</span><span class="arr">→</span><span class="stage">monitor</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Sequential &amp; gated.</b> Stages run strictly in order; the agent stops for human approval at each boundary. Bolts within a unit run serially; bolts in different units may overlap if no dependency links them.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- FIRE -->
+    <article class="flow" style="--c:var(--fire)">
+      <div class="flow-head">
+        <span class="flow-name">FIRE</span>
+        <span class="flow-tag">adaptive · runs</span>
+        <span class="flow-ns">.specs-fire/</span>
+      </div>
+      <p class="flow-sub">A middle path: three agents (orchestrator, planner, builder) and a flatter Intent ▸ Work-item ▸ Run hierarchy. Each work item's <b>complexity</b> picks an execution <b>mode</b> that decides how many checkpoints it gets. A design doc is written only for high-complexity items.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents</div>
+<pre class="tree"><span class="d">.specs-fire/</span>
+├ <span class="d">state.yaml</span>             <span class="c"># intents · work-items · runs</span>
+├ <span class="d">standards/</span>
+│   ├ constitution.md     <span class="c"># never-overridden policy</span>
+│   ├ tech-stack.md · coding-standards.md
+│   └ testing-standards.md · system-architecture.md
+├ <span class="d">intents/</span>&lt;id&gt;<span class="d">/</span>
+│   ├ brief.md
+│   └ work-items/
+│       ├ &lt;w&gt;.md          <span class="c"># AC, complexity, mode</span>
+│       └ &lt;w&gt;-design.md   <span class="o"># high complexity only</span>
+└ <span class="d">runs/</span>&lt;run&gt;<span class="d">/</span>
+    ├ run.md · plan.md
+    ├ test-report.md
+    ├ review-report.md
+    └ walkthrough.md      <span class="c"># human-facing summary</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Plan</span><div class="stages">
+              <span class="stage">capture intent</span><span class="arr">→</span><span class="stage">decompose work-items</span><span class="arr">→</span><span class="stage o">design (high)</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Run · per mode</span><div class="stages">
+              <span class="stage">init</span><span class="arr">→</span><span class="stage">plan</span><span class="arr">→</span><span class="stage gate">approve*</span><span class="arr">→</span><span class="stage">implement</span><span class="arr">→</span><span class="stage">test</span><span class="arr">→</span><span class="stage">review</span><span class="arr">→</span><span class="stage">walkthrough</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Mode-adaptive gates.</b> <span class="mono" style="color:var(--fire)">autopilot</span> = 0 gates · <span class="mono" style="color:var(--fire)">confirm</span> = 1 (approve plan) · <span class="mono" style="color:var(--fire)">validate</span> = 2 (design + plan). A run covers <b>one</b> item (single), a group (batch), or all compatible items (wide) — you choose the scope.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- INFERNO -->
+    <article class="flow" style="--c:var(--inferno)">
+      <div class="flow-head">
+        <span class="flow-name">INFERNO</span>
+        <span class="flow-tag">autonomous · parallel</span>
+        <span class="flow-ns">.specs-inferno/</span>
+      </div>
+      <p class="flow-sub">The flat, autonomous build flow. The planner decomposes an intent straight into <b>work items</b> — no stories, no bolts — each carrying its own dependency list and file ownership in frontmatter. The orchestrator then runs builders in parallel and merges the result itself.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents <span class="meta">~11 files · ~661 lines*</span></div>
+<pre class="tree"><span class="d">.specs-inferno/</span>
+├ <span class="d">state.yaml</span>            <span class="c"># source of truth: intents,</span>
+│                       <span class="c">#   work-items, runs, claims</span>
+├ <span class="d">config.yaml</span>           <span class="o"># optional: models, autonomy,</span>
+│                       <span class="o">#   verify cmds, halt, delivery</span>
+├ <span class="d">intents/</span>&lt;id&gt;<span class="d">/</span>
+│   ├ brief.md
+│   └ work-items/
+│       ├ &lt;w&gt;.md         <span class="c"># frontmatter: depends_on,</span>
+│       │                <span class="c">#   ownership.editable, kind,</span>
+│       │                <span class="c">#   complexity, context.{required,</span>
+│       │                <span class="c">#   patterns,tests}; body: AC</span>
+│       └ &lt;w&gt;-design.md  <span class="o"># optional, high complexity</span>
+└ <span class="d">halt-notes/</span>           <span class="o"># budget-cap halt only</span>
+    ├ _intent-&lt;id&gt;.md
+    └ &lt;w&gt;.md             <span class="o"># per-item resume checkpoint</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Plan (planner) — stops</span><div class="stages">
+              <span class="stage">capture intent</span><span class="arr">→</span><span class="stage">decompose</span><span class="arr">→</span><span class="stage par">‖ scribes write</span><span class="arr">→</span><span class="stage gate">review?</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Build (orchestrator)</span><div class="stages">
+              <span class="stage">claim intent</span><span class="arr">→</span><span class="stage">1 worktree</span><span class="arr">→</span><span class="stage par">‖ ready frontier</span><span class="arr">→</span><span class="stage">verify+commit</span><span class="arr">→</span><span class="stage">merge</span><span class="arr">→</span><span class="stage">teardown</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Parallel by ownership, not by worktree.</b> All builders share <b>one</b> intent worktree. Items with <b>disjoint</b> <span class="mono" style="color:var(--inferno)">ownership.editable</span> run concurrently; items that share a file — or are linked by <span class="mono" style="color:var(--inferno)">depends_on</span> — serialize. The orchestrator integrates results one at a time, re-computing the runnable frontier after each.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- IDEATION -->
+    <article class="flow" style="--c:var(--ideation)">
+      <div class="flow-head">
+        <span class="flow-name">IDEATION</span>
+        <span class="flow-tag">creative · pre-build</span>
+        <span class="flow-ns">.specs-ideation/</span>
+      </div>
+      <p class="flow-sub">Not a build flow at all — it produces <b>thinking</b>, not code. A single orchestrator runs three skills over a resumable session: generate ideas, evaluate them, then shape the survivors into shareable concept briefs.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents <span class="meta">4 per session</span></div>
+<pre class="tree"><span class="d">.specs-ideation/sessions/</span>&lt;id&gt;<span class="d">/</span>
+├ session.yaml          <span class="c"># phase, favorites, scores</span>
+├ spark-bank.md         <span class="c"># idea batches (S1-1, S1-2…)</span>
+├ flame-report.md       <span class="c"># Six-Hats eval + ranked shortlist</span>
+└ concept-briefs/
+    └ &lt;concept&gt;.md       <span class="c"># polished, pitch-ready brief</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Spark → Flame → Forge</span><div class="stages">
+              <span class="stage">spark · generate</span><span class="arr">→</span><span class="stage">flame · Six Hats + score</span><span class="arr">→</span><span class="stage">forge · Dream/Reality/Critic</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Generate → evaluate → shape.</b> Spark forces cross-domain diversity; Flame scores ideas on impact × feasibility; Forge runs Disney-strategy passes into a concept brief. Each phase is resumable from <span class="mono" style="color:var(--ideation)">session.yaml</span>, and the three skills also run standalone.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- SIMPLE -->
+    <article class="flow" style="--c:var(--simple)">
+      <div class="flow-head">
+        <span class="flow-name">SIMPLE</span>
+        <span class="flow-tag">minimal · flat</span>
+        <span class="flow-ns">specs/&lt;feature&gt;/</span>
+      </div>
+      <p class="flow-sub">The smallest flow: one agent, three markdown files per feature, no nesting and no worktrees. State is just which files exist. Each phase is gated by an explicit "approved" before the next is written.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents <span class="meta">3, flat</span></div>
+<pre class="tree"><span class="d">specs/</span>&lt;feature&gt;<span class="d">/</span>
+├ requirements.md       <span class="c"># EARS-format acceptance criteria</span>
+├ design.md             <span class="c"># architecture + Mermaid diagrams</span>
+└ tasks.md              <span class="c"># numbered checkbox task list</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Three gated phases, then execute</span><div class="stages">
+              <span class="stage">requirements</span><span class="arr">→</span><span class="stage gate">approve</span><span class="arr">→</span><span class="stage">design</span><span class="arr">→</span><span class="stage gate">approve</span><span class="arr">→</span><span class="stage">tasks</span><span class="arr">→</span><span class="stage gate">approve</span><span class="arr">→</span><span class="stage">execute 1 task</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>One phase, then one task, at a time.</b> The agent drafts first and waits for explicit approval before advancing a phase; in execution it implements a single task, ticks its checkbox, and stops for review.</p>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</div></section>
+
+<!-- ============ HEAD TO HEAD ============ -->
+<section><div class="wrap">
+  <span class="lead-no">03 — the comparison you asked for</span>
+  <h2 class="sec-h">AI-DLC vs INFERNO, side by side</h2>
+  <p class="sec-sub">These are the two poles. Same job — turn an intent into shipped code — opposite philosophies: AI-DLC maximizes governance and documented reasoning; INFERNO maximizes autonomy and parallelism.</p>
+
+  <div class="h2h">
+    <div class="h2h-card" style="--c:var(--aidlc)">
+      <h3>AI-DLC</h3>
+      <p class="sg">deep · sequential · human-gated</p>
+      <div class="depth"><span class="lvl">Intent</span>
+ └ <span class="lvl">Unit</span>
+    └ <span class="lvl">Story</span>
+       └ <span class="lvl">Bolt</span>
+          └ <span class="lvl">DDD stage</span>  model→design→impl→test</div>
+      <dl class="kv">
+        <dt>Decompose</dt><dd><b>5 levels</b> of nesting</dd>
+        <dt>Docs</dt><dd><b>~29 files / ~3,454 lines</b>*</dd>
+        <dt>Execute</dt><dd>strictly serial; doc-first (model &amp; design write no code)</dd>
+        <dt>Human</dt><dd>approves <b>every stage</b> boundary</dd>
+        <dt>Parallel</dt><dd>only across independent units</dd>
+        <dt>Worktrees</dt><dd>not part of the model</dd>
+      </dl>
+    </div>
+    <div class="h2h-card" style="--c:var(--inferno)">
+      <h3>INFERNO</h3>
+      <p class="sg">flat · parallel · autonomous</p>
+      <div class="depth"><span class="lvl">Intent</span>
+ └ <span class="lvl">Work item</span>   carries deps + file ownership
+    <span style="color:var(--faint)">(no story, no bolt, no DDD stage)</span></div>
+      <dl class="kv">
+        <dt>Decompose</dt><dd><b>2 levels</b> — intent → work items</dd>
+        <dt>Docs</dt><dd><b>~11 files / ~661 lines</b>*</dd>
+        <dt>Execute</dt><dd>autopilot, TDD-gated builders in parallel</dd>
+        <dt>Human</dt><dd>approves the <b>plan once</b> (review mode), then hands off</dd>
+        <dt>Parallel</dt><dd>any items with disjoint file ownership</dd>
+        <dt>Worktrees</dt><dd><b>one</b> intent worktree, shared by all builders</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="callout fix">
+    <div class="k">⚒ correcting one detail</div>
+    <p>You pictured INFERNO running <b>“a separate worktree, and under that sub-worktrees.”</b> It's actually simpler: there is exactly <b>one</b> worktree per intent, and <b>all</b> builders run inside it.</p>
+    <p>Parallelism doesn't come from nested worktrees — it comes from <b>file ownership</b>. Every work item declares <span class="mono">ownership.editable</span>; the orchestrator dispatches any items whose ownership sets don't overlap (and whose <span class="mono">depends_on</span> is satisfied) at the same time. Two items that touch the same file simply serialize. That's why independent items build concurrently without edit collisions, while coupled work naturally falls into order.</p>
+  </div>
+</div></section>
+
+<!-- ============ TURBO-A / ARMS ============ -->
+<section><div class="wrap">
+  <span class="lead-no">04 — the one that isn't a flow</span>
+  <h2 class="sec-h">So what <em>is</em> Turbo-A?</h2>
+  <p class="sec-sub">Short answer: <b>not a flow.</b> Turbo-A and AI-DLC-light are <b>eval arms</b> — candidate <em>document shapes</em> from the doc-slimming experiment, not things you install. The five flows above are the product; the arms are an A/B test of how lean AI-DLC's paperwork can get without losing build quality.</p>
+
+  <div class="callout">
+    <div class="k">your hunch — mostly right</div>
+    <p>You thought Turbo-A was <b>a combination of INFERNO and AI-DLC.</b> That's close. Turbo-A keeps <b>AI-DLC's inception decisions</b> (its quality edge — trimmed requirements + a decisions ledger), but <b>collapses the document layers</b> so the story and the work-item become a <b>single full-fidelity file</b> per buildable thing — acceptance criteria, edges and caveats in the body, dependencies and ownership in the frontmatter (the <b>INFERNO work-item shape</b>) — and it builds with <b>INFERNO's parallel TDD builders.</b></p>
+    <p>So it genuinely fuses AI-DLC's <em>thinking</em> with INFERNO's <em>work-item shape and parallel execution</em> — but as <b>one slimmed AI-DLC doc shape</b>, not a runtime that bolts the two flows together.</p>
+  </div>
+
+  <h3 style="font-family:var(--mono);font-size:1.05rem;color:var(--ember);margin:44px 0 6px;letter-spacing:0">Their document structure &amp; execution</h3>
+  <p class="sec-sub" style="margin-bottom:8px">The same treatment as the five flows — that's the whole point of the experiment. The <b>executor is held constant</b>: every arm's docs are handed to the <em>same</em> canonical INFERNO TDD-gated builder on the same frozen base. Only the <b>document shape</b> below changes.</p>
+
+  <div class="flows" style="margin-top:24px">
+
+    <!-- turbo-a -->
+    <article class="flow" style="--c:var(--turbo)">
+      <div class="flow-head">
+        <span class="flow-name">turbo-a</span>
+        <span class="flow-tag">eval arm — not installable</span>
+        <span class="flow-tag" style="border-color:var(--turbo);color:var(--turbo)">AI-DLC decisions × INFERNO item shape</span>
+        <span class="flow-ns">12 files · ~797 ln · BTW slice</span>
+      </div>
+      <p class="flow-sub">One slimmed layer. AI-DLC's trimmed requirements + a dated decisions/gates ledger, then <b>one full-fidelity file per buildable thing</b> — the story and the work-item merged. Each item puts acceptance criteria, edges and caveats in the body, and <span class="mono" style="color:var(--turbo)">depends_on</span> / <span class="mono" style="color:var(--turbo)">ownership.editable</span> / <span class="mono" style="color:var(--turbo)">verify</span> in its frontmatter — i.e. it <em>is</em> a drop-in INFERNO work item.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents</div>
+<pre class="tree">turbo-a/
+├ requirements.md      <span class="c"># trimmed FR/NFR + scope (one doc)</span>
+├ decisions.md         <span class="c"># dated decisions + release gates</span>
+└ <span class="d">items/</span>
+    └ &lt;uu&gt;-&lt;nn&gt;-&lt;slug&gt;.md   <span class="c"># ONE item per buildable thing</span>
+                          <span class="c">#  fm: id, unit, kind, depends_on,</span>
+                          <span class="c">#      ownership.editable, verify</span>
+                          <span class="c">#  body: story + AC + edges +</span>
+                          <span class="c">#        caveats + technical notes</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Plan — slim, one layer</span><div class="stages">
+              <span class="stage">trimmed requirements</span><span class="arr">→</span><span class="stage">decisions ledger</span><span class="arr">→</span><span class="stage">one item / buildable thing</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Build — INFERNO builders</span><div class="stages">
+              <span class="stage par">‖ ready frontier</span><span class="arr">→</span><span class="stage">TDD build</span><span class="arr">→</span><span class="stage">compile + UTs</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Executes exactly like INFERNO.</b> The items are drop-in work items, so the orchestrator parallelizes them by disjoint <span class="mono" style="color:var(--turbo)">ownership.editable</span> and serializes on <span class="mono" style="color:var(--turbo)">depends_on</span>. Caveats live <em>inline</em> in the item — never restated, never hidden behind a link hop.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- aidlc-turbo -->
+    <article class="flow" style="--c:var(--aidlclight)">
+      <div class="flow-head">
+        <span class="flow-name">aidlc-turbo</span>
+        <span class="flow-tag">eval arm — not installable</span>
+        <span class="flow-tag" style="border-color:var(--aidlclight);color:var(--aidlclight)">AI-DLC, ceremony removed</span>
+        <span class="flow-ns">12 files · ~633 ln · BTW slice</span>
+      </div>
+      <p class="flow-sub">AI-DLC's shape, minus the ceremony. Keeps the unit ▸ story decomposition but folds requirements + impact + open questions into <b>one fused decisions-and-gates ledger</b>; drops unit-briefs, system-context, impact-analysis, inception/construction logs and bolt docs. Each load-bearing fact (caveats like OQ-012 included) is stated <b>once</b> in the ledger and <em>linked</em> from the stories.</p>
+      <div class="flow-body">
+        <div class="col">
+          <div class="col-h">Output documents</div>
+<pre class="tree">aidlc-turbo/
+├ requirements.md          <span class="c"># FR / NFR + scope</span>
+├ decisions-and-gates.md   <span class="c"># FUSED: open questions (caveats!)</span>
+│                          <span class="c">#  + dated decisions + release gates</span>
+└ <span class="d">units/</span>&lt;u&gt;<span class="d">/stories/</span>
+    └ &lt;nn&gt;-&lt;slug&gt;.md       <span class="c"># AI-DLC story shape</span>
+                           <span class="c">#  fm: id, unit, intent, priority</span>
+                           <span class="c">#  AC + notes; caveats via link to</span>
+                           <span class="c">#  decisions-and-gates.md</span></pre>
+        </div>
+        <div class="col">
+          <div class="col-h">Lifecycle</div>
+          <div class="pipe-scroll"><div class="pipe">
+            <div class="ph"><span class="ph-name">Plan — AI-DLC, slimmed</span><div class="stages">
+              <span class="stage">requirements</span><span class="arr">→</span><span class="stage">fused decisions + gates</span><span class="arr">→</span><span class="stage">per-unit stories</span>
+            </div></div>
+            <div class="ph"><span class="ph-name">Build — same TDD builder</span><div class="stages">
+              <span class="stage">story by story</span><span class="arr">→</span><span class="stage">TDD build</span><span class="arr">→</span><span class="stage">compile + UTs</span>
+            </div></div>
+          </div></div>
+          <p class="pipe-note"><b>Link, don't restate.</b> Stories carry no ownership/dependency frontmatter, so parallelism is coarser than turbo-a — but the single shared ledger keeps every caveat alive by reference, which is exactly why it never failed the caveat gate.</p>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <p class="pipe-note" style="margin-top:18px"><b>Doc economy on the identical BTW slice (units 002+003):</b> <span class="mono">aidlc 2,181 → turbo-a 797 → inferno 661 → aidlc-turbo 633 lines</span>. The two winners sit at the lean end — <em>without</em> the lean control's dropped caveats.</p>
+
+  <div class="arms-strip" aria-label="the seven eval arms">
+    <span class="arm-chip ctrl">aidlc <span class="m">heavy control</span></span>
+    <span class="arm-chip fr">aidlc-turbo <span class="m">winner</span></span>
+    <span class="arm-chip fr">turbo-a <span class="m">winner</span></span>
+    <span class="arm-chip">turbo-b</span>
+    <span class="arm-chip">openspec</span>
+    <span class="arm-chip">inferno-full</span>
+    <span class="arm-chip ctrl">inferno <span class="m">lean control</span></span>
+  </div>
+
+  <h3 style="font-family:var(--mono);font-size:1.05rem;color:var(--ember);margin:42px 0 6px;letter-spacing:0">The verdict — 3 runs, 2 apps, ranking held</h3>
+  <p class="sec-sub" style="margin-bottom:4px">A slim shape won <em>every</em> run; the heavy AI-DLC control was Pareto-dominated and the lean INFERNO control failed the caveat gate each time. Two shapes are worth adopting:</p>
+  <div class="verdict-grid">
+    <div class="win rec">
+      <span class="badge">where review load binds</span>
+      <div class="arm" style="color:var(--inferno)">turbo-a</div>
+      <div class="role">leanest shape · best build on 2 of 3 runs</div>
+      <p class="sc">build quality <b>8.58–8.65 / 10</b> · docs up to <b>−91%</b></p>
+      <p class="why">The most economical arm and the strongest code on BTW and financial-middleware. More sensitive to per-build idiom slips (fixable with a lint gate) — pick it when reviewer time is the bottleneck.</p>
+    </div>
+    <div class="win">
+      <span class="badge">safest default</span>
+      <div class="arm" style="color:var(--aidlc)">aidlc-turbo</div>
+      <div class="role">strong on every run, never below 8.06</div>
+      <p class="sc">build quality <b>8.06–8.55 / 10</b> · docs <b>−73 to −81%</b></p>
+      <p class="why">The only arm strong across all three runs — outright won procesbeheer and matched the heavy control on the others. Pick it when one shape has to be safe across many intents and apps.</p>
+    </div>
+  </div>
+
+  <div class="points">
+    <div class="point"><h4>The heavy control bought nothing</h4><p><span class="em">AI-DLC (full, ~3,454 lines)</span> was Pareto-dominated on runs #2 and #3 — its doc-bloat purchased neither correctness nor fidelity.</p></div>
+    <div class="point"><h4>The lean control is dangerous</h4><p><span class="em">INFERNO (bare, ~661 lines)</span> dropped load-bearing caveats behind unresolved links and failed the caveat gate on all three runs — once producing a hollow build (3.07 / 10).</p></div>
+    <div class="point"><h4>The win is structural, not one shape</h4><p>Which slim shape leads flips by app (turbo-a vs aidlc-turbo), but a slim shape wins every time: write each load-bearing fact <span class="em">once</span> in the builder's doc and link — don't restate, and don't hide it behind a hop.</p></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <b>SPECSMD — privately vendored fork.</b> Five flows under <span class="mono">src/flows/</span>: aidlc · fire · ideation · inferno · simple. INFERNO is the flow under active dogfooding.<br>
+  Flow maps read from flow sources on <span class="mono">main</span>. * Doc counts (AI-DLC ~29/3,454; INFERNO ~11/661) measured on the BTW intent in the doc-slimming eval.
+  <div class="prov">
+    <span>flows · <b>src/flows/&lt;flow&gt;/</b></span>
+    <span>eval framework · <b>evals/notes/doc-slimming-eval-framework.md</b></span>
+    <span>cross-run verdict · <b>evals/notes/runs/cross-run-overview.html</b></span>
+  </div>
+</div></footer>
+
+</body>
+</html>

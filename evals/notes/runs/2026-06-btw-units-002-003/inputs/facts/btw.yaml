@@ -1,0 +1,43 @@
+# Distinct load-bearing facts for the BTW intent (units 002+003 scope).
+# Restatement ratio R = (sum over facts of #files-that-state-it) / (#facts).
+# R = 1.0 means each fact is written in exactly one place (ideal). The AI-DLC audit
+# measured single facts restated in 7-11 files.
+# Counting protocol (TP-2): for each fact, grep -rl any of its `keys` across the arm's
+# .md files -> distinct file count; sum; divide by number of facts.
+facts:
+  - id: vp-leading-source
+    keys: [leidende bron, "VP als", leading source]
+  - id: big-bang-no-flag
+    keys: [big-bang, "geen feature-flag", feature flag, "geen schakelaar"]
+  - id: btw-verkoop-inkoop-yn
+    keys: [btw_verkoop_yn, btw_inkoop_yn, verkoop/inkoop]
+  - id: vat-source-vp-views
+    keys: ["VP-tabellen", views, bkid_per_btwt, pv_fin_admin]
+  - id: decade-sync-stays
+    keys: [sync_decade_btw_code, decade, bae_btw_tarieven]
+  - id: round-half-up-scale2
+    keys: [ROUND_HALF_UP, "scale 2", "schaal 2"]
+  - id: tarief-one-per-peildatum
+    keys: [peildatum, einddatum, "een tarief", effectieve_einddatum]
+  - id: tarief-auto-close
+    keys: [autosluit, "ingangsdatum - 1", afsluiten vorige]
+  - id: oq-012-no-type-column
+    keys: [voorgedefinieerd, "geen kolom", systeemcode, transient]
+  - id: delete-guard-differentiated
+    keys: ["niet verwijderbaar", "niet-verwijderbaar", systeemcode, geblokkeerd]
+  - id: blokkering-forward-only
+    keys: [blokker, vooruit, "geen signaal", EFA]
+  - id: atomic-code-plus-tarief
+    keys: [atomair, atomic, "eerste tarief", transactie]
+  - id: reread-before-delete
+    keys: [herlezen, "re-read", refresh, race]
+  - id: jdk8-oracle-tomcat
+    keys: [JDK8, "Java 8", Oracle, Tomcat]
+  - id: domui-ui-conventions
+    keys: [DomUI, BasicVpListPage, BasicVpEditPage, "@UIRights", "@UIMenu"]
+  - id: dutch-strings-ascii-code
+    keys: [".properties", ASCII, resourcebundle, vertaling]
+  - id: vatdetails-delegates-calculator
+    keys: [VATCalculator, delegeren, VATDetails]
+  - id: surface-list-add-edit-block-delete-filter
+    keys: [overzicht, toevoegen, wijzigen, blokkeren, filter]

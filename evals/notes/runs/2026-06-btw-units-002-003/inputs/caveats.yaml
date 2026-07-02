@@ -1,0 +1,69 @@
+# Load-bearing caveats for the BTW intent (units 002+003 scope).
+# TP-3 checks: does each survive into the artifact a builder would actually read?
+# A dropped caveat is a correctness bug (the whole eval exists because a prior lean
+# conversion silently dropped oq-012-no-type-column).
+caveats:
+  - id: oq-012-no-type-column
+    statement: >-
+      No DB column exists for BTW "type"/"voorgedefinieerd". Must NOT add a NOT NULL
+      column; type stays inert/transient (display "-") until a data specialist confirms.
+    detect: [voorgedefinieerd, "geen kolom", "no column", transient, "nog niet beschikbaar", systeemcode]
+    severity: critical
+
+  - id: blokkering-forward-only
+    statement: >-
+      Blocking a BTW code is forward-only (prevents future selection); existing/historical
+      transactions are unaffected; no signal is sent to EFA/external.
+    detect: [blokker, "vooruit", "bestaande transacties", "geen signaal", EFA]
+    severity: high
+
+  - id: round-half-up-scale2
+    statement: VAT amount calc uses BigDecimal ROUND_HALF_UP at scale 2 (preserve/guard).
+    detect: [ROUND_HALF_UP, "scale 2", "schaal 2", afronding]
+    severity: high
+
+  - id: tarief-auto-close
+    statement: >-
+      Adding a new tarief auto-closes the previous open tarief at (ingangsdatum - 1);
+      no overlapping open periods.
+    detect: [autosluit, "ingangsdatum - 1", "ingangsdatum-1", einddatum, "vorige tarief", afsluiten]
+    severity: critical
+
+  - id: delete-guard-differentiated
+    statement: >-
+      Delete guard is differentiated: systeemcode (voorgedefinieerd) AND geblokkeerde codes
+      are NOT deletable - not a generic unconditional veto.
+    detect: [systeemcode, geblokkeerd, "niet verwijderbaar", "niet-verwijderbaar", verwijderen]
+    severity: critical
+
+  - id: vat-source-vp-views
+    statement: >-
+      VAT/VATDetails read stamgegevens from the new VP views/tables (btw_verkoop_yn='Y'
+      filter), NOT from pv_fin_admin or the decade path.
+    detect: [btw_verkoop_yn, "VP-tabellen", views, pv_fin_admin, bkid_per_btwt]
+    severity: critical
+
+  - id: decade-sync-stays
+    statement: >-
+      The decade -> bae_btw_tarieven sync (sync_decade_btw_code) stays; bae_btw_tarieven
+      keeps being filled by the Java sync (do not remove).
+    detect: [decade, sync_decade_btw_code, bae_btw_tarieven, sync]
+    severity: high
+
+  - id: reread-before-delete
+    statement: Delete path re-reads the record before deleting (race protection vs concurrent sync).
+    detect: ["re-read", herlezen, refresh, "voor verwijderen", race]
+    severity: medium
+
+  - id: einddatum-cap-both-paths
+    statement: >-
+      Tarief resolution at a peildatum caps on einddatum (one effective tarief per date,
+      nvl(effectieve_einddatum, far-future)) on BOTH read paths (VAT.prepareQuery AND
+      VATDetails.details).
+    detect: [einddatum, peildatum, effectieve_einddatum, nvl, "een tarief"]
+    severity: critical
+
+  - id: atomic-code-plus-tarief
+    statement: Creating a BTW code with its first tarief is one atomic transaction.
+    detect: [atomair, atomic, transactie, "eerste tarief", "in een transactie"]
+    severity: high

@@ -1,0 +1,24 @@
+# INFERNO per-project configuration for the specsmd_new dogfood repo.
+# Migrated 2026-07-02 to the consolidated schema: top-level `mode` replaces the
+# legacy `autonomy.level` key (review -> production).
+
+mode: production       # production | autonomous — deep intake + one post-write review pause
+
+models:
+  strong: opus         # complexity medium/high builders, at xhigh effort
+  cheap: sonnet        # complexity low + kind config-only/docs-only/test builders
+  writer: sonnet       # planner's parallel scribe subagents
+
+# Authoritative finalize gate, run ONCE on the integrated tree before merge.
+# validate:all is NOT used here: check:webview-bundle trips on a pre-existing
+# gitignored build artifact in fresh worktrees (known gap, not a regression).
+verification:
+  finalize:
+    - cd src && npm test
+    - cd src && npm run lint:md
+
+# Explicit override of production's merge-request default: intents merge locally
+# onto the integration branch and tear down, then push.
+delivery:
+  mode: auto-close
+  base_branch: feat/inferno-turbo-and-aidlc-light

@@ -1,0 +1,41 @@
+---
+id: {{id}}
+title: {{title}}
+status: {{status}}
+{{#if depends_on}}depends_on: [{{#each depends_on}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}]
+{{/if}}created: {{created}}
+---
+
+# Intent: {{title}}
+
+## Goal
+
+{{goal}}
+
+## Users
+
+{{users}}
+
+## Problem
+
+{{problem}}
+
+## Success Criteria
+
+{{#each success_criteria}}
+- {{this}}
+{{/each}}
+
+## Constraints
+
+{{#each constraints}}
+- {{this}}
+{{/each}}
+
+## Notes
+
+{{#if notes}}
+{{notes}}
+{{else}}
+(none)
+{{/if}}

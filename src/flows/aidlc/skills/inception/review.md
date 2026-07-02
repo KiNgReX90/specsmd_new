@@ -27,7 +27,27 @@ Show at start of this skill:
 
 ## Goal
 
-Ensure all inception artifacts are complete, consistent, and ready for Construction Phase.
+Ensure all inception artifacts are complete, consistent, and ready for the next phase
+(Construction in full mode; the inception → INFERNO converter in lean mode).
+
+---
+
+## Mode Awareness (full vs lean)
+
+This skill respects the inception mode resolved by the agent (see the agent's "Inception
+Mode" section).
+
+- **Full mode (default)**: behave exactly as documented below — verify bolts exist, all
+  stories are assigned to bolts, and hand off to the Construction Agent. Nothing changes.
+- **Lean mode**: **"stories authored, no bolts" is a valid completed inception.** Do NOT
+  verify or require bolts, do NOT require stories to be assigned to bolts, and do NOT
+  treat the absence of `memory-bank/bolts/` entries as a gap. Verify only the artifacts
+  that lean mode produces (requirements, system context, units.md, minimal unit-brief
+  stubs, stories with acceptance criteria). The terminal handoff is to the
+  **inception → INFERNO converter** (`/inception-to-inferno`), not the Construction Agent.
+
+Wherever a step below says "Bolts" / "Bolt Plan" / "Ready for Construction," apply the
+lean substitutions noted inline.
 
 ---
 
@@ -48,9 +68,12 @@ Check existence and completeness of all required artifacts:
 - **Requirements**: `{intent}/requirements.md` - FR, NFR, constraints
 - **System Context**: `{intent}/system-context.md` - Actors, external systems, data flows
 - **Units**: `{intent}/units.md` - Unit list with purposes
-- **Unit Briefs**: `{intent}/units/{unit}/unit-brief.md` - Scope, entities, success criteria
+- **Unit Briefs**: `{intent}/units/{unit}/unit-brief.md` - full mode: Scope, entities,
+  success criteria; **lean mode: minimal grouping stub (id/label + scope hint) — verify
+  only that the stub exists and parses**
 - **Stories**: `{intent}/units/{unit}/stories/*.md` - Acceptance criteria
-- **Bolts**: Path from `schema.bolts` - Type, stories, status
+- **Bolts**: Path from `schema.bolts` - Type, stories, status — **lean mode: skip; no
+  bolts are expected**
 
 ### 2. Consistency Check
 
@@ -58,8 +81,8 @@ Verify cross-artifact consistency:
 
 - **Story Coverage**: All requirements traced to stories
 - **Unit Independence**: No circular dependencies
-- **Bolt Completeness**: All stories assigned to bolts
-- **Type Alignment**: Bolt types match story nature
+- **Bolt Completeness**: All stories assigned to bolts — **lean mode: SKIP (no bolts)**
+- **Type Alignment**: Bolt types match story nature — **lean mode: SKIP (no bolts)**
 
 ### Step 3: Artifacts Review
 
@@ -81,7 +104,7 @@ Verify cross-artifact consistency:
 - {unit-1}: S1, S2, S3
 - {unit-2}: S4, S5
 
-**Bolt Plan** ({n} bolts)
+**Bolt Plan** ({n} bolts)            <-- full mode only
 - bolt-{unit-1}-1: Stories S1-S3
 - bolt-{unit-2}-1: Stories S4-S5
 
@@ -89,6 +112,9 @@ Review the breakdown above. Any changes needed?
 1 - Looks good, continue
 2 - Need changes (specify what)
 ```
+
+**Lean mode**: omit the **Bolt Plan** block entirely and instead show a closing line:
+`**Bolts**: none (lean mode — stories are the terminal artifact; INFERNO recomputes grouping).`
 
 **Wait for user response.**
 
@@ -138,7 +164,7 @@ status: complete
 - **Non-Functional Requirements**: {n}
 - **Units**: {n}
 - **Stories**: {n}
-- **Bolts Planned**: {n}
+- **Bolts Planned**: {n}        # lean mode: 0 (bolts intentionally skipped)
 
 ## Ready for Construction
 
@@ -147,7 +173,7 @@ status: complete
 - [x] System context defined
 - [x] Units decomposed
 - [x] Stories created for all units
-- [x] Bolts planned
+- [x] Bolts planned                 # lean mode: omit this line (no bolts)
 - [x] Human review complete
 
 ## Next Steps
@@ -156,6 +182,37 @@ status: complete
 
 → `/specsmd-construction-agent --unit="{first-unit}"`
 ```
+
+**Lean mode** instead writes the terminal state and the converter handoff:
+
+```markdown
+## Summary
+
+- **Functional Requirements**: {n}
+- **Non-Functional Requirements**: {n}
+- **Units**: {n}
+- **Stories**: {n}
+- **Bolts Planned**: 0 (lean mode — skipped by design)
+- **Mode**: lean
+
+## Ready for INFERNO conversion
+
+**Checklist**:
+- [x] All requirements documented
+- [x] System context defined
+- [x] Units decomposed (minimal grouping)
+- [x] Stories created for all units
+- [x] Human review complete
+
+## Next Steps
+
+1 - **convert**: Route stories into INFERNO work items
+
+→ `/inception-to-inferno`
+```
+
+Set `status: complete` in `inception-log.md` in both modes — lean mode is a fully
+completed inception, not a partial one.
 
 ### Step 6: Update Intent Status
 
@@ -189,6 +246,26 @@ Ready to start construction?
 3 - Review something first
 ```
 
+**Lean mode** presents the converter handoff instead — the terminal state is
+"stories complete, no bolts":
+
+```text
+### Ready for INFERNO conversion?
+
+✅ Inception complete (lean) for {intent-name}
+
+Summary:
+- {n} functional requirements
+- {m} non-functional requirements
+- {x} units (minimal grouping)
+- {y} stories
+- 0 bolts (lean mode — skipped by design)
+
+Ready to convert into INFERNO work items?
+1 - Yes, run /inception-to-inferno
+2 - Review something first
+```
+
 **Wait for user response.**
 
 ---
@@ -203,7 +280,7 @@ Ready to start construction?
 - ✅ Artifacts complete
 - ✅ Cross-references valid
 - ✅ Stories have acceptance criteria
-- ✅ Bolts planned
+- ✅ Bolts planned                  # lean mode: "Bolts skipped (lean — valid terminal state)"
 
 ### Log Updated
 - `{schema.intents}/{intent-name}/inception-log.md`
@@ -229,7 +306,8 @@ Intent `{intent-name}` is ready for Construction Phase.
 
 After user confirms at Checkpoint 4:
 
-- → **Construction Agent** - `/specsmd-construction-agent --unit="{unit}"`
+- **Full mode** → **Construction Agent** - `/specsmd-construction-agent --unit="{unit}"`
+- **Lean mode** → **inception → INFERNO converter** - `/inception-to-inferno`
 
 If gaps found at Checkpoint 3:
 
@@ -240,9 +318,12 @@ If gaps found at Checkpoint 3:
 ## Test Contract
 
 ```yaml
-input: All inception artifacts (requirements, context, units, stories, bolts)
-output: inception-log.md updated, intent status = inception-complete
+input: All inception artifacts (requirements, context, units, stories; bolts in full mode only), mode (full|lean)
+output: inception-log.md updated (status: complete), intent status = inception-complete
+terminal_states:
+  full: bolts planned → Construction Agent
+  lean: stories authored, no bolts (valid) → /inception-to-inferno converter
 checkpoints: 2
   - Checkpoint 3: Artifacts reviewed and approved
-  - Checkpoint 4: Ready for Construction confirmed
+  - Checkpoint 4: Ready for next phase confirmed (Construction in full mode; conversion in lean mode)
 ```

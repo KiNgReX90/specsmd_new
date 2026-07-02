@@ -1,0 +1,405 @@
+<title>Doc-slanker eval — Uitslag</title>
+<style>
+  :root{
+    --ground:#0E1722; --surface:#17242F; --surface-2:#1E2E3A;
+    --text:#E7EEF3; --muted:#8A9BA8; --faint:#5E707D;
+    --accent:#F2B33D; --pass:#46C28A; --fail:#EA6253; --soft:#E7B964;
+    --hair:rgba(231,238,243,0.12); --hair-strong:rgba(231,238,243,0.22);
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);line-height:1.6;font-size:16px;
+    background-image:radial-gradient(circle at 84% -10%,rgba(242,179,61,0.08),transparent 44%);background-attachment:fixed}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent)}
+  h1,h2,h3{font-weight:800;letter-spacing:-0.02em;line-height:1.08;margin:0}
+  p{margin:0 0 1rem}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.24em;color:var(--accent);display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--accent);display:inline-block}
+
+  .topbar{border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:0.74rem;color:var(--muted);letter-spacing:0.04em}
+  .topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;gap:16px;flex-wrap:wrap}
+  .topbar b{color:var(--text);font-weight:600}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pass);margin-right:7px;vertical-align:middle}
+
+  /* hero */
+  .hero{padding:88px 0 64px;border-bottom:1px solid var(--hair)}
+  .hero h1{font-size:clamp(2.4rem,6vw,4.4rem)}
+  .hero h1 .hl{color:var(--accent)}
+  .lede{font-size:clamp(1.05rem,2vw,1.35rem);color:var(--muted);max-width:46ch;margin-top:24px;line-height:1.5}
+  .lede b{color:var(--text);font-weight:600}
+
+  section{padding:70px 0;border-bottom:1px solid var(--hair)}
+  .sec-h{font-size:clamp(1.55rem,3.3vw,2.2rem);margin-bottom:8px}
+  .sec-sub{color:var(--muted);max-width:64ch;margin-top:14px}
+
+  /* WINNERS (the lead result) */
+  .winners{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:8px}
+  .winner{background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:24px 22px;position:relative;overflow:hidden}
+  .winner.rec{border-color:rgba(242,179,61,0.55);background:linear-gradient(180deg,rgba(242,179,61,0.12),var(--surface))}
+  .w-axis{font-family:var(--mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);font-weight:600}
+  .w-arm{font-size:1.9rem;font-weight:800;letter-spacing:-0.03em;margin:12px 0 2px}
+  .w-score{font-family:var(--mono);font-size:0.92rem;color:var(--muted)}
+  .w-score b{color:var(--text);font-weight:700}
+  .w-why{font-size:0.9rem;color:var(--muted);margin:14px 0 0}
+  .w-badge{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.12em;color:var(--accent);border:1px solid rgba(242,179,61,0.5);border-radius:4px;padding:3px 7px}
+  .verdict-strip{display:flex;gap:16px;flex-wrap:wrap;margin-top:26px}
+  .loser,.choose{flex:1 1 300px;background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:18px 20px;font-size:0.92rem}
+  .loser{border-left:3px solid var(--fail)}
+  .choose{border-left:3px solid var(--accent)}
+  .loser .k,.choose .k{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px}
+  .loser .k{color:var(--fail)} .choose .k{color:var(--accent)}
+  .loser p,.choose p{margin:0;color:var(--muted)}
+  .choose b{color:var(--text)}
+
+  /* bars (quality + economy) */
+  .bars{margin-top:34px;display:flex;flex-direction:column;gap:12px}
+  .bar-row{display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center}
+  .bar-lab{font-family:var(--mono);font-size:0.8rem;text-align:right;color:var(--text)}
+  .bar-lab .sub{display:block;font-size:0.62rem;color:var(--faint);letter-spacing:0.04em}
+  .bar-track{position:relative;height:30px;background:var(--surface);border-radius:3px;overflow:hidden}
+  .bar-fill{position:absolute;inset:0 auto 0 0;height:100%;border-radius:3px;transform-origin:left center;
+    background:linear-gradient(90deg,rgba(242,179,61,0.55),rgba(242,179,61,0.88));animation:grow 1s cubic-bezier(.22,.61,.36,1) both}
+  .bar-fill.dim{background:linear-gradient(90deg,rgba(138,155,168,0.3),rgba(138,155,168,0.5))}
+  .bar-fill.base{background:linear-gradient(90deg,rgba(234,98,83,0.45),rgba(234,98,83,0.7))}
+  .bar-fill.win{background:linear-gradient(90deg,rgba(70,194,138,0.5),rgba(70,194,138,0.85))}
+  @keyframes grow{from{transform:scaleX(0)}}
+  .bar-val{position:absolute;top:50%;transform:translateY(-50%);right:10px;font-family:var(--mono);font-size:0.76rem;font-weight:600;color:var(--text);text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .bars-note{margin-top:20px;font-size:0.82rem;color:var(--faint);font-family:var(--mono)}
+
+  /* tables */
+  .scroll{overflow-x:auto;margin-top:30px;border:1px solid var(--hair);border-radius:6px}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:0.86rem}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--hair);white-space:nowrap}
+  thead th{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;background:var(--surface)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody td:first-child{font-family:var(--mono);color:var(--text);font-weight:600}
+  td .n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tr.lead{background:rgba(242,179,61,0.08)} tr.lead td:first-child{color:var(--accent)}
+  tr.control td:first-child::after{content:"controle";margin-left:8px;font-family:var(--mono);font-size:0.58rem;color:var(--faint);letter-spacing:0.08em;border:1px solid var(--hair-strong);padding:1px 5px;border-radius:3px}
+  tr.fail td:first-child{color:var(--fail)}
+
+  /* matrix */
+  .matrix{overflow-x:auto;margin-top:30px;border:1px solid var(--hair);border-radius:6px}
+  .matrix table{min-width:780px}
+  .matrix th.arm{text-align:center}
+  .matrix td.lab{white-space:normal;min-width:210px;font-family:var(--sans);font-weight:500;color:var(--text);font-size:0.84rem}
+  .matrix td.lab .cv{font-family:var(--mono);font-size:0.64rem;color:var(--faint);display:block;letter-spacing:0.04em}
+  .cell{text-align:center;font-family:var(--mono);font-weight:700;font-size:0.78rem}
+  .cell .g{color:var(--pass)} .cell .r{color:var(--fail)} .cell .s{color:var(--soft)}
+  .cell small{display:block;font-weight:400;font-size:0.58rem;color:var(--faint);margin-top:2px}
+  tr.gate td{border-top:1px solid var(--hair-strong);font-family:var(--mono);font-size:0.76rem;color:var(--muted)}
+  .legend{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px;font-family:var(--mono);font-size:0.72rem;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:7px} .legend i{font-style:normal;font-weight:700}
+
+  .callout{margin-top:32px;border:1px solid var(--hair-strong);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:var(--surface);padding:22px 24px}
+  .callout .k{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);margin-bottom:10px}
+  .callout p{margin:0;color:var(--text)} .callout p+p{margin-top:10px;color:var(--muted);font-size:0.92rem}
+
+  .points{margin-top:30px;display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .point{background:var(--surface);padding:18px 22px}
+  .point h4{margin:0 0 5px;font-size:0.98rem;font-weight:700}
+  .point p{margin:0;font-size:0.89rem;color:var(--muted)}
+  .point .em{color:var(--text);font-weight:600}
+
+  .statusrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+  .chip{font-family:var(--mono);font-size:0.72rem;background:var(--surface);border:1px solid var(--hair-strong);border-radius:5px;padding:7px 11px;color:var(--muted)}
+  .chip b{color:var(--pass);font-weight:700}
+
+  .subh{font-size:1.15rem;font-weight:800;letter-spacing:-0.02em;margin:40px 0 6px}
+  .subh.first{margin-top:20px}
+  .lead-p{color:var(--muted);max-width:66ch}
+  .lead-p b{color:var(--text);font-weight:600}
+  .flow{margin-top:18px;display:flex;flex-direction:column;gap:0}
+  .flow .step{background:var(--surface);border:1px solid var(--hair);border-radius:6px;padding:18px 22px}
+  .flow .step h4{margin:0 0 5px;font-size:0.98rem;font-weight:700}
+  .flow .step h4 .tag{font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);border:1px solid rgba(242,179,61,0.4);border-radius:4px;padding:2px 7px;margin-right:10px;vertical-align:middle}
+  .flow .step p{margin:0;font-size:0.89rem;color:var(--muted)}
+  .flow .gate{align-self:center;font-family:var(--mono);font-size:0.72rem;color:var(--accent);padding:9px 0;letter-spacing:0.04em}
+  .flow .gate::before{content:"↓  ";color:var(--faint)}
+  footer{padding:52px 0 78px;color:var(--faint);font-family:var(--mono);font-size:0.77rem;line-height:1.8}
+  footer b{color:var(--muted);font-weight:600}
+  .prov{margin-top:16px;padding-top:16px;border-top:1px solid var(--hair);display:flex;gap:26px;flex-wrap:wrap}
+
+  @media(max-width:620px){.bar-row{grid-template-columns:92px 1fr}.hero{padding:60px 0 48px}}
+  @media(prefers-reduced-motion:reduce){.bar-fill{animation:none}}
+</style>
+
+<div class="topbar"><div class="wrap">
+  <span><b>SPECSMD</b> · BTW-doc-eval · ViewPoint</span>
+  <span><span class="dot"></span>Compleet — 3 builds groen · jurypanel afgerond</span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Gecontroleerd experiment · 6 documentvormen · 1 feature</div>
+  <h1>Schrap <span class="hl">65–70%</span> van de docs — en de build wordt <span class="hl">beter</span>.</h1>
+  <p class="lede">Zes documentvormen, één feature, dezelfde TDD-bouwer. <b>Alle drie de slanke varianten verslaan beide controles op codekwaliteit.</b> Documentvolume verslaat correctheid niet.</p>
+</div></header>
+
+<!-- ===== 1. UITSLAG & WINNAARS (lead) ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">01 · Uitslag &amp; winnaars</div>
+  <h2 class="sec-h">De winnaars, in één oogopslag</h2>
+  <p class="sec-sub">Elke slanke vorm slaat beide volledige controles. De keuze tussen de drie is een expliciete afweging tussen reviewlast en codekwaliteit — alle drie liggen op de Pareto-grens.</p>
+
+  <div class="winners">
+    <div class="winner">
+      <div class="w-axis">Beste codekwaliteit</div>
+      <div class="w-arm">turbo-a</div>
+      <div class="w-score">jurypanel <b>8,65</b>/10</div>
+      <p class="w-why">Capt de einddatum op beide leespaden en levert de fijnste test-seams. Kies dit als bouwcorrectheid voorgaat.</p>
+    </div>
+    <div class="winner rec">
+      <div class="w-badge">AANBEVOLEN</div>
+      <div class="w-axis">Beste balans</div>
+      <div class="w-arm">aidlc-turbo</div>
+      <div class="w-score">economie <b>8,80</b> · kwaliteit <b>8,55</b></div>
+      <p class="w-why">Tweede op beide assen, laagste juryspreiding, en de kleinste migratie vanaf het huidige AI-DLC. Begin hier.</p>
+    </div>
+    <div class="winner">
+      <div class="w-axis">Laagste reviewlast</div>
+      <div class="w-arm">openspec</div>
+      <div class="w-score">economie <b>9,27</b> · 539 reviewregels</div>
+      <p class="w-why">De scenario-vorm maakt van elke correctheidsgarantie een testbaar item. Kies dit als reviewlast de bottleneck is.</p>
+    </div>
+  </div>
+
+  <div class="verdict-strip">
+    <div class="loser">
+      <div class="k">De verliezer</div>
+      <p>De echte INFERNO-build eindigt laatste (<b style="color:var(--fail)">6,74</b>/10): de einddatum-bug zat op het VATDetails-rekenpad, Nederlandse UI-teksten lekten in de persistentielaag, en de tests waren dun. Zakt voor de correctheids-gate.</p>
+    </div>
+    <div class="choose">
+      <div class="k">Wat kies je?</div>
+      <p><b>Laagste reviewlast</b> → openspec · <b>Beste code</b> → turbo-a · <b>Beste balans</b> → aidlc-turbo (start hier).</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== 2. CODEKWALITEIT ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">02 · Codekwaliteit — de build-uitslag</div>
+  <h2 class="sec-h">Waar staat de codekwaliteit? Hier.</h2>
+  <p class="sec-sub">Vier echt-compilerende, TDD-gedreven builds, blind gescoord door drie juryleden op een gewogen 0–10 rubriek (8 dimensies). De slanke varianten winnen — en niet op een haar.</p>
+
+  <div class="statusrow">
+    <span class="chip">openspec <b>EXIT 0</b> · 34 UT · 10/10 caveats · TDD 17→36</span>
+    <span class="chip">aidlc-turbo <b>EXIT 0</b> · 40 UT · 10/10 · TDD 7→42</span>
+    <span class="chip">turbo-a <b>EXIT 0</b> · 36 UT · 10/10 · TDD 14→16</span>
+  </div>
+
+  <div class="bars">
+    <div class="bar-row"><div class="bar-lab">turbo-a<span class="sub">beste code</span></div><div class="bar-track"><div class="bar-fill win" style="transform:scaleX(0.865)"></div><div class="bar-val num">8,65</div></div></div>
+    <div class="bar-row"><div class="bar-lab">aidlc-turbo<span class="sub">aanbevolen</span></div><div class="bar-track"><div class="bar-fill win" style="transform:scaleX(0.855)"></div><div class="bar-val num">8,55</div></div></div>
+    <div class="bar-row"><div class="bar-lab">openspec<span class="sub">slankste docs</span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.793)"></div><div class="bar-val num">7,93</div></div></div>
+    <div class="bar-row"><div class="bar-lab">INFERNO<span class="sub">controle</span></div><div class="bar-track"><div class="bar-fill base" style="transform:scaleX(0.674)"></div><div class="bar-val num">6,74</div></div></div>
+  </div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Build</th><th>A · correctheid/robuustheid</th><th>B · idioom/architectuur</th><th>C · testbaarheid/getrouwheid</th><th>Gemiddelde</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>turbo-a</td><td class="n">8,93</td><td class="n">8,45</td><td class="n">8,58</td><td class="n">8,65</td></tr>
+      <tr><td>aidlc-turbo</td><td class="n">8,58</td><td class="n">8,42</td><td class="n">8,66</td><td class="n">8,55</td></tr>
+      <tr><td>openspec</td><td class="n">8,24</td><td class="n">7,72</td><td class="n">7,83</td><td class="n">7,93</td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">7,18</td><td class="n">7,06</td><td class="n">5,97</td><td class="n">6,74</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="points">
+    <div class="point"><h4>Correctheid — één load-bearing bug scheidt de koplopers van de controle</h4><p>turbo-a en aidlc-turbo cappen de tarief-resolutie op einddatum op <span class="em">beide</span> leespaden (<span class="num">VAT</span> én <span class="num">VATDetails</span>, drievoudige datum-bind). De controle mist de cap op <span class="num">VATDetails.details</span> — het rekenpad — dus een verlopen tarief kan in de echte BTW-berekening belanden. <span class="em">Blind gevonden door 2 juryleden; de slanke varianten hadden hem al opgelost.</span></p></div>
+    <div class="point"><h4>Caveats &amp; tests</h4><p>Alle drie reshapes dekken <span class="em">10/10</span> correctheidsgaranties; de controle blijft op 8/10. De reshapes leveren 34–40 betekenisvolle DB-vrije unittests (incl. een ROUND_HALF_UP-vs-HALF_EVEN-discriminator); de controle heeft <span class="em">~5 dunne grep/reflectie-tests</span> en laat de kernregels onbetest.</p></div>
+    <div class="point"><h4>Idioom &amp; architectuur</h4><p>De controle lekt rommel: een en-dash-literal in Java-broncode, ~40 non-ASCII commentregels, en — een echt anti-patroon — <span class="em">Nederlandse UI-teksten tot in de moca.database persistentielaag</span>, plus een N+1-query op het overzicht. openspec is daarentegen ASCII-schoon; turbo-a/aidlc-turbo houden pure helpers en een dunne DAO strak gescheiden.</p></div>
+  </div>
+
+  <div class="callout">
+    <div class="k">Waarom openspec op code 3e is — ondanks de documentkop</div>
+    <p>openspec wint op documenten maar valt op code terug naar plek 3: een dunner overzicht (geen live actueel-tarief-resolutie → zwakker 2e leespad), een ontbrekende ROUND_HALF_UP-test, een verzonnen J/N-decode-aanname, en correctheid die deels is uitbesteed aan een unit-001-view in plaats van zelf gedragen.</p>
+  </div>
+</div></section>
+
+<!-- ===== 3. DOCUMENTECONOMIE ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">03 · Documenteconomie</div>
+  <h2 class="sec-h">Hoeveel papier kost één feature?</h2>
+  <p class="sec-sub">Zes documentvormen, dezelfde feature, geen regel code. We telden bestanden, regels, tokens en hoeveel een reviewer moet doorlezen — en waar de slankheid echt is en waar ze schijn is.</p>
+
+  <div class="bars">
+    <div class="bar-row"><div class="bar-lab">AI-DLC<span class="sub">controle</span></div><div class="bar-track"><div class="bar-fill base" style="transform:scaleX(1)"></div><div class="bar-val num">2.181</div></div></div>
+    <div class="bar-row"><div class="bar-lab">INFERNO<span class="sub">eerlijk geteld</span></div><div class="bar-track"><div class="bar-fill dim" style="transform:scaleX(0.713)"></div><div class="bar-val num">1.555</div></div></div>
+    <div class="bar-row"><div class="bar-lab">turbo-a<span class="sub"></span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.365)"></div><div class="bar-val num">797</div></div></div>
+    <div class="bar-row"><div class="bar-lab">openspec<span class="sub"></span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.339)"></div><div class="bar-val num">740</div></div></div>
+    <div class="bar-row"><div class="bar-lab">INFERNO<span class="sub">slank · lossy</span></div><div class="bar-track"><div class="bar-fill dim" style="transform:scaleX(0.303)"></div><div class="bar-val num">661</div></div></div>
+    <div class="bar-row"><div class="bar-lab">aidlc-turbo<span class="sub"></span></div><div class="bar-track"><div class="bar-fill" style="transform:scaleX(0.290)"></div><div class="bar-val num">633</div></div></div>
+  </div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>Bestanden</th><th>Regels</th><th>Tokens</th><th>Reviewdiff</th><th>Restatement R</th><th>Economie</th></tr></thead>
+    <tbody>
+      <tr class="control fail"><td>AI-DLC</td><td class="n">17</td><td class="n">2.181</td><td class="n">35,8k</td><td class="n">2.181</td><td class="n">9,67</td><td class="n">0,00</td></tr>
+      <tr><td>INFERNO · slank*</td><td class="n">11</td><td class="n">661</td><td class="n">7,9k</td><td class="n">661</td><td class="n">3,94</td><td class="n">9,77*</td></tr>
+      <tr class="control"><td>INFERNO · eerlijk</td><td class="n">21</td><td class="n">1.555</td><td class="n">23,8k</td><td class="n">1.555</td><td class="n">8,56</td><td class="n">3,53</td></tr>
+      <tr class="lead"><td>openspec</td><td class="n">8</td><td class="n">740</td><td class="n">10,0k</td><td class="n">539**</td><td class="n">4,83</td><td class="n">9,27</td></tr>
+      <tr><td>aidlc-turbo</td><td class="n">12</td><td class="n">633</td><td class="n">11,5k</td><td class="n">633</td><td class="n">5,67</td><td class="n">8,80</td></tr>
+      <tr><td>turbo-a</td><td class="n">12</td><td class="n">797</td><td class="n">12,8k</td><td class="n">797</td><td class="n">5,83</td><td class="n">8,09</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">* lossy meting (zie kader) &nbsp;·&nbsp; ** alleen-wijziging; + 201 regels eenmalige baseline</p>
+
+  <div class="callout">
+    <div class="k">Let op — 661 regels is een illusie</div>
+    <p>INFERNO oogt het slankst, maar telt alleen de eigen werkmap. De bouwer heeft de gelinkte bronverhalen écht nodig. Tel je die mee, dan staat de teller op <b>1.555 regels</b> — zwaarder dan élke reshape, en het schrijft de acceptatiecriteria nog dubbel ook.</p>
+    <p>De slankheid verschuift het werk; ze verwijdert het niet. turbo-b laat zien hoe het wél kan: dezelfde "link, niet herhalen"-aanpak, maar met relatieve links binnen de werkmap.</p>
+  </div>
+</div></section>
+
+<!-- ===== 4. CORRECTHEIDSGARANTIES ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">04 · Correctheidsgaranties — caveat-survival</div>
+  <h2 class="sec-h">Overleven de garanties de versimpeling?</h2>
+  <p class="sec-sub">Tien correctheidsgaranties, getoetst tot in het document dat een bouwer écht openslaat. Twee scheiden de winnaars van de verliezers — alles gemeten zonder één regel code.</p>
+
+  <div class="matrix"><table>
+    <thead><tr>
+      <th>Garantie</th><th class="arm">AI-DLC</th><th class="arm">INF·slank</th><th class="arm">INF·eerlijk</th><th class="arm">openspec</th><th class="arm">aidlc-lt</th><th class="arm">turbo-a</th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td class="lab">Geen DB-kolom voor type → geen NOT NULL<span class="cv">caveat 1</span></td>
+        <td class="cell"><span class="r">✕</span><small>verminkt</small></td>
+        <td class="cell"><span class="r">✕</span><small>link weg</small></td>
+        <td class="cell"><span class="g">✓</span></td>
+        <td class="cell"><span class="g">✓</span></td>
+        <td class="cell"><span class="g">✓</span></td>
+        <td class="cell"><span class="g">✓</span></td>
+      </tr>
+      <tr>
+        <td class="lab">Tarief capt op einddatum op BEIDE leespaden<span class="cv">caveat 9</span></td>
+        <td class="cell"><span class="r">✕</span><small>verminkt</small></td>
+        <td class="cell"><span class="r">✕</span><small>link weg</small></td>
+        <td class="cell"><span class="s">~</span><small>zwak</small></td>
+        <td class="cell"><span class="g">✓</span></td>
+        <td class="cell"><span class="s">~</span><small>zwak</small></td>
+        <td class="cell"><span class="g">✓</span></td>
+      </tr>
+      <tr>
+        <td class="lab">Alle 8 overige garanties</td>
+        <td class="cell"><span class="g">✓</span></td><td class="cell"><span class="g">✓</span></td><td class="cell"><span class="g">✓</span></td><td class="cell"><span class="g">✓</span></td><td class="cell"><span class="g">✓</span></td><td class="cell"><span class="g">✓</span></td>
+      </tr>
+      <tr class="gate">
+        <td>Gate (100% in-scope)</td>
+        <td class="cell"><span class="r">FAIL</span><small>8/10</small></td>
+        <td class="cell"><span class="r">FAIL</span><small>8/10</small></td>
+        <td class="cell"><span class="g">PASS</span></td>
+        <td class="cell"><span class="g">PASS</span></td>
+        <td class="cell"><span class="g">PASS</span></td>
+        <td class="cell"><span class="g">PASS</span></td>
+      </tr>
+    </tbody>
+  </table></div>
+  <div class="legend">
+    <span><i class="cell"><span class="g">✓</span></i> garantie intact</span>
+    <span><i class="cell"><span class="s">~</span></i> aanwezig, voorbeeld-SQL zwak</span>
+    <span><i class="cell"><span class="r">✕</span></i> verminkt / weggevallen</span>
+  </div>
+
+  <div class="callout">
+    <div class="k">Correctheid is structureel — niet volume</div>
+    <p>Zowel de zwaarste vorm (AI-DLC, 2.181 regels) als de slankste-standalone (INFERNO-slank, 661 regels) zakt voor de gate. De middenvormen slagen. Wat redt is structuur: criteria <b>één keer</b> schrijven, garanties <b>als scenario</b> vastleggen, links <b>binnen de werkmap</b> houden — niet meer papier.</p>
+    <p>En het mooiste: deze goedkope, <b>build-loze</b> fase voorspelde exact de twee bugs die later in de echte build opdoken. De goedkope toets betaalt zich terug vóór er één regel code is geschreven.</p>
+  </div>
+</div></section>
+
+<!-- ===== 5. HET EXPERIMENT — WAT WE DEDEN ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">05 · Het experiment — wat we deden</div>
+  <h2 class="sec-h">De opzet, in het kort</h2>
+  <p class="sec-sub">De vraag: kunnen we het documentvolume van AI-DLC fors snoeien zonder bouwkwaliteit te verliezen? De pijn die we wilden oplossen: <b>we moeten veel te veel documentatie reviewen.</b> Niet op gevoel beslissen — op data.</p>
+
+  <p class="lead-p" style="margin-top:18px">We namen <b>één echte feature</b> (BTW-stamgegevens in ViewPoint), schreven daarvoor <b>zes verschillende documentvormen</b>, en zetten al het andere vast — dezelfde bouwer, dezelfde basiscommit, dezelfde scope, dezelfde correctheidsgaranties. Zo is élk verschil in de uitkomst toe te schrijven aan de documentvorm en aan niets anders.</p>
+
+  <h3 class="subh first">De zes documentvormen</h3>
+  <p class="lead-p">Twee uitersten als controle (de zwaarste en de slankste die we al hebben), en daartussen vier kandidaten die elk een ander idee van "slank" beproeven.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Vorm</th><th>Wat het is</th><th>Rol</th></tr></thead>
+    <tbody>
+      <tr class="control"><td>AI-DLC</td><td>De volledige bundel: inception-log, requirements, system-context, impact-analyse, units, per-unit briefs + logs, per-story bestanden.</td><td>controle · zwaar</td></tr>
+      <tr class="control"><td>INFERNO · slank</td><td>Brief + lean work-items met <span class="num">depends_on</span> / <span class="num">context.required</span> — links níet meegeteld.</td><td>controle · lean</td></tr>
+      <tr class="control"><td>INFERNO · eerlijk</td><td>Hetzelfde, maar mét de gelinkte bronverhalen die een bouwer écht openslaat.</td><td>controle · eerlijk lean</td></tr>
+      <tr><td>aidlc-turbo</td><td>Ceremonie eruit (briefs, system-context, logs); requirements + impact samengebald tot één beslissingen-ledger; getrimde stories blijven.</td><td>slanke variant</td></tr>
+      <tr class="lead"><td>turbo-a</td><td>Getrimde requirements + ledger + <b>één volledig item per bouwbaar ding</b> (AC + randen + caveats inline). Story en work-item zijn hetzelfde bestand.</td><td>fusie · samenvoegen</td></tr>
+      <tr><td>turbo-b</td><td>Story = volledige bron; work-item = dunne verwijzing (relatieve link + deps + ownership), kopieert nooit de AC.</td><td>fusie · twee lagen</td></tr>
+      <tr class="lead"><td>openspec</td><td>Durende <span class="num">spec.md</span> per capability + een wijzigingsmap met delta-specs (ADDED/MODIFIED/REMOVED) en GIVEN/WHEN/THEN-scenario's; <span class="num">validate --strict</span> als poort.</td><td>capability-accumulatie</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">Kernregel voor élke vorm: schrijf elk feit <b style="color:var(--text)">één keer</b> en link/delta ernaar — nooit herhalen. Herhaling is zowel de bloat als het correctheidsrisico (zo viel OQ-012 weg).</p>
+
+  <h3 class="subh">De opzet in twee fasen — een trechter</h3>
+  <p class="lead-p">We geven nooit een dure build uit aan een vorm die de goedkope poort niet haalt. Eerst goedkoop filteren, dan pas bouwen.</p>
+  <div class="flow">
+    <div class="step">
+      <h4><span class="tag">FASE A</span>Goedkope filters — geen regel code, alle 6 vormen</h4>
+      <p>Per vorm gemeten: documenteconomie (bestanden / regels / tokens / reviewdiff / herhalingsgraad) en caveat-survival — overleeft elke correctheidsgarantie tot in het document dat een bouwer écht openslaat? Herbruikbaar voor ~niets en over meerdere features te herhalen.</p>
+    </div>
+    <div class="gate">poort: caveat-survival = 100% · houd de ~3 zuinigste die slagen</div>
+    <div class="step">
+      <h4><span class="tag">FASE B</span>Build-head-to-head — de overlevers + beide controles</h4>
+      <p>Elke overlever wordt écht gebouwd door dezelfde canonieke <span class="num">specsmd-inferno-builder</span> met afgedwongen TDD-gate (test-first, RED vóór GREEN), op dezelfde basiscommit, met hetzelfde JDK8-offline-Maven-recept. Sequentieel gebouwd vanwege de gedeelde <span class="num">~/.m2</span>.</p>
+    </div>
+    <div class="gate">poort: build groen (compileert offline · alle DB-vrije unittests slagen)</div>
+    <div class="step">
+      <h4><span class="tag">JURY</span>Blind jurypanel — 3 onafhankelijke juryleden</h4>
+      <p>De builds als geanonimiseerde, geschudde diffs (arm-1…arm-4). Drie lenzen voor onafhankelijkheid (correctheid/robuustheid · idioom/architectuur · testbaarheid/getrouwheid), elk scoort alle 8 rubriek-dimensies 0–10. Pas daarna gede-anonimiseerd.</p>
+    </div>
+    <div class="gate">uitslag: Pareto-grens van kwaliteit vs documentkosten</div>
+  </div>
+</div></section>
+
+<!-- ===== 6. HOE WE SCOORDEN ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">06 · Hoe we scoorden</div>
+  <h2 class="sec-h">De rubriek en de constanten</h2>
+  <p class="sec-sub">Codekwaliteit is geen losse indruk maar een gewogen 0–10 rubriek over 8 dimensies (gewichten tellen op tot 1,00), per dimensie tot op één decimaal gescoord.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Dimensie</th><th>Gewicht</th><th>Wat het meet</th></tr></thead>
+    <tbody>
+      <tr><td>Correctheid</td><td class="n">0,18</td><td>compileert; elke AC gehaald; geen logische fout; randgevallen/rekenmath klopt</td></tr>
+      <tr><td>Caveat / OQ-afhandeling</td><td class="n">0,16</td><td>elke garantie behouden én correct in code afgehandeld</td></tr>
+      <tr><td>Spec-getrouwheid</td><td class="n">0,14</td><td>volledige scope geleverd; geen stille uitbreiding of versmalling</td></tr>
+      <tr><td>Robuustheid / concurrency</td><td class="n">0,12</td><td>randgevallen + races (herlezen-voor-verwijderen) overal afgevangen</td></tr>
+      <tr><td>Testbaarheid</td><td class="n">0,12</td><td>load-bearing regels in DB-vrije unittests, test-first, betekenisvolle asserts</td></tr>
+      <tr><td>Huisidioom</td><td class="n">0,10</td><td>ASCII-only code; strings in <span class="num">.properties</span>; VP-baseclasses/patronen</td></tr>
+      <tr><td>Onderhoudbaarheid</td><td class="n">0,10</td><td>DRY, één bron van waarheid, goedkoop te wijzigen</td></tr>
+      <tr><td>Architectuur</td><td class="n">0,08</td><td>schone gelaagdheid; logica in testbare seams; geen laag-lekkage</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="subh">Wat constant bleef</h3>
+  <p class="lead-p">Alles behalve de documentvorm is vastgezet — anders meet je de bouwer, niet de vorm.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Constante</th><th>Wat het betekent</th></tr></thead>
+    <tbody>
+      <tr><td>Bouwer</td><td>De canonieke <span class="num">specsmd-inferno-builder</span> — TDD-gate afgedwongen (skill aangeroepen, RED vóór GREEN)</td></tr>
+      <tr><td>Basis</td><td>bolt-002 <span class="num">6e1259fb7cf</span> — unit-001 SQL-backend al aanwezig</td></tr>
+      <tr><td>Scope</td><td>Dezelfde 10 bouwbare items (VAT-rekenrefactor + DomUI BTW-beheerpagina)</td></tr>
+      <tr><td>Caveats</td><td>Dezelfde 10 correctheidsgaranties in elke build</td></tr>
+      <tr><td>Oordeel</td><td>Pareto-grens kwaliteit vs documentkosten, achter 2 harde gates: build groen &amp; caveats 100%</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">Wil je dit op een andere intent herhalen? De volledige stap-voor-stap staat in <span style="color:var(--text)">doc-slimming-replay-playbook.md</span>.</p>
+</div></section>
+
+<footer><div class="wrap">
+  <div>Doc-slanker eval · BTW-stamgegevens · ViewPoint (JDK8 / Maven / Oracle).<br>
+  <b>Methode:</b> 6 documentvormen → vastgezette TDD-bouwer → documenteconomie + caveat-survival (Stage A) → build-head-to-head + blind jurypanel (Stage B) → gewogen 0–10 rubriek.<br>
+  <b>Status:</b> compleet · 3 builds groen (TDD-geverifieerd) · jurypanel afgerond · niets gecommit, niets gepusht.</div>
+  <div class="prov">
+    <span>artefacten · evals/doc-slimming/</span>
+    <span>kader · doc-slimming-eval-framework.md</span>
+    <span>herhaal-playbook · doc-slimming-replay-playbook.md</span>
+    <span>uitslag · results/stage-b.md</span>
+  </div>
+</div></footer>

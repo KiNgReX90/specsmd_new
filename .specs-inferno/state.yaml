@@ -8,6 +8,54 @@ workspace:
   structure: monolith
   autonomy_bias: review
 intents:
+  - id: production-mode-and-deep-intake
+    title: Production/autonomous modes, deep intake questioning, and install-time INFERNO config
+    status: completed
+    completed_at: 2026-07-02T06:15:00Z
+    base_branch: feat/inferno-turbo-and-aidlc-light
+    work_items:
+      - id: config-mode-schema
+        title: Config schema — top-level mode replaces autonomy.level
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: []
+      - id: planner-mode-vocabulary
+        title: Planner and routing surfaces speak mode production/autonomous
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: []
+      - id: planner-deep-intake
+        title: Production-mode staged deep questionnaire in intent-capture and decisions-capture
+        status: completed
+        complexity: high
+        mode: autopilot
+        depends_on: []
+      - id: orchestrator-mode-delivery
+        title: Orchestrator derives delivery default from mode
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: []
+      - id: turbo-deep-inception
+        title: AI-DLC Turbo inception gains a mandatory deep-dive interrogation round
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: []
+      - id: installer-inferno-config
+        title: Install wizard scaffolds .specs-inferno/config.yaml and names the real entry command
+        status: completed
+        complexity: high
+        mode: autopilot
+        depends_on: []
+      - id: inferno-docs-mode
+        title: README and PRD document the consolidated mode and install-time config
+        status: completed
+        complexity: low
+        mode: autopilot
+        depends_on: [config-mode-schema, planner-mode-vocabulary, planner-deep-intake, orchestrator-mode-delivery, installer-inferno-config]
   - id: inferno-authoring-and-delivery
     title: Parallel scribe authoring, config-driven tiers, and delivery modes
     status: completed
@@ -74,9 +122,71 @@ intents:
         complexity: low
         mode: autopilot
         depends_on: [decompose-fanout, config-wizard-ux, delivery-mode-impl]
+  - id: inception-to-inferno-bridge
+    title: Inception→INFERNO converter + lean inception mode
+    status: completed
+    completed_at: 2026-06-23T13:56:27Z
+    base_branch: chore/remove-fire-team
+    work_items:
+      - id: converter-skill
+        title: Inception-import converter skill (memory-bank intent → INFERNO artifacts)
+        status: completed
+        complexity: high
+        mode: autopilot
+        depends_on: []
+      - id: converter-command
+        title: /inception-to-inferno launcher command + planner registration
+        status: completed
+        complexity: low
+        mode: autopilot
+        depends_on: [converter-skill]
+      - id: converter-extraction-test
+        title: Fixture test — extraction core emits contract-valid INFERNO work items
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: [converter-skill]
+      - id: lean-inception-mode
+        title: Lean inception mode — stop after stories, skip bolt-plan + verbose unit-briefs
+        status: completed
+        complexity: medium
+        mode: autopilot
+        depends_on: []
 runs:
   active: []
   completed:
+    - id: production-mode-and-deep-intake-run
+      status: completed
+      completed_at: 2026-07-02T06:15:00Z
+      note: >-
+        Dogfooded INFERNO run. 7 work items in 2 waves: wave 1 (config-mode-schema,
+        planner-mode-vocabulary, planner-deep-intake, orchestrator-mode-delivery,
+        turbo-deep-inception, installer-inferno-config — fully disjoint ownership),
+        wave 2 (inferno-docs-mode). One malformed builder return
+        (orchestrator-mode-delivery attempt 1, zero tool calls) re-dispatched per
+        error handling and green on attempt 2. Finalize gates: 459 tests + lint:md
+        clean + autonomy.level sweep + install eval PASS (tarball packed with
+        --ignore-scripts due to the pre-existing check:webview-bundle worktree gap).
+        Four design decisions taken provisionally while Ruben was AFK (C-10):
+        single top-level mode key, production-only deep intake, turbo deep-dive
+        round, install-time config with /specsmd-inferno-config as editor. Built in
+        worktree inferno-intent/production-mode-and-deep-intake-20260702T055551Z,
+        merged to feat/inferno-turbo-and-aidlc-light; NOT pushed to origin (held
+        for user testing per gate).
+      work_items: [config-mode-schema, planner-mode-vocabulary, planner-deep-intake, orchestrator-mode-delivery, turbo-deep-inception, installer-inferno-config, inferno-docs-mode]
+    - id: inception-to-inferno-bridge-run
+      status: completed
+      completed_at: 2026-06-23T13:56:27Z
+      note: >-
+        Dogfooded INFERNO run. 4 work items in 2 waves: wave 1 (converter-skill,
+        lean-inception-mode — disjoint inferno/ vs aidlc/), wave 2 (converter-command,
+        converter-extraction-test) after converter-skill landed. Finalize gate: 439
+        tests pass + lint:md clean; check:webview-bundle fails ONLY on a pre-existing
+        gitignored build artifact (vs-code-extension/dist/webview/bundle.js) absent on
+        the base branch too and untouched by this intent. Built in worktree
+        inferno-intent/inception-to-inferno-bridge-20260623T122144Z, merged to
+        chore/remove-fire-team; NOT pushed to origin (held for user testing per gate).
+      work_items: [converter-skill, lean-inception-mode, converter-command, converter-extraction-test]
     # Reconciled close-out, not a live local run. The intent was planned and built
     # upstream on feat/inferno-flow, then vendored into main via merge 0bf0fb9.
     # All 12 work items were verified present in src/flows/inferno/ against their
