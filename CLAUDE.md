@@ -1,31 +1,45 @@
 # CLAUDE.md
 
-Canonical source for the SPECSMD **INFERNO** flow tooling (agents, commands, skills) across Claude Code, Cursor, and Codex. This file carries only the specsmd-relevant guidance; it is project-agnostic on purpose.
+This repo is **a privately maintained version of `specsmd`** — the full upstream package (`src/`, `package.json`, and **all flows**) is vendored here and is self-contained. It is a fork of fabriqaai's specsmd; the canonical home is a private GitLab repo. **Never push to the fabriqaai upstream.** This file carries only specsmd-relevant guidance; it is project-agnostic on purpose.
 
-## INFERNO
+## Flows
 
-INFERNO is this project's specsmd flow: a standalone, autonomous, parallel build flow chosen at install time *instead of* FIRE. It has its own `.specs-inferno/` artifact namespace and shares no state with FIRE. Because the standalone flow ships exactly one planner, there is no "which planner?" routing decision and no policy hook.
+All five specsmd flows live under `src/flows/`: `aidlc`, `fire`, `ideation`, `inferno`, `simple`. Any of them can be edited, validated, and shipped from this repo — it is not single-flow.
 
-**Lifecycle:** intent → auto-decomposed work items → one intent worktree → parallel autopilot builders → orchestrator-verified merge. Planning autonomy is config-driven via `autonomy.level` in `.specs-inferno/config.yaml`. Coupled work items serialize naturally through `depends_on`; independent items build concurrently without edit collisions.
-
-**Specsmd owns the artifacts.** Intents, work items, runs, `.specs-inferno/state.yaml`, walkthroughs. Don't author scratch plans or ad-hoc TodoWrite lists that should have been work items or runs.
+**INFERNO is the flow currently under active development and dogfooding here**, which is why most of the operational guidance below is INFERNO-specific. That focus is about *current work*, not the repo's scope — the other flows are first-class and live alongside it.
 
 ## Source of truth and build/eval workflow
 
-This repo is self-contained: the flow's source of truth lives here under `src/flows/inferno/` — the full `specsmd` package (`src/`, `package.json`, all flows) is vendored into this repo. To change the flow and validate it:
+This repo is self-contained: each flow's source of truth lives under `src/flows/<flow>/`. To change a flow and validate it:
 
-1. Edit the flow sources under `src/flows/inferno/`.
+1. Edit the flow sources under `src/flows/<flow>/` (e.g. `src/flows/inferno/`).
 2. `cd src && npm run validate:all`.
 3. `npm pack` to build a tarball.
 4. Drop the tarball in this repo's `evals/dist/`.
 5. Run `evals/install-eval.sh <tarball>` (deterministic install eval).
 6. Run the e2e smoke harness under `evals/e2e/`.
 
-The installed builder agent is kept in sync with its canonical source by a drift **test** (no codegen/sync script).
+For INFERNO, the installed builder agent is kept in sync with its canonical source by a drift **test** (no codegen/sync script).
+
+## Specsmd owns the artifacts
+
+Each flow's artifacts — intents, work items / bolts, runs, its state file, walkthroughs — are owned by specsmd. Don't author scratch plans or ad-hoc TodoWrite lists that should have been first-class flow artifacts.
+
+---
+
+# INFERNO flow specifics
+
+The sections below apply specifically to the **INFERNO** flow — the standalone, autonomous, parallel build flow under the `.specs-inferno/` artifact namespace.
+
+## What INFERNO is
+
+INFERNO is a standalone specsmd flow chosen at install time *instead of* FIRE. It has its own `.specs-inferno/` artifact namespace and shares no state with FIRE. Because the standalone flow ships exactly one planner, there is no "which planner?" routing decision and no policy hook.
+
+**Lifecycle:** intent → auto-decomposed work items → one intent worktree → parallel autopilot builders → orchestrator-verified merge. Planning depth, the post-write review pause, and the delivery default are all driven by the top-level `mode: production | autonomous` in `.specs-inferno/config.yaml` (legacy `autonomy.level` still maps: review → production, full → autonomous). Coupled work items serialize naturally through `depends_on`; independent items build concurrently without edit collisions.
 
 ## Per-project config
 
-Project- and machine-specific values live in an optional `.specs-inferno/config.yaml`: worker model tiers, finalize verification commands, `autonomy.level`, and optional `halt.*` / `knowledge.index` keys. Every key is optional; without the file the flow runs on host/project defaults, and the flow files under `.specsmd/` never hardcode these. The template is at `.specsmd/inferno/agents/orchestrator/config.example.yaml`; the `/specsmd-inferno-config` wizard scaffolds it interactively.
+Project- and machine-specific values live in an optional `.specs-inferno/config.yaml`: the top-level `mode` (production | autonomous), worker model tiers, finalize verification commands, an optional `delivery.mode` override, and optional `halt.*` / `knowledge.index` keys. Every key is optional; without the file the flow runs on host/project defaults, and the flow files under `.specsmd/` never hardcode these. `npx specsmd install` scaffolds it at install time (an existing config is never overwritten); `/specsmd-inferno-config` is the create-or-edit wizard, and the annotated template is `.specsmd/inferno/agents/orchestrator/config.example.yaml`.
 
 ## Budget-cap halt
 

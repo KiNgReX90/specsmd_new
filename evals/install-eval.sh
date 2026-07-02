@@ -20,9 +20,16 @@ mkdir -p .claude .codex
 
 # Drive the interactive installer in a PTY:
 #   Enter      -> confirm pre-selected (detected) tools
-#   Down x4    -> move from FIRE (1st) to INFERNO (5th)
+#   Down x5    -> move from FIRE (1st) to INFERNO (6th)
+#                 menu order: fire, aidlc, aidlc-turbo, simple, ideation, inferno
 #   Enter      -> select INFERNO
-{ sleep 12; printf '\r'; sleep 3; printf '\033[B\033[B\033[B\033[B'; sleep 1; printf '\r'; sleep 45; } | \
+#   Enter x5   -> accept the five INFERNO config defaults, in order:
+#                 mode (select, default production), strong/cheap/writer model
+#                 tiers (text), finalize verification commands (text). Each
+#                 prompt defaults on Enter, so plain \r accepts it.
+{ sleep 12; printf '\r'; sleep 3; printf '\033[B\033[B\033[B\033[B\033[B'; sleep 1; printf '\r'; \
+  sleep 3; printf '\r'; sleep 1; printf '\r'; sleep 1; printf '\r'; sleep 1; printf '\r'; sleep 1; printf '\r'; \
+  sleep 45; } | \
   SPECSMD_TELEMETRY_DISABLED=1 script -qec "npx -y --package=\"$TARBALL\" specsmd install" /dev/null \
   > install.log 2>&1
 note "--- installer tail ---"; tail -n 12 install.log; note "----------------------"
@@ -39,6 +46,12 @@ req .specsmd/inferno/agents/planner/agent.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/SKILL.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/templates/work-item.md.hbs
 req .specsmd/inferno/README.md
+# Install wizard scaffolds the per-project INFERNO config in the target repo
+req .specs-inferno/config.yaml
+# ...and the plain-Enter path yields the production-mode default
+grep -q '^mode: production' "$SANDBOX/.specs-inferno/config.yaml" \
+  && note "OK   config.yaml default mode: production" \
+  || { note "FAIL config.yaml missing default mode: production"; FAIL=1; }
 # Claude Code + Codex surfaces for all four inferno commands
 for n in inferno inferno-planner inferno-builder inferno-config; do
   req ".claude/commands/specsmd-$n.md"

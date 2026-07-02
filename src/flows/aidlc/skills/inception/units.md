@@ -35,6 +35,28 @@ Break the Intent into independently deployable Units of Work based on project ty
 
 ---
 
+## Mode Awareness (full vs lean)
+
+This skill respects the inception mode resolved by the agent (see the agent's "Inception Mode" section).
+
+- **Full mode (default)**: behave exactly as documented below — analyze the domain, map
+  requirements, and author a **full multi-section `unit-brief.md`** per unit (Domain
+  Concepts, Story Summary, Success Criteria, Bolt Suggestions, technical context, etc.).
+  Nothing in full mode changes.
+- **Lean mode**: still perform the same decomposition *analysis* (steps 1–6 and step 8 —
+  identify units, map every FR to a unit, validate independence) and still write the
+  central `units.md`, but in step 7 author only a **minimal grouping stub** unit-brief
+  (see "Step 7 — Lean variant" below), NOT the verbose multi-section document. The stub
+  carries only what the converter and the aidlc parser need: a stable id/label, the
+  parent intent, a status, and a one-line scope/ownership hint. Skip the verbose
+  Domain Concepts tables, Story Summary, Success Criteria, and Bolt Suggestions sections.
+
+The decomposition into units, the FR-to-unit mapping, and `units.md` are produced in
+**both** modes — units survive in lean mode as the editable-path / ownership grouping the
+converter consumes.
+
+---
+
 ## Input
 
 - **Required**: Intent name
@@ -198,7 +220,10 @@ Present proposed decomposition with their assigned requirements:
    For each unit: `{schema.units}/{UUU}-{unit-name}/`
 
 4. **Create Unit Brief** (CRITICAL):
-   For each unit, create `{UUU}-{unit-name}/unit-brief.md` using `.specsmd/aidlc/templates/inception/unit-brief-template.md`
+
+   **Lean mode → use "Step 7 — Lean variant" below instead of this verbose brief.**
+
+   For each unit (full mode), create `{UUU}-{unit-name}/unit-brief.md` using `.specsmd/aidlc/templates/inception/unit-brief-template.md`
 
    This brief is the **input for Construction Agent**. Include:
    - Purpose and scope
@@ -228,6 +253,43 @@ Present proposed decomposition with their assigned requirements:
    unit_type: frontend
    default_bolt_type: simple-construction-bolt
    ```
+
+### Step 7 — Lean variant (lean mode only)
+
+In **lean mode**, replace sub-step 4 (the verbose unit-brief) with a **minimal grouping
+stub**. Still do sub-steps 1–3 (resolve the path, write the central `units.md`, create the
+unit directories) exactly as in full mode.
+
+For each unit, create `{UUU}-{unit-name}/unit-brief.md` containing ONLY:
+
+```markdown
+---
+unit: {UUU}-{unit-name}
+intent: {NNN}-{intent-name}
+phase: inception
+status: draft
+mode: lean
+# For frontend units also include:
+# unit_type: frontend
+---
+
+## Scope
+
+{One- or two-line scope / ownership hint: what part of the system this unit owns —
+the grouping the converter maps to `ownership.editable`. Assigned FRs: FR-x, FR-y.}
+```
+
+Do NOT author the verbose sections (Domain Concepts tables, Story Summary, Success
+Criteria, Bolt Suggestions, detailed technical context). The stub's job is solely to
+give the converter a stable id/label + scope hint and to keep the artifact parseable as
+a valid memory-bank unit. Stories (created next, by the `stories` skill) carry the
+acceptance detail; bolts are never authored in lean mode.
+
+The stub keeps the output valid: it still parses as a memory-bank unit (the `status`
+frontmatter is read; an absent or minimal brief is tolerated by the parser), and the
+converter can read its id/scope to emit the INFERNO `ownership.editable` grouping.
+
+---
 
 ### 8. Validate Independence
 
@@ -272,7 +334,9 @@ For each unit, verify:
 ## Test Contract
 
 ```yaml
-input: Intent requirements, system context, project.yaml, catalog.yaml
-output: units.md, unit-brief.md for each unit (including frontend unit if enabled)
+input: Intent requirements, system context, project.yaml, catalog.yaml, mode (full|lean)
+output:
+  full: units.md, full multi-section unit-brief.md for each unit (incl. frontend unit if enabled)
+  lean: units.md, minimal grouping-stub unit-brief.md for each unit (scope hint only)
 checkpoints: 0 (part of Checkpoint 3 batch)
 ```

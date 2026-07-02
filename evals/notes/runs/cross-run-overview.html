@@ -1,0 +1,307 @@
+<title>Doc-slanker eval — Cross-run synthese · 3 runs / 2 apps</title>
+<style>
+  :root{
+    --ground:#0E1722; --surface:#17242F; --surface-2:#1E2E3A;
+    --text:#E7EEF3; --muted:#8A9BA8; --faint:#5E707D;
+    --accent:#46B7E6; --pass:#46C28A; --fail:#EA6253; --soft:#E7B964;
+    --hair:rgba(231,238,243,0.12); --hair-strong:rgba(231,238,243,0.22);
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);line-height:1.6;font-size:16px;
+    background-image:radial-gradient(circle at 84% -10%,rgba(70,183,230,0.10),transparent 44%);background-attachment:fixed}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent)}
+  h1,h2,h3{font-weight:800;letter-spacing:-0.02em;line-height:1.08;margin:0}
+  p{margin:0 0 1rem}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.24em;color:var(--accent);display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--accent);display:inline-block}
+
+  .topbar{border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:0.74rem;color:var(--muted);letter-spacing:0.04em}
+  .topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;gap:16px;flex-wrap:wrap}
+  .topbar b{color:var(--text);font-weight:600}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pass);margin-right:7px;vertical-align:middle}
+
+  .hero{padding:88px 0 64px;border-bottom:1px solid var(--hair)}
+  .hero h1{font-size:clamp(2.3rem,5.6vw,4.1rem)}
+  .hero h1 .hl{color:var(--accent)}
+  .lede{font-size:clamp(1.05rem,2vw,1.32rem);color:var(--muted);max-width:58ch;margin-top:24px;line-height:1.5}
+  .lede b{color:var(--text);font-weight:600}
+
+  section{padding:70px 0;border-bottom:1px solid var(--hair)}
+  .sec-h{font-size:clamp(1.55rem,3.3vw,2.2rem);margin-bottom:8px}
+  .sec-sub{color:var(--muted);max-width:70ch;margin-top:14px}
+
+  /* ---- Pareto scatter (signature visual) ---- */
+  .chart{margin-top:38px;display:grid;grid-template-columns:24px 1fr;gap:10px}
+  .sc-ylab{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--mono);font-size:0.66rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);text-align:center;align-self:center}
+  .sc-right{min-width:0}
+  .sc-plot{position:relative;height:460px;border-left:1px solid var(--hair-strong);border-bottom:1px solid var(--hair-strong)}
+  .grid-h{position:absolute;left:0;right:0;height:1px;background:var(--hair)}
+  .grid-v{position:absolute;top:0;bottom:0;width:1px;background:var(--hair)}
+  .gl{position:absolute;font-family:var(--mono);font-size:0.6rem;color:var(--faint)}
+  .gl.y{left:6px;transform:translateY(50%)}
+  .gl.x{bottom:-18px;transform:translateX(-50%)}
+  .heavy-band{position:absolute;left:0;top:0;bottom:0;width:9%;background:linear-gradient(90deg,rgba(231,185,100,0.10),transparent);pointer-events:none}
+  .heavy-band span{position:absolute;left:6px;top:8px;font-family:var(--mono);font-size:0.56rem;color:var(--soft);letter-spacing:0.08em;opacity:0.8;writing-mode:vertical-rl;transform:rotate(180deg)}
+  .sc-dot{position:absolute;width:34px;height:34px;border-radius:50%;transform:translate(-50%,50%);display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:0.86rem;font-weight:700;border:2px solid;z-index:2;box-shadow:0 2px 10px rgba(0,0,0,0.35)}
+  .sc-dot.fr{background:rgba(70,194,138,0.24);border-color:var(--pass);color:#c3ecd6}
+  .sc-dot.heavy{background:rgba(231,185,100,0.20);border-color:var(--soft);color:#f1dca9}
+  .sc-dot.lean{background:rgba(234,98,83,0.20);border-color:var(--fail);color:#f4b6ad}
+  .sc-dot .tip{position:absolute;bottom:120%;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:var(--mono);font-size:0.6rem;font-weight:600;
+    color:var(--text);background:var(--surface-2);border:1px solid var(--hair-strong);border-radius:4px;padding:2px 6px;opacity:0;transition:opacity .15s;pointer-events:none}
+  .sc-dot:hover .tip,.sc-dot:focus .tip{opacity:1}
+  .sc-legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:30px;font-size:0.82rem;color:var(--muted)}
+  .sc-legend .lg{display:flex;align-items:center;gap:8px}
+  .sc-legend .mk{width:16px;height:16px;border-radius:50%;border:2px solid}
+  .sc-legend .mk.fr{border-color:var(--pass);background:rgba(70,194,138,0.24)}
+  .sc-legend .mk.heavy{border-color:var(--soft);background:rgba(231,185,100,0.20)}
+  .sc-legend .mk.lean{border-color:var(--fail);background:rgba(234,98,83,0.20)}
+  .sc-cap{margin-top:18px;font-size:0.82rem;color:var(--faint);font-family:var(--mono);line-height:1.7}
+
+  .winners{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:8px}
+  .winner{background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:24px 22px;position:relative;overflow:hidden}
+  .winner.rec{border-color:rgba(70,183,230,0.55);background:linear-gradient(180deg,rgba(70,183,230,0.13),var(--surface))}
+  .w-axis{font-family:var(--mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);font-weight:600}
+  .w-arm{font-size:1.9rem;font-weight:800;letter-spacing:-0.03em;margin:12px 0 2px}
+  .w-score{font-family:var(--mono);font-size:0.92rem;color:var(--muted)}
+  .w-score b{color:var(--text);font-weight:700}
+  .w-why{font-size:0.9rem;color:var(--muted);margin:14px 0 0}
+  .w-badge{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:0.6rem;font-weight:700;letter-spacing:0.12em;color:var(--accent);border:1px solid rgba(70,183,230,0.5);border-radius:4px;padding:3px 7px}
+  .verdict-strip{display:flex;gap:16px;flex-wrap:wrap;margin-top:26px}
+  .loser,.choose{flex:1 1 300px;background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:18px 20px;font-size:0.92rem}
+  .loser{border-left:3px solid var(--fail)}
+  .choose{border-left:3px solid var(--accent)}
+  .loser .k,.choose .k{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px}
+  .loser .k{color:var(--fail)} .choose .k{color:var(--accent)}
+  .loser p,.choose p{margin:0;color:var(--muted)}
+  .choose b{color:var(--text)} .loser b{color:var(--text)}
+
+  .scroll{overflow-x:auto;margin-top:30px;border:1px solid var(--hair);border-radius:6px}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:0.86rem}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--hair);white-space:nowrap}
+  thead th{font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-weight:600;background:var(--surface)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody td:first-child{font-family:var(--mono);color:var(--text);font-weight:600}
+  td .n,td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tr.lead{background:rgba(70,183,230,0.10)} tr.lead td:first-child{color:var(--accent)}
+  tr.control td:first-child::after{content:"controle";margin-left:8px;font-family:var(--mono);font-size:0.58rem;color:var(--faint);letter-spacing:0.08em;border:1px solid var(--hair-strong);padding:1px 5px;border-radius:3px}
+  tr.fail td:first-child{color:var(--fail)}
+  .tag-pass{color:var(--pass);font-weight:700}.tag-fail{color:var(--fail);font-weight:700}.tag-star{color:var(--accent);font-weight:700}
+  .tbl-cap{font-family:var(--mono);font-size:0.72rem;color:var(--accent);letter-spacing:0.06em;margin:34px 0 0;display:flex;align-items:baseline;gap:10px}
+  .tbl-cap .ctx{color:var(--faint);letter-spacing:0.02em;font-weight:400}
+
+  .points{margin-top:30px;display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .point{background:var(--surface);padding:18px 22px}
+  .point h4{margin:0 0 5px;font-size:0.98rem;font-weight:700}
+  .point p{margin:0;font-size:0.89rem;color:var(--muted)}
+  .point .em{color:var(--text);font-weight:600}
+
+  .callout{margin-top:32px;border:1px solid var(--hair-strong);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;background:var(--surface);padding:22px 24px}
+  .callout .k{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.16em;color:var(--accent);margin-bottom:10px}
+  .callout p{margin:0;color:var(--text)} .callout p+p{margin-top:10px;color:var(--muted);font-size:0.92rem}
+
+  .bars-note{margin-top:14px;font-size:0.82rem;color:var(--faint);font-family:var(--mono)}
+
+  footer{padding:52px 0 78px;color:var(--faint);font-family:var(--mono);font-size:0.77rem;line-height:1.8}
+  footer b{color:var(--muted);font-weight:600}
+  .prov{margin-top:16px;padding-top:16px;border-top:1px solid var(--hair);display:flex;gap:26px;flex-wrap:wrap}
+
+  @media(max-width:680px){.hero{padding:60px 0 48px}.sc-plot{height:380px}.sc-dot{width:30px;height:30px;font-size:0.76rem}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+
+<div class="topbar"><div class="wrap">
+  <span><b>SPECSMD</b> · doc-slanker eval · <b>cross-run synthese</b> <span style="color:var(--faint)">· run #1–#3</span></span>
+  <span><span class="dot"></span>3 runs afgerond · 2 apps · cross-app generalisatie bevestigd</span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Cross-run synthese · run #1–#3 · 2 apps · 2 stacks · 1 methode</div>
+  <h1>Drie runs, twee apps — en de <span class="hl">ranking houdt stand</span>. Documentbloat kan <span class="hl">73–91% slanker</span> zonder bouwkwaliteit te verliezen.</h1>
+  <p class="lede">Dezelfde eval draaide nu drie keer met identieke methode — zelfde 7 documentvormen, dezelfde vastgezette TDD-bouwer, dezelfde gewogen rubriek, dezelfde twee harde gates. Alleen de app en het intent varieerden. Elke run wijst dezelfde kant op: de <b>zware AI-DLC-controle wordt Pareto-gedomineerd</b>, de <b>lean pointer-only-controle is steeds de slechtste build én zakt voor de gate</b>, en een <b>slanke vorm wint élke keer</b>.</p>
+</div></header>
+
+<!-- ===== 1. DE STELLING IN ÉÉN GRAFIEK ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">01 · De stelling in één grafiek</div>
+  <h2 class="sec-h">Economie tegen kwaliteit, over drie runs</h2>
+  <p class="sec-sub">Documenteconomie (Stage-A, build-loos: 10 = leanst) op de horizontale as, blinde bouwkwaliteit (3-lenzen jurypanel, 0–10) op de verticale. Per run de drie archetypes: de <b style="color:var(--pass)">beste slanke vorm</b> (groen), de <b style="color:var(--soft)">zware AI-DLC-controle</b> (amber, altijd op de 0-economie-muur links), de <b style="color:var(--fail)">lean controle</b> (rood, altijd op de max-economie-muur rechts). Het cijfer in elke stip is het runnummer.</p>
+
+  <div class="chart">
+    <div class="sc-ylab">Bouwkwaliteit →</div>
+    <div class="sc-right">
+      <div class="sc-plot">
+        <div class="heavy-band"><span>0 economie = zware docs</span></div>
+        <div class="grid-h" style="bottom:26.3%"></div>
+        <div class="grid-h" style="bottom:53.4%"></div>
+        <div class="grid-h" style="bottom:80.5%"></div>
+        <div class="grid-v" style="left:50%"></div>
+        <div class="grid-v" style="left:96%"></div>
+        <div class="gl y" style="bottom:26.3%">4</div>
+        <div class="gl y" style="bottom:53.4%">6</div>
+        <div class="gl y" style="bottom:80.5%">8</div>
+        <div class="gl x" style="left:4%">0</div>
+        <div class="gl x" style="left:50%">5</div>
+        <div class="gl x" style="left:96%">10</div>
+
+        <!-- frontier / beste slanke vorm per run -->
+        <div class="sc-dot fr" tabindex="0" style="left:78.4%;bottom:89.3%">1<span class="tip">run #1 · turbo-a · econ 8,1 · build 8,65</span></div>
+        <div class="sc-dot fr" tabindex="0" style="left:68.2%;bottom:81.3%">2<span class="tip">run #2 · aidlc-turbo · econ 7,0 · build 8,06</span></div>
+        <div class="sc-dot fr" tabindex="0" style="left:89.6%;bottom:88.3%">3<span class="tip">run #3 · turbo-a · econ 9,3 · build 8,58</span></div>
+
+        <!-- zware controle (AI-DLC) -->
+        <div class="sc-dot heavy" tabindex="0" style="left:4%;bottom:76.0%">2<span class="tip">run #2 · AI-DLC · econ 0,0 · build 7,67 · gedomineerd</span></div>
+        <div class="sc-dot heavy" tabindex="0" style="left:4%;bottom:86.3%">3<span class="tip">run #3 · AI-DLC · econ 0,0 · build 8,43 · gedomineerd</span></div>
+
+        <!-- lean controle (INFERNO) -->
+        <div class="sc-dot lean" tabindex="0" style="left:36.5%;bottom:63.4%">1<span class="tip">run #1 · INFERNO · econ 3,5 · build 6,74 · gate-FAIL</span></div>
+        <div class="sc-dot lean" tabindex="0" style="left:96%;bottom:66.4%">2<span class="tip">run #2 · INFERNO · econ 10,0 · build 6,96 · gate-FAIL</span></div>
+        <div class="sc-dot lean" tabindex="0" style="left:96%;bottom:13.7%">3<span class="tip">run #3 · INFERNO · econ 10,0 · build 3,07 · holle build</span></div>
+      </div>
+      <div class="gl x" style="position:relative;text-align:center;margin-top:24px;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted)">Documenteconomie →</div>
+    </div>
+  </div>
+
+  <div class="sc-legend">
+    <span class="lg"><span class="mk fr"></span> Beste slanke vorm (Pareto-grens)</span>
+    <span class="lg"><span class="mk heavy"></span> Zware AI-DLC-controle</span>
+    <span class="lg"><span class="mk lean"></span> Lean INFERNO-controle</span>
+    <span class="lg" style="color:var(--faint)">cijfer = runnummer · zweef voor details</span>
+  </div>
+  <p class="sc-cap">Drie banden, drie runs. De zware controle staat altijd tegen de linkermuur (0 economie — alle feiten herhaald), de lean controle altijd tegen de rechtermuur (max economie — alle feiten achter onopgeloste links) en zakt op run #3 door de vloer (holle build, 3,07). De winnaars zitten bovenin: hoge kwaliteit én hoge economie tegelijk. Alle armen — ook turbo-b, openspec, inferno-full — staan in de tabellen hieronder.</p>
+</div></section>
+
+<!-- ===== 2. AANBEVELING ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">02 · De aanbeveling</div>
+  <h2 class="sec-h">Twee vormen om te adopteren</h2>
+  <p class="sec-sub">De topvorm wisselt per app, dus de keuze hangt af van wat je vastlegt: één vorm die over intents én apps heen veilig is, of de leanste vorm waar reviewlast bindt.</p>
+
+  <div class="winners">
+    <div class="winner rec">
+      <div class="w-badge">AANBEVOLEN</div>
+      <div class="w-axis">Veiligste cross-intent default</div>
+      <div class="w-arm">aidlc-turbo</div>
+      <div class="w-score">jurypanel <b>8,06 – 8,55</b>/10 élke run · docs <b>&minus;73 tot &minus;81%</b></div>
+      <p class="w-why">De enige arm die over álle drie de runs sterk is — nooit onder 8,06. Won procesbeheer ronduit (Pareto-domineert de zware controle bij &minus;73% docs) en evenaart de zware controle op de andere twee. Kies dit als één vorm over intents en apps heen moet werken.</p>
+    </div>
+    <div class="winner">
+      <div class="w-axis">Laagste reviewlast · beste code waar het leidt</div>
+      <div class="w-arm">turbo-a</div>
+      <div class="w-score">won BTW (<b>8,65</b>) &amp; fmw (<b>8,58</b>) · docs tot <b>&minus;91%</b></div>
+      <p class="w-why">De leanste vorm én de beste build op twee van de drie runs. Gevoeliger voor losse per-build slips (een polling source-mutatie, een <span class="num">@Transactional</span>-self-invocation) — fixbare idioom-gates, geen vormgebreken. Kies dit waar reviewlast bindt.</p>
+    </div>
+  </div>
+
+  <div class="verdict-strip">
+    <div class="loser">
+      <div class="k">De twee controles verliezen consequent</div>
+      <p>De zware AI-DLC-controle (0 economie) wordt in run #2 <b>én</b> #3 <b style="color:var(--fail)">Pareto-gedomineerd</b> — de doc-bloat kocht geen correctheid. De lean pointer-only-controle (max economie) zakt voor de gate in <b>álle drie</b> de runs en bouwde op fmw een ronduit <b style="color:var(--fail)">holle</b> engine (3,07).</p>
+    </div>
+    <div class="choose">
+      <div class="k">Wat kies je?</div>
+      <p>Eén vorm vastleggen → <b>aidlc-turbo</b>. Reviewlast bindt → <b>turbo-a</b>. Beide snoeien 73–91% van de docs en matchen of verslaan de zware controle op bouwkwaliteit.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== 3. DRIE RUNS NAAST ELKAAR ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">03 · Drie runs naast elkaar</div>
+  <h2 class="sec-h">De ranking, per run</h2>
+  <p class="sec-sub">Het verhaal is in elke kolom hetzelfde, ongeacht app of stack: lean-controle laatste + gate-fail, zware controle gedomineerd, een slanke vorm op de grens. Alleen <i>welke</i> slanke vorm leidt, wisselt — daarom is de winst structureel, geen specifieke vorm.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>Run #1 · BTW <span style="color:var(--faint)">ViewPoint</span></th><th>Run #2 · procesbeheer+koppellaag <span style="color:var(--faint)">ViewPoint</span></th><th>Run #3 · financial-middleware <span style="color:var(--faint)">Java/Spring</span></th></tr></thead>
+    <tbody>
+      <tr><td>scope</td><td>1 intent · 2-unit slice</td><td>2 intents · 7 bolts · 19 stories</td><td>1 intent · 3-unit gradiënt (16 builds)</td></tr>
+      <tr class="fail"><td>lean (INFERNO)</td><td>laatste · 6,74 · <span class="tag-fail">FAIL</span></td><td>laatste · 6,96 · <span class="tag-fail">FAIL</span></td><td>laatste · <b style="color:var(--fail)">3,07</b> · <span class="tag-fail">FAIL</span> (hol)</td></tr>
+      <tr class="control"><td>zware (AI-DLC)</td><td>gate-fail / descoped</td><td>7,67 · <b style="color:var(--fail)">gedomineerd</b></td><td>8,43 · <b style="color:var(--fail)">gedomineerd</b></td></tr>
+      <tr class="lead"><td>Pareto-grens</td><td>turbo-a (8,65)</td><td>{aidlc-turbo, turbo-a}</td><td><b>{turbo-a}</b></td></tr>
+      <tr><td>beste build</td><td>turbo-a</td><td>aidlc-turbo</td><td>turbo-a</td></tr>
+      <tr><td>slank vs zwaar</td><td>alle 3 verslaan beide controles</td><td>aidlc-turbo verslaat zwaar; turbo-a/-b binnen ε</td><td>turbo-a domineert; aidlc-turbo matcht @ &minus;81%</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">Bouwkwaliteit = blind 3-lenzen jurypanel (gewogen 0–10). Documenteconomie = Stage-A 0–10 (10 = leanst).</p>
+</div></section>
+
+<!-- ===== 4. ALLE RESULTATEN, PER RUN ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">04 · Alle resultaten, per run</div>
+  <h2 class="sec-h">Elke arm, elke run</h2>
+  <p class="sec-sub">De volledige uitslag van alle drie de runs. ⭐ = aanbevolen / beste binnen die run; "controle" = de twee vaste referentiepunten (zwaar AI-DLC, lean INFERNO).</p>
+
+  <div class="tbl-cap">RUN #1 — BTW units 002/003 <span class="ctx">· ViewPoint · 1 intent, 2-unit slice</span></div>
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>Doc-economie</th><th>Bouwkwaliteit</th><th>Gate</th><th>Notitie</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>turbo-a</td><td class="n">8,09</td><td class="n">8,65</td><td><span class="tag-pass">PASS</span></td><td>beste code</td></tr>
+      <tr><td>aidlc-turbo ⭐</td><td class="n">8,80</td><td class="n">8,55</td><td><span class="tag-pass">PASS</span></td><td>beste balans (aanbevolen)</td></tr>
+      <tr><td>openspec</td><td class="n">9,27</td><td class="n">7,93</td><td><span class="tag-pass">PASS</span></td><td>laagste reviewlast</td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">3,53</td><td class="n">6,74</td><td><span class="tag-fail">FAIL</span></td><td>caveat C-9 weggevallen</td></tr>
+      <tr class="control fail"><td>AI-DLC</td><td class="n">0,00</td><td class="n">&mdash;</td><td><span class="tag-fail">FAIL</span></td><td>C-1, C-9 (descoped)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="tbl-cap">RUN #2 — procesbeheer + koppellaag <span class="ctx">· ViewPoint · 2 intents, 7 bolts, 19 stories</span></div>
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>Doc-economie</th><th>Bouwkwaliteit</th><th>Gate</th><th>Notitie</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>aidlc-turbo ⭐</td><td class="n">6,98</td><td class="n">8,06</td><td><span class="tag-pass">PASS</span></td><td>beste kwaliteit — Pareto-domineert zwaar (&minus;73%)</td></tr>
+      <tr><td>turbo-a</td><td class="n">8,72</td><td class="n">7,60</td><td><span class="tag-pass">PASS</span></td><td>beste economie (&minus;83%), binnen ε</td></tr>
+      <tr><td>turbo-b</td><td class="n">6,90</td><td class="n">7,32</td><td><span class="tag-pass">PASS</span></td><td>gedomineerd door aidlc-turbo</td></tr>
+      <tr class="control"><td>AI-DLC</td><td class="n">0,00</td><td class="n">7,67</td><td><span class="tag-pass">PASS</span></td><td><b style="color:var(--fail)">Pareto-gedomineerd</b></td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">10,0</td><td class="n">6,96</td><td><span class="tag-fail">FAIL</span></td><td>foute soort/lijst-kolom, ongekoppelde delete-guard</td></tr>
+    </tbody>
+  </table></div>
+  <p class="bars-note">openspec draaide alleen mee in Stage A — near-miss 92% caveat-survival, niet gebouwd.</p>
+
+  <div class="tbl-cap">RUN #3 — financial-middleware · message-translation <span class="ctx">· Java/Spring · cross-app · 3-unit gradiënt</span></div>
+  <div class="scroll"><table>
+    <thead><tr><th>Arm</th><th>Doc-economie</th><th>Bouwkwaliteit</th><th>Gate</th><th>Notitie</th></tr></thead>
+    <tbody>
+      <tr class="lead"><td>turbo-a ⭐</td><td class="n">9,3</td><td class="n">8,58</td><td><span class="tag-pass">PASS</span></td><td>domineert het veld op beide assen (&minus;91%)</td></tr>
+      <tr class="control"><td>AI-DLC</td><td class="n">0,00</td><td class="n">8,43</td><td><span class="tag-pass">PASS</span></td><td><b style="color:var(--fail)">Pareto-gedomineerd</b></td></tr>
+      <tr><td>aidlc-turbo</td><td class="n">8,3</td><td class="n">8,42</td><td><span class="tag-pass">PASS</span></td><td>evenaart zwaar @ &minus;81%; robuuste #2</td></tr>
+      <tr class="fail"><td>inferno-full</td><td class="n">7,8</td><td class="n">7,24</td><td><span class="tag-fail">FAIL</span></td><td>link-set-gaten: DEGRADED-reg + notValidAfter weg</td></tr>
+      <tr><td>turbo-b</td><td class="n">8,8</td><td class="n">7,00</td><td><span class="tag-pass">PASS</span></td><td>polling source-mutatie (gate-pass, build-slip)</td></tr>
+      <tr class="control fail"><td>INFERNO</td><td class="n">10,0</td><td class="n">3,07</td><td><span class="tag-fail">FAIL</span></td><td>holle engine: corr 2,0 / cav 1,2 / fid 1,5</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ===== 5. WAT STABIEL IS ===== -->
+<section><div class="wrap">
+  <div class="eyebrow">05 · Wat over runs heen stabiel is</div>
+  <h2 class="sec-h">De cross-run conclusie</h2>
+  <p class="sec-sub">Vier bevindingen die in alle drie de runs gelden — de kern van waarom de stelling generaliseert buiten ViewPoint.</p>
+
+  <div class="points">
+    <div class="point"><h4>Lean pointer-only controle verliest en zakt voor de gate — alle drie de runs</h4><p>Caveats achter onopgeloste links weglaten levert echte, load-bearing build-defecten; op fmw zelfs een <span class="em">holle</span> build (groene tests, nul veld-mappings, 3,07). De goedkope, build-loze Stage-A-gate voorspelde het elke keer, vóór er een regel gebouwd was.</p></div>
+    <div class="point"><h4>Slank ≠ slechter — cross-app bevestigd</h4><p>Een 73–91% slankere documentvorm evenaart of verslaat de zware AI-DLC-controle op bouwkwaliteit. Die controle is nu in <span class="em">run #2 én #3 Pareto-gedomineerd</span>; de doc-bloat kocht correctheid noch getrouwheid — op fmw-tracking liet de zware controle zelfs correcties vallen die de slanke armen wél bouwden.</p></div>
+    <div class="point"><h4>De winst is structureel, geen specifieke vorm</h4><p>De topvorm wisselt per app — turbo-a (BTW &amp; fmw) vs aidlc-turbo (procesbeheer) — maar <span class="em">een slanke vorm wint élke run en de zware controle nooit</span>. Schrijf elk load-bearing feit één keer in de bouwer-doc en link, i.p.v. herhalen (zwaar) of achter een onopgeloste hop verstoppen (lean).</p></div>
+    <div class="point"><h4>Documentvorm discrimineert waar de logica het zwaarst is</h4><p>Op service/engine/tracking-units waaieren de armen ver uit en is de volgorde stabiel; op dun delegatie-/UI-werk (en MED-complexiteit polling) is het <span class="em">ruis</span> — precies waar de twee echte per-build slips landden.</p></div>
+  </div>
+
+  <div class="callout">
+    <div class="k">Aanbeveling &amp; resterende gate</div>
+    <p>Adopteer een slanke vorm: <b>aidlc-turbo</b> als de veilige cross-intent default; <b>turbo-a</b> waar reviewlast bindt. Beide snoeien 73–91% van de docs zonder bouwkwaliteit te verliezen.</p>
+    <p>Vóór adoptie in de flow: vouw de twee gates in die run #2/#3 aanwezen — een <b>idioom/lint-gate</b> (geen <span class="num">@Transactional</span>-self-invocation, geen source-mutatie in een read-only laag, geen cross-layer enum-plaatsing) en een <b>caveat-inline-check</b> — zodat geen arm herhaalt wat de panels signaleerden.</p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div>Doc-slanker eval · cross-run synthese · run #1–#3 · 2 apps (ViewPoint: JDK8 / Vaadin · financial-middleware: Java&nbsp;21 / Spring Boot) · 2 stacks.<br>
+  <b>Methode (constant gehouden over álle runs):</b> 7 documentvormen → vastgezette canonieke TDD-bouwer → documenteconomie + caveat-survival (Stage A) → echte builds + blind 3-lenzen jurypanel (Stage B) → gewogen 0–10 rubriek (8 dimensies) → Pareto-grens achter 2 harde gates. Alleen de app/intent varieerde tussen runs.<br>
+  <b>Status:</b> 3 runs afgerond · cross-app generalisatie <b>bevestigd</b> · snapshots gecommit naar de privé-repo (geen broncode — alleen aggregaat-metadata).</div>
+  <div class="prov">
+    <span>per-run snapshots · evals/notes/runs/</span>
+    <span>kader · doc-slimming-eval-framework.md</span>
+    <span>cross-run index · evals/notes/runs/README.md</span>
+  </div>
+</div></footer>

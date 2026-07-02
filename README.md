@@ -1,5 +1,7 @@
 # SPECSMD INFERNO Tooling
 
+> 🚧 **Under construction.** This is a special variant of SPECSMD, currently a work in progress and not yet stable — expect breaking changes.
+
 Canonical source for the SPECSMD **INFERNO** flow tooling: agents, slash commands, and skills for spec-driven AI development with **Claude Code** (plus a Codex skill surface).
 
 INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIRE — that drives the lifecycle **intent → auto-decomposed work items → one intent worktree → parallel autopilot builders → orchestrator-verified merge**, all under its own `.specs-inferno/` artifact namespace. It extends the upstream baseline with, among other things:

@@ -1,0 +1,27 @@
+---
+intent: {{intent}}
+scope: {{scope}}
+status: {{status}}
+---
+
+# Requirements — {{title}}
+
+{{summary}}
+
+## Functional requirements
+
+{{#each functional}}
+- **{{this.id}}** — {{this.text}}
+{{/each}}
+
+## Non-functional requirements
+
+{{#each non_functional}}
+- **{{this.id}}** — {{this.text}}
+{{/each}}
+
+## Out of scope
+
+{{#each out_of_scope}}
+- {{this}}
+{{/each}}

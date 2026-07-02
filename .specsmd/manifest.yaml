@@ -1,0 +1,5 @@
+flow: aidlc-turbo
+version: 0.1.75
+installed_at: '2026-07-02T09:43:09.303Z'
+tools:
+  - claude

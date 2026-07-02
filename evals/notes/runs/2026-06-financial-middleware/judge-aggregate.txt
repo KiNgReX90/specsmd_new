@@ -1,0 +1,55 @@
+
+=== ENGINE — per-label (composite | spread | lens A/B/C) ===
+  E6 turbo-a       comp=8.967  spread=0.22  A=8.87 B=8.94 C=9.09
+  E5 aidlc         comp=8.890  spread=0.62  A=9.3 B=8.69 C=8.68
+  E3 aidlc-turbo   comp=8.780  spread=0.28  A=8.8 B=8.63 C=8.91
+  E4 inferno-full  comp=7.934  spread=0.69  A=7.55 B=8.01 C=8.242
+  E1 turbo-b       comp=7.643  spread=0.39  A=7.46 B=7.62 C=7.85
+  E2 inferno       comp=3.073  spread=0.38  A=3.28 B=2.9 C=3.04
+
+=== POLLING — per-label (composite | spread | lens A/B/C) ===
+  P2 aidlc         comp=8.240  spread=0.41  A=8.1 B=8.11 C=8.51
+  P3 turbo-a       comp=7.627  spread=1.21  A=7.87 B=6.9 C=8.11
+  P4 aidlc-turbo   comp=7.180  spread=0.39  A=7.07 B=7.04 C=7.43
+  P1 inferno-full  comp=6.913  spread=0.45  A=7.19 B=6.74 C=6.81
+  P5 turbo-b       comp=4.770  spread=1.39  A=3.94 B=5.04 C=5.33
+
+=== TRACKING — per-label (composite | spread | lens A/B/C) ===
+  T1 aidlc-turbo   comp=9.293  spread=0.15  A=9.246 B=9.24 C=9.392
+  T2 turbo-a       comp=9.157  spread=0.35  A=9.052 B=9.034 C=9.386
+  T3 turbo-b       comp=8.574  spread=0.52  A=8.752 B=8.234 C=8.736
+  T5 aidlc         comp=8.173  spread=0.57  A=8.308 B=7.822 C=8.39
+  T4 inferno-full  comp=6.873  spread=0.62  A=6.54 B=6.92 C=7.16
+
+=== ENGINE — per-dimension panel means ===
+  label arm            corr  cave  fide  robu  test  idio  main  arch
+  E6 turbo-a         9.1   9.0   9.2   8.9   9.1   8.8   8.6   8.8
+  E5 aidlc           8.9   8.8   9.2   8.7   9.2   8.7   8.7   8.7
+  E3 aidlc-turbo     8.8   8.7   9.1   8.6   9.1   8.6   8.6   8.6
+  E4 inferno-full    7.6   7.5   7.5   8.0   8.4   8.5   8.5   8.1
+  E1 turbo-b         7.7   6.7   6.8   7.5   8.0   8.5   8.5   8.5
+  E2 inferno         2.0   1.2   1.5   3.2   2.8   5.8   6.0   5.2
+
+=== POLLING — per-dimension panel means ===
+  label arm            corr  cave  fide  robu  test  idio  main  arch
+  P2 aidlc           8.7   7.3   8.3   8.0   8.5   8.3   8.3   8.7
+  P3 turbo-a         7.8   6.8   8.2   6.8   8.2   7.0   8.0   8.5
+  P4 aidlc-turbo     7.5   5.8   7.0   6.2   7.3   8.0   8.2   8.5
+  P1 inferno-full    5.3   7.2   5.7   6.7   7.7   8.0   8.0   8.7
+  P5 turbo-b         4.3   3.8   4.0   4.0   5.5   6.8   7.0   3.7
+
+=== TRACKING — per-dimension panel means ===
+  label arm            corr  cave  fide  robu  test  idio  main  arch
+  T1 aidlc-turbo     9.4   9.5   9.5   9.3   9.1   9.2   9.1   8.9
+  T2 turbo-a         9.2   9.4   9.2   9.1   8.8   9.1   9.1   9.3
+  T3 turbo-b         8.6   8.2   8.1   8.9   8.8   8.6   8.7   9.1
+  T5 aidlc           8.1   7.2   7.5   8.3   9.2   8.5   8.6   8.6
+  T4 inferno-full    6.7   5.7   5.9   7.6   7.7   7.3   7.8   7.2
+
+=== PER-ARM OVERALL (mean of unit composites) ===
+  turbo-a       overall=8.584   (engine=8.97 polling=7.63 tracking=9.16)
+  aidlc         overall=8.434   (engine=8.89 polling=8.24 tracking=8.17)
+  aidlc-turbo   overall=8.418   (engine=8.78 polling=7.18 tracking=9.29)
+  inferno-full  overall=7.240   (engine=7.93 polling=6.91 tracking=6.87)
+  turbo-b       overall=6.996   (engine=7.64 polling=4.77 tracking=8.57)
+  inferno       overall=3.073   (engine=3.07)
