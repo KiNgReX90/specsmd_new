@@ -1,7 +1,7 @@
 ---
 name: work-item-decompose
 description: Break an intent into discrete, executable, work items with context pointers, ownership, complexity assessment, and dependency validation.
-version: 1.0.0
+version: 1.1.0
 ---
 
 <objective>
@@ -26,6 +26,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <mandate>All work except docs-only and config-only MUST include context.tests</mandate>
   <mandate>Record ownership and dependencies truthfully; never misreport them to manufacture parallelism</mandate>
   <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple builders run at once</mandate>
+  <mandate>Work-item count ≈ the number of cold builder dispatches the work deserves: a strictly serial chain of small same-compile-tree items is an anti-pattern — merge adjacent steps until each item earns its dispatch; split only for parallelism or genuine size</mandate>
 </llm>
 
 <team_manifest_contract>
@@ -73,7 +74,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
       - Prefer vertical slices over horizontal layers
       - Start with foundation pieces when later work depends on them
       - End with integration pieces such as API, UI, or workflow wiring
-      - Keep each item focused on ONE concern
+      - Keep each item focused on ONE concern — but ONE concern is a ceiling, not a target: each work item costs one cold builder dispatch (~100k tokens). When small single-concern steps would form a strictly serial chain on one compile tree, merge adjacent steps into one item; split only for parallelism or genuine size
       - Prefer slice boundaries that avoid shared editable files so items can run in parallel; allow overlap only when the work genuinely shares a file
     </guidelines>
   </step>
@@ -122,6 +123,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <step n="5" title="Define Manifest">
     <action>For each work item, assign kind, depends_on, context, and ownership</action>
     <substep>Use exact file or directory paths wherever the codebase reveals them</substep>
+    <substep>Keep each `reason:` free of colon-space (`: `) — it lands in the work-item YAML manifest, where one unquoted `: ` breaks parsing; rephrase (em-dash) or double-quote the reason</substep>
     <substep>Use narrow, factual reasons for each context pointer</substep>
     <substep>Keep context pointers compact so builders can read only what they need first</substep>
     <substep>Do not emit placeholder paths such as `path/to/file` in saved artifacts</substep>
@@ -211,7 +213,11 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
         `state.yaml`. In APPEND mode, MERGE the new items into the target
         intent's existing `work_items` list (and keep any intent-level
         `depends_on` the cross-checks added) — never overwrite the existing
-        items.
+        items. Double-quote any `title:` containing a colon-space (`: `),
+        a space-hash (` #`), or a leading YAML indicator char — one unquoted `: `
+        makes the parser fail the entire file and silently blanks the INFERNO
+        panel (every intent vanishes, no error). Prefer an em-dash `—` over a
+        colon in titles.
       </substep>
       <substep n="8.6" title="Fallback (host without subagents)">
         On a host without subagents, skip the dispatch: render each item from the

@@ -114,6 +114,7 @@ Capture user intent through guided conversation.
 
   <step n="5" title="Update State">
     <action>Add intent to state.yaml</action>
+    <action critical="true">Double-quote the `title:` (and any string value) if it contains a colon-space (`: `), a space-hash (` #`), or starts with a YAML indicator char — one unquoted `: ` makes the parser fail the whole file and silently blanks the INFERNO panel. Prefer an em-dash `—` over a colon in titles.</action>
     <action>Set intent status to "pending" (the orchestrator claims it and sets "in_progress" at selection)</action>
     <action>If step 3b produced a `depend` outcome, add `depends_on: [<prereq-intent-id>, ...]` to this intent's state.yaml entry. Omit the field for `independent` intents. (Integrate outcomes never reach this step — they wrote into an existing intent.)</action>
   </step>
