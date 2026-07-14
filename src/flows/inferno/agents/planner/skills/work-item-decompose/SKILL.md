@@ -1,7 +1,7 @@
 ---
 name: work-item-decompose
 description: Break an intent into discrete, executable, work items with context pointers, ownership, complexity assessment, and dependency validation.
-version: 1.1.0
+version: 1.2.0
 ---
 
 <objective>
@@ -150,6 +150,12 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     <action>Now that ownership is known, cross-check it against the OTHER open intents. Read `.specs-inferno/state.yaml` plus the `ownership.editable` of every non-completed intent's work items (`.specs-inferno/intents/{other-id}/work-items/*.md`).</action>
     <action>If any of THIS intent's `ownership.editable` paths collide with a `pending` intent's work-item ownership AND this intent is not already integrated into or dependent on it, you have a cross-intent file collision: two intents that edit the same files cannot safely build in arbitrary order across separate worktrees. Record an intent-level dependency — add `depends_on: [<that-intent-id>]` to THIS intent's state.yaml entry and brief — so the orchestrator serializes them. Under `autonomy.level: review` surface the collision and the added dependency; under `full` apply it and note it.</action>
     <action>Never point the dependency at a `completed` intent and never create a cycle. A genuine same-file integration may instead warrant folding the two intents together — surface that option under `review`.</action>
+  </step>
+
+  <step n="6c" title="Intent-Worthiness Backstop">
+    <check if="the final plan is EXACTLY ONE work item of LOW complexity with depends_on: [], the intent has no intent-level depends_on, and nothing requires a live app or user sign-off to verify">
+      <action>This intent fell below the intent-worthiness bar (intent-capture step 3c should have caught it — it may predate the gate or have arrived via another path). Recommend demotion in the plan presentation: move the grounded spec to `.specs-inferno/quick-fixes.md` and drop the intent, versus keeping it for a scheduled hands-off build. Under `review`, offer the choice; under `full`, keep the intent (never silently delete a captured intent) but state the recommendation in the handoff summary.</action>
+    </check>
   </step>
 
   <step n="7" title="Present Plan">
