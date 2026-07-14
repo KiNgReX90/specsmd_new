@@ -34,6 +34,13 @@ const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 // Accept it as terminal on read so this script is usable there; always WRITE `completed`.
 const COMPLETE_VALUES = new Set(['completed', 'done']);
 
+// Statuses are three-way, not two-way. A ledger in the wild also carries deliberately
+// PARKED entries — `superseded` (replaced by another approach), `on_hold`, `blocked`,
+// `awaiting-manual` (code done, a human step remains). Those are neither complete nor
+// active work: reporting them as drift is a false positive, and since finalize blocks on a
+// non-zero `check`, that noise would stall closes. Only `pending`/`in_progress` are OPEN.
+const PARKED_VALUES = new Set(['superseded', 'on_hold', 'blocked', 'awaiting-manual', 'cancelled', 'abandoned']);
+
 class TransitionError extends Error {
   constructor(message, code) {
     super(message);
@@ -198,6 +205,11 @@ function isComplete(status) {
   return COMPLETE_VALUES.has(status);
 }
 
+/** Active, unfinished work — the only thing `check` may call drift. */
+function isOpen(status) {
+  return !isComplete(status) && !PARKED_VALUES.has(status);
+}
+
 // ---------------------------------------------------------------------------
 // Mutation
 // ---------------------------------------------------------------------------
@@ -348,18 +360,20 @@ function check(options) {
     const items = locateWorkItems(lines, intent).map((item) => ({ id: item.id, status: statusOf(lines, item) }));
     if (items.length === 0) continue;
 
-    const open = items.filter((item) => !isComplete(item.status));
+    const open = items.filter((item) => isOpen(item.status));
 
     if (isComplete(intentStatus) && open.length > 0) {
       drift.push({
         intent: intent.id,
         kind: 'intent-completed-over-open-items',
-        detail: `intent is ${intentStatus} but ${open.length}/${items.length} work items are not: ` +
-          open.map((item) => item.id).join(', '),
+        detail: `intent is ${intentStatus} but ${open.length}/${items.length} work items are still open: ` +
+          open.map((item) => `${item.id} (${item.status || 'no status'})`).join(', '),
       });
     }
 
-    if (!isComplete(intentStatus) && open.length === 0) {
+    // A parked intent (superseded, on_hold, awaiting-manual) is a deliberate resting
+    // place, not a missed close — only genuinely open intents can drift this way.
+    if (isOpen(intentStatus) && open.length === 0) {
       drift.push({
         intent: intent.id,
         kind: 'all-items-completed-intent-open',

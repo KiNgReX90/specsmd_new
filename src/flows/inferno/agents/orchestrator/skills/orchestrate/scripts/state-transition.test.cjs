@@ -231,13 +231,98 @@ test("check flags an intent closed over still-open items", () => {
 
   assert.equal(result.drift.length, 1);
   assert.equal(result.drift[0].kind, "intent-completed-over-open-items");
-  assert.match(result.drift[0].detail, /menu-shell, menu-wiring/);
+  assert.match(result.drift[0].detail, /menu-shell \(pending\), menu-wiring \(pending\)/);
 });
 
 test("check is silent on a consistent ledger", () => {
   const { file } = sandbox();
   const result = check({ file, intent: "already-shipped" });
   assert.deepEqual(result.drift, []);
+});
+
+// A ledger holds more than pending/completed. Real projects carry deliberately parked
+// states (superseded, on_hold, awaiting-manual). Reporting those as drift is a false
+// positive, and finalize step 1b blocks on a non-zero check — so noise here stalls closes.
+
+test("check does not flag a superseded intent whose items are all completed", () => {
+  const { file } = sandbox(`intents:
+  - id: dropped
+    title: "Replaced by another approach"
+    status: superseded
+    work_items:
+      - id: item-1
+        title: "Item"
+        status: completed
+        depends_on: []
+`);
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check does not flag a parked intent that is deliberately open", () => {
+  for (const parked of ["on_hold", "awaiting-manual"]) {
+    const { file } = sandbox(`intents:
+  - id: parked
+    title: "Parked"
+    status: ${parked}
+    work_items:
+      - id: item-1
+        title: "Item"
+        status: completed
+        depends_on: []
+`);
+    assert.deepEqual(check({ file }).drift, [], `${parked} must not read as drift`);
+  }
+});
+
+test("check does not flag a completed intent whose remaining item is parked", () => {
+  const { file } = sandbox(`intents:
+  - id: shipped
+    title: "Shipped, one item parked for a human"
+    status: completed
+    work_items:
+      - id: item-1
+        title: "Built"
+        status: completed
+        depends_on: []
+      - id: item-2
+        title: "Manual ops step"
+        status: on_hold
+        depends_on: []
+`);
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check still flags a genuinely open intent whose items are all done", () => {
+  const { file } = sandbox(`intents:
+  - id: stuck
+    title: "The reported bug"
+    status: in_progress
+    work_items:
+      - id: item-1
+        title: "Item"
+        status: completed
+        depends_on: []
+`);
+  const result = check({ file });
+  assert.equal(result.drift.length, 1);
+  assert.equal(result.drift[0].kind, "all-items-completed-intent-open");
+});
+
+test("close-intent still refuses over a parked item", () => {
+  const { file } = sandbox(`intents:
+  - id: parked-item
+    title: "Has a parked item"
+    status: in_progress
+    work_items:
+      - id: item-1
+        title: "Parked"
+        status: on_hold
+        depends_on: []
+`);
+  assert.throws(
+    () => closeIntent({ file, intent: "parked-item", now: NOW }),
+    (error) => error.code === "ITEMS_OUTSTANDING" && /item-1 \(on_hold\)/.test(error.message)
+  );
 });
 
 // --- vocabulary / shape tolerance ---------------------------------------
