@@ -1,7 +1,7 @@
 ---
 name: intent-capture
 description: Capture user intent through guided conversation. Exploratory phase with high degrees of freedom.
-version: 1.0.0
+version: 1.1.0
 ---
 
 <objective>
@@ -101,8 +101,28 @@ Capture user intent through guided conversation.
     </integrate_outcome>
 
     <depend_outcome>
-      Continue to step 4, then in step 5 record the dependency: set the new intent's `depends_on: [<prereq-intent-id>, ...]` on its state.yaml entry AND in its brief front-matter. List ONLY open intents this one truly must follow. Never point `depends_on` at a `completed` intent (already satisfied) and never form a cycle (an open intent already pointing back at this one).
+      Continue to step 4, then in step 5 record the dependency: set the new intent's `depends_on_intents: [<prereq-intent-id>, ...]` on its state.yaml entry AND in its brief front-matter. List ONLY open intents this one truly must follow. Never point `depends_on_intents` at a `completed` intent (already satisfied) and never form a cycle (an open intent already pointing back at this one).
     </depend_outcome>
+  </step>
+
+  <step n="3c" title="Intent-Worthiness Gate (size / risk / dependency)" critical="true">
+    <objective>Not every request earns an intent. An intent costs the full INFERNO machinery: a brief, work items, a claimed worktree, and at least one COLD builder dispatch (~100k tokens, near-independent of item size). A fix too small to earn that gets routed to the quick-fix lane instead of being force-fitted into the flow.</objective>
+
+    <action>Estimate the decomposition footprint of the (possibly integrated) scope BEFORE writing anything: how many work items would it yield, at what complexity (the work-item-decompose low/medium/high scale)?</action>
+
+    <not_intent_worthy>The request is NOT intent-worthy when ALL of these hold:
+      - it would decompose to a SINGLE work item of LOW complexity (single file / few files, well-understood pattern);
+      - step 3b classified it `independent`: no intent-level dependency and no file shared with any open intent;
+      - no elevated risk: no architectural / security / data implications, no risky merge surface, no verification that needs a live app or user sign-off;
+      - the capturing session already understands the fix well enough to write the exact change spec (no open design questions).
+      ANY factor failing means it IS intent-worthy; proceed to step 4. In particular, a tiny fix that must serialize behind an open intent (shared file) IS intent-worthy: that dependency bookkeeping is exactly what the intent buys.
+    </not_intent_worthy>
+
+    <grouping_rule>When one capture brings SEVERAL items (a fix list, a notes doc): COUPLING decides grouping, SIZE decides worthiness. Items touching the same surface/files are one body of work; group them into one intent (which usually clears the size bar). Items with disjoint surfaces face this gate individually. NEVER bundle unrelated small items into a catch-all intent just to clear the bar: that widens ownership across unrelated files, blocks parallel builds, and muddies finalize.</grouping_rule>
+
+    <quick_fix_outcome>For a not-intent-worthy item, skip steps 4-6 for it. Append it to `.specs-inferno/quick-fixes.md` (create the file with a `# Quick fixes` header if absent): one `## {kebab-title}` section carrying the date, the grounded change spec (what + exact files + acceptance + how to verify), and status `open`. Tell the user it is parked there to be built directly in any interactive session, which is materially cheaper than a builder dispatch, and that saying "make it an intent" overrides the gate. Whoever builds a quick fix marks its section `done` with the commit hash.</quick_fix_outcome>
+
+    <action>Act per `autonomy.level` (same source as step 3b): `review` pauses once with the recommendation (quick-fix vs intent, with the factor readout); `full` applies the gate and notes the decision in the quick-fixes entry. The user explicitly asking for an intent ALWAYS overrides the gate.</action>
   </step>
 
   <step n="4" title="Generate Intent Brief">
@@ -116,7 +136,7 @@ Capture user intent through guided conversation.
     <action>Add intent to state.yaml</action>
     <action critical="true">Double-quote the `title:` (and any string value) if it contains a colon-space (`: `), a space-hash (` #`), or starts with a YAML indicator char — one unquoted `: ` makes the parser fail the whole file and silently blanks the INFERNO panel. Prefer an em-dash `—` over a colon in titles.</action>
     <action>Set intent status to "pending" (the orchestrator claims it and sets "in_progress" at selection)</action>
-    <action>If step 3b produced a `depend` outcome, add `depends_on: [<prereq-intent-id>, ...]` to this intent's state.yaml entry. Omit the field for `independent` intents. (Integrate outcomes never reach this step — they wrote into an existing intent.)</action>
+    <action>If step 3b produced a `depend` outcome, add `depends_on_intents: [<prereq-intent-id>, ...]` to this intent's state.yaml entry. Omit the field for `independent` intents. (Integrate outcomes never reach this step — they wrote into an existing intent.)</action>
   </step>
 
   <step n="6" title="Transition">
@@ -149,5 +169,6 @@ Capture user intent through guided conversation.
   <criterion>Intent brief saved to correct location</criterion>
   <criterion>State.yaml updated with new intent</criterion>
   <criterion>New intent reconciled against all open (non-completed) intents: integrated, made to depend on, or confirmed independent — never added blind</criterion>
-  <criterion>Any intent-level `depends_on` recorded in both state.yaml and the brief, points only at non-completed intents, and forms no cycle</criterion>
+  <criterion>Intent-worthiness gate applied: single low-complexity independent low-risk fixes routed to `.specs-inferno/quick-fixes.md`, not captured as intents; unrelated small items never bundled into a catch-all intent</criterion>
+  <criterion>Any intent-level `depends_on_intents` recorded in both state.yaml and the brief, points only at non-completed intents, and forms no cycle</criterion>
 </success_criteria>

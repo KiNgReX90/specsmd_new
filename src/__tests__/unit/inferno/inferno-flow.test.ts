@@ -15,7 +15,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
+import { builtinModules } from 'module';
 import path from 'path';
+
+const isBuiltin = (id: string) => builtinModules.includes(id);
 
 // src/ is the package root that vitest runs from.
 const ROOT = path.resolve(__dirname, '../../..');
@@ -61,10 +64,26 @@ describe('inferno flow', () => {
 
   it.each([
     'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs',
+    'agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs',
     'agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs',
   ])('flow script suite %s passes', (rel) => {
     // throws (and fails the test) on non-zero exit
     execFileSync(process.execPath, [path.join(INFERNO, rel)], { stdio: 'pipe' });
+  });
+
+  // The flow's scripts execute inside consumer projects (Rust apps, static sites) that have
+  // no node_modules, so a single `require('yaml')` would make the script throw at the exact
+  // moment it is meant to save the ledger. Node builtins only.
+  it.each([
+    'agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs',
+    'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.cjs',
+  ])('%s requires nothing outside the Node stdlib', (rel) => {
+    const source = readFileSync(path.join(INFERNO, rel), 'utf8');
+    const required = [...source.matchAll(/\brequire\(['"]([^'"]+)['"]\)/g)].map((m) => m[1]);
+    const external = required.filter(
+      (id) => !id.startsWith('.') && !isBuiltin(id.replace(/^node:/, ''))
+    );
+    expect(external).toEqual([]);
   });
 
   it('inferno tree never references the FIRE artifact namespace', () => {
