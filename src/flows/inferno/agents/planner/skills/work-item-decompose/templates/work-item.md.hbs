@@ -45,6 +45,13 @@ ownership:
 {{#each ownership.editable}}
     - {{this}}
 {{/each}}
+{{#if design_contract}}
+design_contract:
+{{#each design_contract}}
+    - path: {{this.path}}
+      reason: {{this.reason}}
+{{/each}}
+{{/if}}
 {{#if finalize_check}}
 
 # One-line shell invariant the ORCHESTRATOR runs at finalize (not a subagent).

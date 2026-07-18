@@ -27,6 +27,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <mandate>Record ownership and dependencies truthfully; never misreport them to manufacture parallelism</mandate>
   <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple builders run at once</mandate>
   <mandate>Work-item count ≈ the number of cold builder dispatches the work deserves: a strictly serial chain of small same-compile-tree items is an anti-pattern — merge adjacent steps until each item earns its dispatch; split only for parallelism or genuine size</mandate>
+  <mandate>When the intent carries a design source (a mockup, comp, design spec, or token/style reference the UI must reproduce), every affected UI item MUST cite that source in context.required AND list it under design_contract, and carry a fidelity acceptance criterion that implemented values match the source exactly and any deviation is a defect, not an interpretation</mandate>
 </llm>
 
 <team_manifest_contract>
@@ -48,6 +49,9 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   ownership:
     editable:
       - path/to/file-or-directory
+  design_contract:            # optional; only for items that reproduce a design source
+    - path: path/to/mockup-or-spec
+      reason: authoritative design; match values exactly
   ```
 
   <rule>`context.required` is the minimal starting context. Point to paths; do not paste file bodies.</rule>
@@ -55,6 +59,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <rule>`context.tests` is required unless `kind` is `docs-only` or `config-only`.</rule>
   <rule>`ownership.editable` describes the expected edit surface. It may overlap with other work items.</rule>
   <rule>Use `depends_on: []` when a work item has no dependencies.</rule>
+  <rule>`design_contract` is OPTIONAL: include it only for a UI item that must reproduce a design source (a mockup, comp, design spec, or token/style reference). Every `design_contract` path MUST also appear in `context.required`. Omit the field entirely for non-visual items.</rule>
 </team_manifest_contract>
 
 <flow>
@@ -118,6 +123,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     <substep>What must be true when complete</substep>
     <substep>How to verify it works</substep>
     <substep>Any edge cases to handle</substep>
+    <substep>For an item with a `design_contract`, a fidelity criterion: the cited design source is the specification, and every implemented value (spacing, sizing, color, type, iconography, states, motion, copy) matches it exactly; any deviation is a defect, not an interpretation</substep>
   </step>
 
   <step n="5" title="Define Manifest">
@@ -260,6 +266,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <criterion>Ownership cross-checked against other open intents; cross-intent file collisions resolved by an intent-level `depends_on` (or folding), never left to race</criterion>
   <criterion>In APPEND mode, new items merged into the existing intent without overwriting its current work items</criterion>
   <criterion>Every work item has context and ownership fields</criterion>
+  <criterion>Items that reproduce a design source carry a `design_contract` (also cited in context.required) plus a fidelity acceptance criterion; non-visual items omit it</criterion>
   <criterion>Ownership is accurate; slices are designed for parallel execution (disjoint ownership preferred) without misreporting</criterion>
   <criterion>Work items saved to correct locations</criterion>
   <criterion>All decomposition reasoning done by the planner; file writing fanned out to parallel `specsmd-inferno-writer` scribes (one file per work item) on the `models.writer` tier, with a sequential fallback where subagents are unavailable</criterion>
