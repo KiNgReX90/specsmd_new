@@ -1,0 +1,20 @@
+# Literals the pre-commit guard is allowed to see. One per line, exact substring:
+# a matching line is skipped entirely. Only put obviously-fake or genuinely public
+# values here. If you are tempted to add a real IBAN, BSN or token, the answer is
+# off-repo storage instead.
+#
+# The hook script is shared across the Skoft repos; this allowlist is per-repo and
+# is expected to differ (each repo has its own test fixtures).
+
+# Fake IBANs used as test fixtures
+NL00TEST0123456789
+NL91ABNA0417164300
+
+# Fake BSN used in the eboekhouden-bridge config test (all-nines, passes 11-proef)
+999999990
+
+# Public by design: appears on every outgoing invoice and in billing forms
+NL005493851B97
+
+# Fake Stripe restricted key in the bridge config test
+rk_live_placeholder

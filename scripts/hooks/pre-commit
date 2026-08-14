@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Blocks personal, financial and secret material from entering git history.
+#
+# Why this exists: on 2026-07-28 the zakelijke IBAN and the OB-nummer (which
+# embeds the owner's BSN) turned out to be committed across two repos. Cleaning
+# that up needed a filter-repo rewrite plus force-pushes, and one commit survived
+# in a GitHub pull-request ref that cannot be deleted at all. Prevention is the
+# only real fix.
+#
+# Canonical copy: Skoft_Administration/scripts/hooks/pre-commit
+# Keep the copies in Skoft_Files and skoft-website identical.
+#
+# Usage:
+#   installed as a hook   -> checks every staged text file before each commit
+#   ./scripts/hooks/pre-commit --scan-tree  -> checks every tracked file
+#
+# Escape hatches, in order of preference:
+#   1. move the value off-repo (~/.skoft-administratie/config.yaml) and reference it
+#   2. add a known-fake literal to scripts/hooks/allowed-strings.txt
+#   3. git commit --no-verify   (last resort, you are on your own)
+
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+ALLOW_FILE="$ROOT/scripts/hooks/allowed-strings.txt"
+CONFIG="${SKOFT_CONFIG:-$HOME/.skoft-administratie/config.yaml}"
+MODE="${1:-staged}"
+
+# ---------------------------------------------------------------- rules (regex)
+# Deliberately no real values in this file: the exact numbers come from the
+# off-repo config at runtime, so this script is safe to commit and to publish.
+declare -a RULE_NAME=() RULE_RE=()
+add_rule() { RULE_NAME+=("$1"); RULE_RE+=("$2"); }
+
+add_rule "NL IBAN"            '\bNL[0-9]{2}[A-Z]{4}[0-9]{10}\b'
+add_rule "NL IBAN (spaced)"   '\bNL[0-9]{2} ?[A-Z]{4}( ?[0-9]{4}){2} ?[0-9]{2}\b'
+# OB-nummer = BSN + B0x. The (?<!NL) keeps the BTW-ID (NL………B01) out of it:
+# a BTW-ID is public and belongs on every invoice, an OB-nummer never does.
+add_rule "OB-nummer (BSN)"    '(?<!NL)(?<![0-9A-Za-z])[0-9]{9}B[0-9]{2}\b'
+add_rule "Stripe live key"    '\b(sk|rk)_live_[A-Za-z0-9]{10,}'
+add_rule "Stripe webhook sec" '\bwhsec_[A-Za-z0-9]{10,}'
+add_rule "GitHub token"       '\b(ghp|gho|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}'
+add_rule "Meta access token"  '\bEAA[A-Za-z0-9]{40,}'
+add_rule "Slack token"        '\bxox[baprs]-[A-Za-z0-9-]{10,}'
+add_rule "Google API key"     '\bAIza[A-Za-z0-9_-]{30,}'
+add_rule "Private key block"  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+# ------------------------------------------------- literals from the off-repo config
+# Every sensitive value Ruben actually holds (IBAN, BSN, OB-nummer, API GUIDs,
+# tokens) lives in ~/.skoft-administratie/config.yaml. Grep for those verbatim so
+# new values are covered the day they are added, without ever listing them here.
+declare -a LITERALS=()
+if [ -r "$CONFIG" ]; then
+  while IFS= read -r v; do
+    [ ${#v} -ge 8 ] && LITERALS+=("$v")
+  done < <(
+    grep -aiE '^[[:space:]]*[a-z_]*(iban|bsn|ob_nummer|guid|token|secret|api_key|password)[a-z_]*:' "$CONFIG" 2>/dev/null |
+    sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^["'"'"']//; s/["'"'"']$//' |
+    grep -avE '^(true|false|null|~|)$'
+  )
+fi
+
+# ------------------------------------------------------------------- allowlist
+allowed() { # $1 = matched line; true when a known-fake literal explains it
+  [ -r "$ALLOW_FILE" ] || return 1
+  grep -avE '^[[:space:]]*(#|$)' "$ALLOW_FILE" | while IFS= read -r ok; do
+    case "$1" in *"$ok"*) echo hit; break;; esac
+  done | grep -q hit
+}
+
+# --------------------------------------------------------------- what to check
+if [ "$MODE" = "--scan-tree" ]; then
+  mapfile -t FILES < <(git ls-files)
+  content() { cat "$ROOT/$1" 2>/dev/null; }
+else
+  mapfile -t FILES < <(git diff --cached --name-only --diff-filter=ACMR)
+  content() { git show ":$1" 2>/dev/null; }
+fi
+[ ${#FILES[@]} -eq 0 ] && exit 0
+
+# one combined pattern so each file is grepped once; the per-rule loop only runs
+# on files that already matched, which keeps a full-tree scan usable
+COMBINED="$(IFS='|'; printf '%s' "${RULE_RE[*]}")"
+LIT_FILE=""
+if [ ${#LITERALS[@]} -gt 0 ]; then
+  LIT_FILE="$(mktemp)"; trap 'rm -f "$LIT_FILE"' EXIT
+  printf '%s\n' "${LITERALS[@]}" > "$LIT_FILE"
+fi
+
+FAILED=0
+report() { # file, line-no, rule, line
+  FAILED=1
+  printf '  %s:%s  [%s]\n' "$1" "$2" "$3"
+  printf '      %.100s\n' "$(printf '%s' "$4" | sed -E 's/^[[:space:]]+//')"
+}
+
+for f in "${FILES[@]}"; do
+  # skip the guard's own definitions; grep -I skips anything binary
+  case "$f" in scripts/hooks/pre-commit|scripts/hooks/allowed-strings.txt) continue;; esac
+
+  while IFS=: read -r n line; do
+    [ -z "${n:-}" ] && continue
+    allowed "$line" && continue
+    rule="pattern"
+    for i in "${!RULE_RE[@]}"; do
+      if printf '%s' "$line" | grep -qIP -e "${RULE_RE[$i]}" 2>/dev/null; then
+        rule="${RULE_NAME[$i]}"; break
+      fi
+    done
+    report "$f" "$n" "$rule" "$line"
+  done < <(content "$f" | grep -InP -e "$COMBINED" 2>/dev/null)
+
+  [ -n "$LIT_FILE" ] || continue
+  while IFS=: read -r n line; do
+    [ -z "${n:-}" ] && continue
+    report "$f" "$n" "value from ~/.skoft-administratie/config.yaml" "$line"
+  done < <(content "$f" | grep -InFf "$LIT_FILE" 2>/dev/null)
+done
+
+if [ "$FAILED" -eq 1 ]; then
+  cat >&2 <<'MSG'
+
+COMMIT BLOCKED: personal or secret material found (see above).
+
+  IBAN, pasnummer, BSN and the BSN-based OB-nummer never belong in a repo,
+  private or not. Neither do live API keys or tokens.
+
+  Fix it:
+    - keep the value in ~/.skoft-administratie/config.yaml and read it at runtime
+    - in docs, write [IBAN-REDACTED] / [OB-NUMMER-REDACTED] instead
+    - fake fixtures: add the literal to scripts/hooks/allowed-strings.txt
+    - KVK and BTW-ID are fine, they are on every outgoing invoice
+
+  Once it is committed, removing it costs a history rewrite plus force-push,
+  and GitHub pull-request refs keep a copy that cannot be deleted at all.
+
+MSG
+  exit 1
+fi
+
+# --------------------------------------------------------- repository prose guard
+# A second, independent check: no em dash and no en dash on added lines. It is
+# delegated to a repo-local script because the allowlist of verbatim primary
+# sources differs per repo, and it is skipped when a repo ships no such script,
+# which is what keeps this hook byte-identical across every repo that copies it.
+# Staged mode only: a whole-tree scan would fail on legacy prose nobody in this
+# commit wrote, and the rule is about what we write from now on.
+if [ "$MODE" != "--scan-tree" ] &&
+   [ -f "$ROOT/scripts/dash-lint.mjs" ] &&
+   command -v node >/dev/null 2>&1; then
+  node "$ROOT/scripts/dash-lint.mjs" --staged >/dev/null || exit 1
+fi
+
+exit 0
