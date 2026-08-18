@@ -23,6 +23,12 @@
  *   close-intent  --intent <id>               close the intent; refuses unless every work
  *                                             item is already completed
  *   check [--intent <id>]                     report ledger drift; exit 1 if any found
+ *
+ * `check` also enforces the planner's intent-worthiness gate: a PENDING intent with exactly
+ * one work item is a quick fix that got captured as an intent, unless the entry says why in
+ * `single_item_reason:` (the user asked for an intent, or a named open design question).
+ * The gate lived in prose for a month and leaked through self-graded complexity and
+ * dependency exemptions; the ledger is where the reason has to be written down.
  */
 
 const fs = require('fs');
@@ -205,6 +211,14 @@ function isComplete(status) {
   return COMPLETE_VALUES.has(status);
 }
 
+/** A non-empty `single_item_reason:` on the intent entry lifts a one-item intent past the gate. */
+function hasSingleItemReason(lines, intent) {
+  const idx = findKeyLine(lines, intent.start, intent.end, intent.keyIndent, 'single_item_reason');
+  if (idx === -1) return false;
+  const value = unquote(stripInlineComment(lines[idx].slice(intent.keyIndent + 'single_item_reason:'.length)));
+  return value.length > 0;
+}
+
 /** Active, unfinished work — the only thing `check` may call drift. */
 function isOpen(status) {
   return !isComplete(status) && !PARKED_VALUES.has(status);
@@ -381,6 +395,20 @@ function check(options) {
           `Close it with: close-intent --intent ${intent.id}`,
       });
     }
+
+    // One work item is a quick fix, not an intent (planner intent-capture step 3c). Only a
+    // PENDING intent is judged: once claimed, the run is under way and blocking its finalize
+    // would punish the wrong moment. The reason field is the whole point: it forces the
+    // planner to write, in the ledger, what the machinery buys this one item.
+    if (intentStatus === 'pending' && items.length === 1 && !hasSingleItemReason(lines, intent)) {
+      drift.push({
+        intent: intent.id,
+        kind: 'one-item-intent-without-reason',
+        detail: `pending intent has exactly one work item (${items[0].id}) and no single_item_reason. ` +
+          'One item is a quick fix: move the spec to .specs-inferno/quick-fixes.md and drop the intent, ' +
+          'or add single_item_reason: "..." (user asked for an intent, or the open design question).',
+      });
+    }
   }
   return { drift, intents: scope.length };
 }
@@ -401,7 +429,8 @@ Options
   --json          machine-readable output
 
 close-intent refuses while any work item is still open; complete each item first.
-check exits 1 when the ledger drifts from its work items.`;
+check exits 1 when the ledger drifts from its work items, or when a pending intent has one
+work item and no single_item_reason (one item is a quick fix, not an intent).`;
 
 function parseArgs(argv) {
   const options = { file: DEFAULT_STATE_PATH };

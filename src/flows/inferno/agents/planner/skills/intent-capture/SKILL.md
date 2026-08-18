@@ -105,24 +105,25 @@ Capture user intent through guided conversation.
     </depend_outcome>
   </step>
 
-  <step n="3c" title="Intent-Worthiness Gate (size / risk / dependency)" critical="true">
-    <objective>Not every request earns an intent. An intent costs the full INFERNO machinery: a brief, work items, a claimed worktree, and at least one COLD builder dispatch (~100k tokens, near-independent of item size). A fix too small to earn that gets routed to the quick-fix lane instead of being force-fitted into the flow.</objective>
+  <step n="3c" title="Intent-Worthiness Gate (one item is a quick fix)" critical="true">
+    <objective>Not every request earns an intent. An intent costs the full INFERNO machinery: a brief, work items, a claimed worktree, a claim commit, a merge, and at least one COLD builder dispatch (~100k tokens, near-independent of item size). The machinery buys exactly two things: parallel builders, and ownership bookkeeping across sessions. Work that would use neither is built inline from a written spec, and this gate routes it there. The burden of proof sits on the intent: you write why the work needs the machinery, never why it may skip the quick-fix lane.</objective>
 
     <action>Estimate the decomposition footprint of the (possibly integrated) scope BEFORE writing anything: how many work items would it yield, at what complexity (the work-item-decompose low/medium/high scale)?</action>
 
-    <not_intent_worthy>The request is NOT intent-worthy when ALL of these hold:
-      - it would decompose to a SINGLE work item of LOW complexity (single file / few files, well-understood pattern);
-      - step 3b classified it `independent`: no intent-level dependency and no file shared with any open intent;
-      - no elevated risk: no architectural / security / data implications, no risky merge surface, no verification that needs a live app or user sign-off;
-      - the capturing session already understands the fix well enough to write the exact change spec (no open design questions).
-      ANY factor failing means it IS intent-worthy; proceed to step 4. In particular, a tiny fix that must serialize behind an open intent (shared file) IS intent-worthy: that dependency bookkeeping is exactly what the intent buys.
-    </not_intent_worthy>
+    <rule critical="true">ONE work item is a quick fix. An intent needs at least TWO work items. Exactly two things lift a single item into an intent, and each is written into the state.yaml entry as `single_item_reason: "..."` so the ledger shows it: the user explicitly asked for an intent, or the item carries a genuine open design question that only a builder run can settle (name the question). Nothing else does, and in particular none of these do:
+      - a dependency on an open intent. Waiting is a line, not an intent: the quick-fix entry carries `after: <intent-id>` and whoever builds it confirms that intent is merged first;
+      - a file shared with an open intent. That is `after:` again, on the entry;
+      - verification that needs a live app or the user's eyes. An interactive session shows the running result exactly as well as a builder run does; the entry carries `verify: user looks at <what>`;
+      - the complexity label. Complexity is not self-graded past this gate: if the capturing session can already write the exact change spec (files, the change, acceptance, how to verify), the item is small by definition, whatever label it would carry as a work item. In practice nearly every one-item intent ever captured was graded `medium`; that is how the previous gate leaked.
+      `state-transition.cjs check` flags a pending intent with one work item and no `single_item_reason` as ledger drift, so a one-item intent without a written reason never survives your own post-write validation.
+    </rule>
 
-    <grouping_rule>When one capture brings SEVERAL items (a fix list, a notes doc): COUPLING decides grouping, SIZE decides worthiness. Items touching the same surface/files are one body of work; group them into one intent (which usually clears the size bar). Items with disjoint surfaces face this gate individually. NEVER bundle unrelated small items into a catch-all intent just to clear the bar: that widens ownership across unrelated files, blocks parallel builds, and muddies finalize.</grouping_rule>
+    <grouping_rule>When one capture brings SEVERAL items (a fix list, a notes doc): COUPLING decides grouping, SIZE decides worthiness. Items touching the same surface/files are one body of work; group them, and a group of two or more items is an intent. Items with disjoint surfaces face this gate individually. NEVER bundle unrelated small items into a catch-all intent just to clear the bar: that widens ownership across unrelated files, blocks parallel builds, and muddies finalize. Several unrelated smalls are several quick-fix entries.</grouping_rule>
 
-    <quick_fix_outcome>For a not-intent-worthy item, skip steps 4-6 for it. Append it to `.specs-inferno/quick-fixes.md` (create the file with a `# Quick fixes` header if absent): one `## {kebab-title}` section carrying the date, the grounded change spec (what + exact files + acceptance + how to verify), and status `open`. Tell the user it is parked there to be built directly in any interactive session, which is materially cheaper than a builder dispatch, and that saying "make it an intent" overrides the gate. Whoever builds a quick fix marks its section `done` with the commit hash.</quick_fix_outcome>
+    <quick_fix_outcome>For a not-intent-worthy item, skip steps 4-6 for it. Append it to `.specs-inferno/quick-fixes.md` (create the file with a `# Quick fixes` header if absent): one `## {kebab-title}` section carrying the date, status `open`, any `after: <intent-id>` ordering, any `verify:` the user must do, and the grounded change spec (what + exact files + acceptance + how to verify). Tell the user it is parked there to be built directly in any interactive session, which is materially cheaper than a builder dispatch, and that saying "make it an intent" overrides the gate. Whoever builds a quick fix marks its section `done` with the commit hash.</quick_fix_outcome>
 
-    <action>Act per `autonomy.level` (same source as step 3b): `review` pauses once with the recommendation (quick-fix vs intent, with the factor readout); `full` applies the gate and notes the decision in the quick-fixes entry. The user explicitly asking for an intent ALWAYS overrides the gate.</action>
+    <action>Act per `autonomy.level` (same source as step 3b): `review` pauses once with the recommendation (quick fix vs intent, with the item count and the reason); `full` applies the gate and notes the decision in the quick-fixes entry. The user explicitly asking for an intent ALWAYS overrides the gate; record it as the `single_item_reason`.</action>
+    <action>The handoff readout leads with the gate result for every captured request: item count, quick fix or intent, and for a one-item intent the `single_item_reason` verbatim.</action>
   </step>
 
   <step n="4" title="Generate Intent Brief">
@@ -169,6 +170,6 @@ Capture user intent through guided conversation.
   <criterion>Intent brief saved to correct location</criterion>
   <criterion>State.yaml updated with new intent</criterion>
   <criterion>New intent reconciled against all open (non-completed) intents: integrated, made to depend on, or confirmed independent — never added blind</criterion>
-  <criterion>Intent-worthiness gate applied: single low-complexity independent low-risk fixes routed to `.specs-inferno/quick-fixes.md`, not captured as intents; unrelated small items never bundled into a catch-all intent</criterion>
+  <criterion>Intent-worthiness gate applied: any request that decomposes to one work item is routed to `.specs-inferno/quick-fixes.md` (with `after:` ordering and `verify:` where needed), never captured as an intent unless the state.yaml entry carries a `single_item_reason`; unrelated small items never bundled into a catch-all intent</criterion>
   <criterion>Any intent-level `depends_on_intents` recorded in both state.yaml and the brief, points only at non-completed intents, and forms no cycle</criterion>
 </success_criteria>

@@ -158,9 +158,9 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     <action>Never point the dependency at a `completed` intent and never create a cycle. A genuine same-file integration may instead warrant folding the two intents together — surface that option under `review`.</action>
   </step>
 
-  <step n="6c" title="Intent-Worthiness Backstop">
-    <check if="the final plan is EXACTLY ONE work item of LOW complexity with depends_on: [], the intent has no intent-level depends_on, and nothing requires a live app or user sign-off to verify">
-      <action>This intent fell below the intent-worthiness bar (intent-capture step 3c should have caught it — it may predate the gate or have arrived via another path). Recommend demotion in the plan presentation: move the grounded spec to `.specs-inferno/quick-fixes.md` and drop the intent, versus keeping it for a scheduled hands-off build. Under `review`, offer the choice; under `full`, keep the intent (never silently delete a captured intent) but state the recommendation in the handoff summary.</action>
+  <step n="6c" title="Intent-Worthiness Backstop" critical="true">
+    <check if="the final plan is EXACTLY ONE work item and the intent's state.yaml entry carries no `single_item_reason`">
+      <action>This intent fell below the intent-worthiness bar (intent-capture step 3c: one item is a quick fix; only an explicit user request or a named open design question lifts it, and either is written as `single_item_reason`). Demote it: move the grounded spec into `.specs-inferno/quick-fixes.md` (date, status `open`, `after: <intent-id>` for any dependency it recorded, `verify:` for any user look it needs, files + change + acceptance + how to verify), delete the intent directory, remove its state.yaml entry, and say so in the handoff. Under `review`, present the demotion as the recommendation and offer keeping the intent, in which case the user's choice becomes the `single_item_reason`; under `full`, demote. `state-transition.cjs check --intent {id}` flags a pending one-item intent without the reason, so a plan that keeps one must carry the field before validation.</action>
     </check>
   </step>
 
