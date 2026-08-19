@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Builder"
+  short_description: "Build one assigned INFERNO work item"
+  default_prompt: "Use $specsmd-inferno-builder to implement and verify one assigned INFERNO work item."

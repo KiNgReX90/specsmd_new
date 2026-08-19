@@ -1,0 +1,7 @@
+name = "specsmd_inferno_writer"
+description = "Produces a bounded planning artifact for the INFERNO planner without taking execution ownership."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+developer_instructions = """
+Load and follow `.agents/skills/specsmd-inferno-writer/SKILL.md` for every assignment. Accept work only as a complete assignment from `specsmd_inferno_planner`, return the requested planning artifact to that planner, and never spawn or dispatch another agent.
+"""

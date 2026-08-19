@@ -2,11 +2,9 @@
  * Unit tests for the INFERNO flow packaging invariants.
  *
  * Guards:
- * - The `inferno-builder` command body stays byte-identical to the canonical
- *   `builder` agent body. The installer materializes the command into the
- *   user's `.claude/agents/specsmd-inferno-builder.md`, which serves as the
- *   builder subagent's system prompt, so any drift would ship a stale prompt.
- * - The two self-contained flow test scripts keep passing from the packaged
+ * - Claude wrappers keep the requested model matrix and byte-identical worker
+ *   procedures across command, installed-agent, and strong/cheap variants.
+ * - The self-contained flow test scripts keep passing from the packaged
  *   source.
  * - The INFERNO tree never references the FIRE artifact namespace.
  * - The flow is registered in FLOWS.
@@ -41,25 +39,49 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
+  it('cheap builder wrappers duplicate the strong builder procedure exactly', () => {
+    const strongCommand = readFileSync(path.join(INFERNO, 'commands/inferno-builder.md'), 'utf8');
+    const cheapCommand = readFileSync(path.join(INFERNO, 'commands/inferno-builder-cheap.md'), 'utf8');
+    const strongAgent = readFileSync(path.join(INFERNO, 'agents/builder/agent.md'), 'utf8');
+    const cheapAgent = readFileSync(path.join(INFERNO, 'agents/builder-cheap/agent.md'), 'utf8');
+    expect(stripFrontmatter(cheapCommand)).toBe(stripFrontmatter(strongCommand));
+    expect(stripFrontmatter(cheapAgent)).toBe(stripFrontmatter(strongAgent));
+    expect(stripFrontmatter(cheapCommand)).toBe(stripFrontmatter(cheapAgent));
+  });
+
   it('inferno-writer command body is identical to the canonical writer agent body', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-writer.md'), 'utf8');
     const agent = readFileSync(path.join(INFERNO, 'agents/writer/agent.md'), 'utf8');
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
-  // `effort` is an official subagent frontmatter field (docs: code.claude.com/docs/en/sub-agents.md)
-  // that overrides the session effort level. The installer materializes the .claude/agents/*.md
-  // verbatim from these command files, so the effort declared here is what the dispatched subagent
-  // runs at. The drift tests above strip frontmatter, so these guards keep the effort levels from
-  // being silently dropped — i.e. they make the effort policy "always enforced".
   it.each([
-    ['commands/inferno-builder.md', 'xhigh'],
-    ['agents/builder/agent.md', 'xhigh'],
-    ['commands/inferno-writer.md', 'low'],
-    ['agents/writer/agent.md', 'low'],
-  ])('%s frontmatter pins effort: %s', (rel, level) => {
+    ['commands/inferno.md', 'claude-opus-5', 'xhigh'],
+    ['commands/inferno-planner.md', 'claude-opus-5', 'xhigh'],
+    ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
+    ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
+    ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
+    ['commands/inferno-writer.md', 'claude-sonnet-4-6', 'high'],
+    ['agents/orchestrator/agent.md', 'claude-opus-5', 'xhigh'],
+    ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
+    ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
+    ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
+    ['agents/writer/agent.md', 'claude-sonnet-4-6', 'high'],
+  ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
+    expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
     expect(fm).toMatch(new RegExp(`^effort:\\s*${level}\\s*$`, 'm'));
+  });
+
+  it('Claude config defaults use only the requested exact model IDs', () => {
+    const config = readFileSync(
+      path.join(INFERNO, 'agents/orchestrator/config.example.yaml'),
+      'utf8'
+    );
+    expect(config).toMatch(/^\s*strong:\s*claude-opus-5\b/m);
+    expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-4-6\b/m);
+    expect(config).toMatch(/^\s*writer:\s*claude-sonnet-4-6\b/m);
+    expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);
   });
 
   it.each([
@@ -93,6 +115,15 @@ describe('inferno flow', () => {
       const c = readFileSync(path.join(INFERNO, f), 'utf8');
       return c.includes('.specs-fire') || c.includes('.specsmd/fire');
     });
+    expect(offenders).toEqual([]);
+  });
+
+  it('the shipped INFERNO source contains no obsolete GPT-5.5 setting', () => {
+    const files = (readdirSync(INFERNO, { recursive: true, encoding: 'utf8' }) as string[])
+      .filter((file) => /\.(md|toml|yaml|yml)$/.test(file));
+    const offenders = files.filter((file) =>
+      /gpt[- ]?5(?:\.| )?5/i.test(readFileSync(path.join(INFERNO, file), 'utf8'))
+    );
     expect(offenders).toEqual([]);
   });
 

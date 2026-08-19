@@ -1,5 +1,7 @@
 ---
 description: INFERNO Orchestrator - parallel builder subagents in one intent worktree
+model: claude-opus-5
+effort: xhigh
 ---
 
 # Activate INFERNO

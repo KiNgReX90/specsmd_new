@@ -261,6 +261,12 @@ async function installFlow(flowKey, toolKeys) {
 
   // Copy docs
   await fs.copy(path.join(flowPath, 'README.md'), path.join(targetFlowDir, 'README.md'));
+  if (toolKeys.includes('codex') && await fs.pathExists(path.join(flowPath, 'README.codex.md'))) {
+    await fs.copy(
+      path.join(flowPath, 'README.codex.md'),
+      path.join(targetFlowDir, 'README.codex.md')
+    );
+  }
 
   if (await fs.pathExists(path.join(flowPath, 'constitution.md'))) {
     await fs.copy(path.join(flowPath, 'constitution.md'), path.join(targetFlowDir, 'constitution.md'));
@@ -293,22 +299,33 @@ async function installFlow(flowKey, toolKeys) {
   return filesCreated;
 }
 
-async function rollback(flowKey, toolKeys) {
-  // Remove tool command files
+async function cleanupToolInstallation(flowKey, toolKeys) {
+  const flowPath = path.join(__dirname, '..', 'flows', FLOWS[flowKey].path);
+  const dummyConfig = {};
+
   for (const toolKey of toolKeys) {
     const installer = InstallerFactory.getInstaller(toolKey);
-    if (installer) {
-      const commandsDir = installer.commandsDir;
-      if (await fs.pathExists(commandsDir)) {
-        const files = await fs.readdir(commandsDir);
-        for (const file of files) {
-          if (file.startsWith('specsmd-')) {
-            await fs.remove(path.join(commandsDir, file));
-          }
+    if (!installer) continue;
+
+    if (typeof installer.uninstallCommands === 'function') {
+      await installer.uninstallCommands(flowPath, dummyConfig);
+      continue;
+    }
+
+    const commandsDir = installer.commandsDir;
+    if (await fs.pathExists(commandsDir)) {
+      const files = await fs.readdir(commandsDir);
+      for (const file of files) {
+        if (file.startsWith('specsmd-')) {
+          await fs.remove(path.join(commandsDir, file));
         }
       }
     }
   }
+}
+
+async function rollback(flowKey, toolKeys) {
+  await cleanupToolInstallation(flowKey, toolKeys);
 
   // Remove .specsmd directory
   if (await fs.pathExists('.specsmd')) {
@@ -362,22 +379,7 @@ async function uninstall() {
   console.log(theme.primary('\nUninstalling...\n'));
 
   try {
-    // Remove command files
-    for (const toolKey of installedToolKeys) {
-      const installer = InstallerFactory.getInstaller(toolKey);
-      if (installer) {
-        const commandsDir = installer.commandsDir;
-        if (await fs.pathExists(commandsDir)) {
-          console.log(theme.dim(`  Removing commands from ${commandsDir}/...`));
-          const files = await fs.readdir(commandsDir);
-          for (const file of files) {
-            if (file.startsWith('specsmd-')) {
-              await fs.remove(path.join(commandsDir, file));
-            }
-          }
-        }
-      }
-    }
+    await cleanupToolInstallation(manifest.flow, installedToolKeys);
 
     // Remove .specsmd directory
     console.log(theme.dim('  Removing .specsmd/...'));
@@ -401,6 +403,8 @@ async function uninstall() {
 
 module.exports = {
   install,
-  uninstall
+  uninstall,
+  installFlow,
+  rollback,
+  cleanupToolInstallation
 };
-

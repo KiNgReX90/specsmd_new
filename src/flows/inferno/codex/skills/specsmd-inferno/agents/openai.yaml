@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno"
+  short_description: "Run an INFERNO intent with Codex"
+  default_prompt: "Use $specsmd-inferno to select and run the next ready INFERNO intent."

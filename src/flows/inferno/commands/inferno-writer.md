@@ -2,7 +2,8 @@
 name: specsmd-inferno-writer
 description: Use when the INFERNO planner dispatches one work-item artifact to render from a complete decision record.
 tools: Read, Write
-effort: low
+model: claude-sonnet-4-6
+effort: high
 ---
 
 # INFERNO Writer

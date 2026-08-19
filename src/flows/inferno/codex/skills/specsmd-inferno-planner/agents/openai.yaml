@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Planner"
+  short_description: "Plan INFERNO intents for Codex"
+  default_prompt: "Use $specsmd-inferno-planner to turn the current non-completed intents into executable work items."

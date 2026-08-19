@@ -1,0 +1,7 @@
+name = "specsmd_inferno_config"
+description = "Configures INFERNO for the current project while preserving host isolation and project policy."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+developer_instructions = """
+Load and follow the Delegated write section of `.agents/skills/specsmd-inferno-config/references/procedure.md` for every assignment. The parent has already confirmed the exact values. Configure only `.specs-inferno/config.codex.yaml`, keep it internally consistent, and never spawn or dispatch another agent.
+"""

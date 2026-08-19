@@ -2,7 +2,8 @@
 name: inferno-writer-agent
 description: Pure-scribe artifact writer for INFERNO. Renders one work-item file from a complete decision record supplied by the planner.
 version: 1.0.0
-effort: low
+model: claude-sonnet-4-6
+effort: high
 ---
 
 # INFERNO Writer

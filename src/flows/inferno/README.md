@@ -24,7 +24,7 @@ INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIR
 
 ## Model tiers & effort
 
-The orchestrator dispatches builders by complexity: medium/high → the strong tier at `xhigh` effort, low (and kind config-only/docs-only/test) → the cheap tier. The planner's scribes run on a `writer` tier (defaults to the cheap tier). Defaults: strong `opus`, cheap `sonnet`. Effort rides the builder agent frontmatter, not a per-dispatch override.
+The orchestrator dispatches builders by complexity: medium/high → the strong tier, low (and kind config-only/docs-only/test) → the cheap tier. Claude pins the strong orchestrator/planner/builder roles to `claude-opus-5` at `xhigh`, and config/cheap-builder/writer roles to `claude-sonnet-4-6` at `high`. Codex uses its isolated `.specs-inferno/config.codex.yaml` and `.codex/agents/*.toml` matrix: Sol/xhigh for strong roles and Terra/high for supporting roles.
 
 ## Delivery modes
 

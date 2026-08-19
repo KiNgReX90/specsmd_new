@@ -1,0 +1,7 @@
+name = "specsmd_inferno_builder_strong"
+description = "Implements a medium- or high-complexity INFERNO work item under orchestrator control."
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Load and follow `.agents/skills/specsmd-inferno-builder/SKILL.md` for every assignment. Accept work only as a complete assignment from `specsmd_inferno_orchestrator`, stay within that assignment, and never spawn or dispatch another agent.
+"""

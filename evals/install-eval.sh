@@ -39,12 +39,62 @@ req .specsmd/inferno/agents/planner/agent.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/SKILL.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/templates/work-item.md.hbs
 req .specsmd/inferno/README.md
-# Claude Code + Codex surfaces for all four inferno commands
-for n in inferno inferno-planner inferno-builder inferno-config; do
+req .specsmd/inferno/README.codex.md
+
+# Claude Code keeps its six command/agent wrappers.
+for n in inferno inferno-planner inferno-builder inferno-builder-cheap inferno-config inferno-writer; do
   req ".claude/commands/specsmd-$n.md"
   req ".claude/agents/specsmd-$n.md"
-  req ".codex/skills/specsmd-$n/SKILL.md"
 done
+
+# Codex installs its native project skills and custom agents, not converted
+# Claude command bodies under .codex/skills.
+for n in inferno inferno-planner inferno-builder inferno-config inferno-writer; do
+  req ".agents/skills/specsmd-$n/SKILL.md"
+  req ".agents/skills/specsmd-$n/references/procedure.md"
+  req ".agents/skills/specsmd-$n/agents/openai.yaml"
+done
+for n in orchestrator planner builder_strong builder_cheap config writer; do
+  req ".codex/agents/specsmd_inferno_$n.toml"
+done
+req AGENTS.md
+absent .codex/skills/specsmd-inferno
+
+# Exact host model matrices remain isolated.
+for n in inferno inferno-planner inferno-builder; do
+  grep -q '^model: claude-opus-5$' ".claude/agents/specsmd-$n.md" \
+    || { note "FAIL Claude strong model: $n"; FAIL=1; }
+  grep -q '^effort: xhigh$' ".claude/agents/specsmd-$n.md" \
+    || { note "FAIL Claude strong effort: $n"; FAIL=1; }
+done
+for n in inferno-builder-cheap inferno-config inferno-writer; do
+  grep -q '^model: claude-sonnet-4-6$' ".claude/agents/specsmd-$n.md" \
+    || { note "FAIL Claude support model: $n"; FAIL=1; }
+  grep -q '^effort: high$' ".claude/agents/specsmd-$n.md" \
+    || { note "FAIL Claude support effort: $n"; FAIL=1; }
+done
+for n in orchestrator planner builder_strong; do
+  grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_$n.toml" \
+    || { note "FAIL Codex Sol model: $n"; FAIL=1; }
+  grep -q '^model_reasoning_effort = "xhigh"$' ".codex/agents/specsmd_inferno_$n.toml" \
+    || { note "FAIL Codex Sol effort: $n"; FAIL=1; }
+done
+for n in builder_cheap config writer; do
+  grep -q '^model = "gpt-5.6-terra"$' ".codex/agents/specsmd_inferno_$n.toml" \
+    || { note "FAIL Codex Terra model: $n"; FAIL=1; }
+  grep -q '^model_reasoning_effort = "high"$' ".codex/agents/specsmd_inferno_$n.toml" \
+    || { note "FAIL Codex Terra effort: $n"; FAIL=1; }
+done
+if grep -rqs '^sandbox_mode[[:space:]]*=' "$SANDBOX/.codex/agents"; then
+  note "FAIL Codex agents pin sandbox_mode"; FAIL=1
+else
+  note "OK   Codex agents inherit parent sandbox"
+fi
+if grep -rEqs 'gpt[- ]?5([. ]?)5' "$SANDBOX/.specsmd" "$SANDBOX/.claude" "$SANDBOX/.agents" "$SANDBOX/.codex"; then
+  note "FAIL obsolete GPT-5.5 setting installed"; FAIL=1
+else
+  note "OK   no obsolete GPT-5.5 setting"
+fi
 # The installed builder agent must be the full system prompt with subagent frontmatter
 grep -q '^name: specsmd-inferno-builder' "$SANDBOX/.claude/agents/specsmd-inferno-builder.md" \
   && note "OK   builder agent frontmatter (name)" \
@@ -74,6 +124,8 @@ absent .specsmd/fire
 # Flow script suites run from the installed location
 ( cd "$SANDBOX" && node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs ) \
   && note "OK   team-scheduler suite" || { note "FAIL team-scheduler suite"; FAIL=1; }
+( cd "$SANDBOX" && node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs ) \
+  && note "OK   state-transition suite" || { note "FAIL state-transition suite"; FAIL=1; }
 ( cd "$SANDBOX" && node .specsmd/inferno/agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs ) \
   && note "OK   work-item contract suite" || { note "FAIL work-item contract suite"; FAIL=1; }
 

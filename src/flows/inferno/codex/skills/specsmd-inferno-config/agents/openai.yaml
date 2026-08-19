@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Config"
+  short_description: "Configure Codex INFERNO execution"
+  default_prompt: "Use $specsmd-inferno-config to review and update the Codex-specific INFERNO configuration."
