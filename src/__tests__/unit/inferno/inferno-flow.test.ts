@@ -55,6 +55,27 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
+  it('inferno-oracle command body is identical to the canonical oracle agent body', () => {
+    const command = readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/oracle/agent.md'), 'utf8');
+    expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  // The oracle exists to end postponement: it returns one decision, never a menu,
+  // and only one of the four verdicts.
+  it('the oracle result contract names exactly the four verdicts', () => {
+    const agent = readFileSync(path.join(INFERNO, 'agents/oracle/agent.md'), 'utf8');
+    expect(agent).toMatch(/verdict: decide \| defect \| user \| blocked/);
+  });
+
+  // It decides about a tree it must not change: read-only tools, no Write/Edit.
+  it('the oracle command grants no file-editing tools', () => {
+    const fm = frontmatter(readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8'));
+    const tools = fm.match(/^tools:.*$/m)?.[0] ?? '';
+    expect(tools).toMatch(/\bRead\b/);
+    expect(tools).not.toMatch(/\b(?:Write|Edit|MultiEdit|NotebookEdit)\b/);
+  });
+
   it.each([
     ['commands/inferno.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-planner.md', 'claude-opus-5', 'xhigh'],
@@ -62,15 +83,31 @@ describe('inferno flow', () => {
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-writer.md', 'claude-sonnet-4-6', 'high'],
+    ['commands/inferno-oracle.md', 'claude-fable-5', 'xhigh'],
     ['agents/orchestrator/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
     ['agents/writer/agent.md', 'claude-sonnet-4-6', 'high'],
+    ['agents/oracle/agent.md', 'claude-fable-5', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
     expect(fm).toMatch(new RegExp(`^effort:\\s*${level}\\s*$`, 'm'));
+  });
+
+  // A judgment call a builder or the orchestrator would otherwise park as a
+  // "residual" or hand to the user as "your call" goes to the oracle instead.
+  it('the orchestrator and the builder route judgment calls to the oracle', () => {
+    const orchestrator = readFileSync(path.join(INFERNO, 'agents/orchestrator/agent.md'), 'utf8');
+    expect(orchestrator).toMatch(/<oracle critical="true">/);
+    expect(orchestrator).toMatch(/specsmd-inferno-oracle/);
+    expect(orchestrator).toMatch(/`notes` starting `oracle:`/);
+
+    const builder = readFileSync(path.join(INFERNO, 'agents/builder/agent.md'), 'utf8');
+    expect(builder).toMatch(/## The oracle/);
+    expect(builder).toMatch(/`notes` starting `oracle:`/);
+    expect(builder).not.toMatch(/yours to decide/);
   });
 
   it('Claude config defaults use only the requested exact model IDs', () => {

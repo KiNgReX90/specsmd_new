@@ -193,6 +193,7 @@ MD033:
     - work_item_decomposition_flow
     # INFERNO orchestrator semantic elements
     - config
+    - oracle
     - worktree
     - status
     - case

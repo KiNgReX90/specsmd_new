@@ -38,11 +38,12 @@ req .specsmd/inferno/agents/builder/skills/workitem-execute/SKILL.md
 req .specsmd/inferno/agents/planner/agent.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/SKILL.md
 req .specsmd/inferno/agents/planner/skills/work-item-decompose/templates/work-item.md.hbs
+req .specsmd/inferno/agents/oracle/agent.md
 req .specsmd/inferno/README.md
 req .specsmd/inferno/README.codex.md
 
-# Claude Code keeps its six command/agent wrappers.
-for n in inferno inferno-planner inferno-builder inferno-builder-cheap inferno-config inferno-writer; do
+# Claude Code keeps its seven command/agent wrappers.
+for n in inferno inferno-planner inferno-builder inferno-builder-cheap inferno-config inferno-writer inferno-oracle; do
   req ".claude/commands/specsmd-$n.md"
   req ".claude/agents/specsmd-$n.md"
 done
@@ -73,6 +74,12 @@ for n in inferno-builder-cheap inferno-config inferno-writer; do
   grep -q '^effort: high$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude support effort: $n"; FAIL=1; }
 done
+# The oracle decides what a builder or the orchestrator would otherwise postpone,
+# so it is pinned to the frontier tier and never tiered down.
+grep -q '^model: claude-fable-5$' ".claude/agents/specsmd-inferno-oracle.md" \
+  || { note "FAIL Claude oracle model"; FAIL=1; }
+grep -q '^effort: xhigh$' ".claude/agents/specsmd-inferno-oracle.md" \
+  || { note "FAIL Claude oracle effort"; FAIL=1; }
 for n in orchestrator planner builder_strong; do
   grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Sol model: $n"; FAIL=1; }

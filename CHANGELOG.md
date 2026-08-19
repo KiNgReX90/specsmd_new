@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 You can also view this changelog at [specs.md/changelog](https://specs.md/changelog).
 
+## [Unreleased]
+
+### Added
+
+- INFERNO: `/specsmd-inferno-oracle`, a decision subagent pinned to `claude-fable-5` at `xhigh` that takes a judgment call a builder, the orchestrator, a planner or a session would otherwise postpone, decides it from the artifact, and returns one decision instead of a menu
+- INFERNO: builders return a judgment call as a `blocked` result whose `notes` start `oracle:`, and the orchestrator routes it to the oracle and resumes the same builder with the decision, so a "residual" or a "product call" never leaves a run unanswered
+
 ## [0.1.49] - 2026-02-22
 
 ### Changed

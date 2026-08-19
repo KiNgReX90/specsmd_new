@@ -30,6 +30,7 @@ Optional `.specs-inferno/config.yaml` (model tiers, finalize verification comman
 ## Routing Targets
 
 - **Builders**: dispatched as `specsmd-inferno-builder` subagents by the orchestrator
+- **Oracle**: `specsmd-inferno-oracle`, spawned by the orchestrator (Fable 5, effort xhigh) for any judgment call a builder or the orchestrator would otherwise postpone or hand to the user
 - **To INFERNO Planner**: `/specsmd-inferno-planner`
 
 ---
