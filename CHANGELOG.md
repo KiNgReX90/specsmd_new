@@ -13,6 +13,7 @@ You can also view this changelog at [specs.md/changelog](https://specs.md/change
 
 - INFERNO: `/specsmd-inferno-oracle`, a decision subagent pinned to `claude-fable-5` at `xhigh` that takes a judgment call a builder, the orchestrator, a planner or a session would otherwise postpone, decides it from the artifact, and returns one decision instead of a menu
 - INFERNO: builders return a judgment call as a `blocked` result whose `notes` start `oracle:`, and the orchestrator routes it to the oracle and resumes the same builder with the decision, so a "residual" or a "product call" never leaves a run unanswered
+- INFERNO: `state-transition.cjs archive-intent` moves a closed intent's block and directory into `.specs-inferno/archive/`, frees its id from every remaining intent's `depends_on_intents` with one dated line saying why, and with `--sweep` takes every other completed intent along except one another session is still shipping. Finalize gains step 2b, which calls it on the intent branch so the move rides the same merge and push. Until now only `/ship-intent` archived, by hand, so an intent closed by the orchestrator stayed in the live ledger for good: consumer repos were found holding 17 and 81 completed intents in the file a session reads to see what is left to do
 
 ## [0.1.49] - 2026-02-22
 
