@@ -15,6 +15,10 @@ You can also view this changelog at [specs.md/changelog](https://specs.md/change
 - INFERNO: builders return a judgment call as a `blocked` result whose `notes` start `oracle:`, and the orchestrator routes it to the oracle and resumes the same builder with the decision, so a "residual" or a "product call" never leaves a run unanswered
 - INFERNO: `state-transition.cjs archive-intent` moves a closed intent's block and directory into `.specs-inferno/archive/`, frees its id from every remaining intent's `depends_on_intents` with one dated line saying why, and with `--sweep` takes every other completed intent along except one another session is still shipping. Finalize gains step 2b, which calls it on the intent branch so the move rides the same merge and push. Until now only `/ship-intent` archived, by hand, so an intent closed by the orchestrator stayed in the live ledger for good: consumer repos were found holding 17 and 81 completed intents in the file a session reads to see what is left to do
 
+### Changed
+
+- INFERNO: a one-item request is now a one-item intent, and `.specs-inferno/quick-fixes.md` is retired. The planner's intent-worthiness gate used to park single-item work in that file, which nothing reads, so parked entries sat unbuilt while the intents beside them shipped. `state-transition.cjs check` drops the `one-item-intent-without-reason` drift and the `single_item_reason` field, and reports a `quick-fixes.md` beside the ledger as drift instead
+
 ## [0.1.49] - 2026-02-22
 
 ### Changed

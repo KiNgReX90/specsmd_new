@@ -308,8 +308,9 @@ test("check still flags a genuinely open intent whose items are all done", () =>
   assert.equal(result.drift[0].kind, "all-items-completed-intent-open");
 });
 
-// One work item is a quick fix, not an intent (planner intent-capture step 3c). The gate
-// leaked for a month as prose; the ledger check is what makes it bite, at capture time.
+// A one-item intent is the normal shape for a small change. Until 2026-08-30 the check
+// pushed such an intent into quick-fixes.md, where nothing read it; now the parking file
+// itself is the drift.
 
 const ONE_ITEM = `intents:
   - id: title-bar-ink
@@ -329,41 +330,31 @@ const ONE_ITEM = `intents:
         depends_on: []
 `;
 
-test("check flags a pending intent with one work item and no single_item_reason", () => {
+test("check accepts a pending intent with exactly one work item", () => {
   const { file } = sandbox(ONE_ITEM);
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check reports a quick-fixes.md beside the ledger as drift", () => {
+  const { dir, file } = sandbox(ONE_ITEM);
+  fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n\n## parked\n\nstatus: open\n", "utf8");
   const result = check({ file });
   assert.equal(result.drift.length, 1);
-  assert.equal(result.drift[0].intent, "title-bar-ink");
-  assert.equal(result.drift[0].kind, "one-item-intent-without-reason");
-  assert.match(result.drift[0].detail, /ink-attr/);
-  assert.match(result.drift[0].detail, /quick-fixes\.md/);
+  assert.equal(result.drift[0].kind, "quick-fixes-file-present");
+  assert.match(result.drift[0].detail, /one-item intent/);
 });
 
-test("check accepts a one-item intent that carries a single_item_reason", () => {
-  const { file } = sandbox(ONE_ITEM.replace(
-    "    created: 2026-08-18\n",
-    "    created: 2026-08-18\n    single_item_reason: \"Ruben asked for an intent so it builds hands-off overnight\"\n"
-  ));
-  assert.deepEqual(check({ file }).drift, []);
+test("check scoped to one intent still reports the parking file", () => {
+  const { dir, file } = sandbox(ONE_ITEM);
+  fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n", "utf8");
+  assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "quick-fixes-file-present");
 });
 
-test("check rejects an empty single_item_reason", () => {
-  const { file } = sandbox(ONE_ITEM.replace(
-    "    created: 2026-08-18\n",
-    "    created: 2026-08-18\n    single_item_reason: \"\"\n"
-  ));
-  assert.equal(check({ file }).drift[0].kind, "one-item-intent-without-reason");
-});
-
-test("check leaves a claimed one-item intent alone (the run is under way)", () => {
-  const { file } = sandbox(ONE_ITEM.replace("    status: pending\n    created", "    status: in_progress\n    created"));
-  assert.deepEqual(check({ file }).drift, []);
-});
-
-test("check does not gate the intent it is scoped away from", () => {
-  const { file } = sandbox(FIXTURE.replace("runs:\n", ONE_ITEM.replace("intents:\n", "") + "runs:\n"));
+test("check does not report the intent it is scoped away from", () => {
+  const finished = ONE_ITEM.replace("        status: pending\n", "        status: completed\n");
+  const { file } = sandbox(FIXTURE.replace("runs:\n", finished.replace("intents:\n", "") + "runs:\n"));
   assert.deepEqual(check({ file, intent: "already-shipped" }).drift, []);
-  assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "one-item-intent-without-reason");
+  assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "all-items-completed-intent-open");
 });
 
 test("close-intent still refuses over a parked item", () => {

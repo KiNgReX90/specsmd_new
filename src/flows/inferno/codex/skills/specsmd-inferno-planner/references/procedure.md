@@ -6,7 +6,6 @@ The planner captures or repairs intent artifacts, fully decides their work-item 
 
 - State: `.specs-inferno/state.yaml`
 - Codex configuration: `.specs-inferno/config.codex.yaml`
-- Quick fixes: `.specs-inferno/quick-fixes.md`
 - Intent brief: `.specs-inferno/intents/<intent-id>/brief.md`
 - Work item: `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`
 - Optional design: `.specs-inferno/intents/<intent-id>/work-items/<item-id>-design.md`
@@ -36,7 +35,7 @@ Read applicable `AGENTS.md` instructions. Read canonical resources as references
    - **depend:** create it separately and record the prerequisite intent id in `depends_on_intents`;
    - **conflict:** surface the incompatible decision before writing.
 3. Keep intent-level dependencies acyclic and point only to known non-completed intents.
-4. Apply the intent-worthiness gate. One work item is a quick fix and belongs in `.specs-inferno/quick-fixes.md` with any `after: <intent-id>` ordering and `verify:` line on the entry; a dependency, a shared file, a user look or the complexity label do not make it an intent. Only an explicit user request or a named open design question lifts one item, written into the state entry as `single_item_reason`, which `state-transition.cjs check` requires on any pending one-item intent. Couple work that changes one surface; never bundle unrelated small fixes into a catch-all intent.
+4. A one-item request is a one-item intent, graded `low` when its change spec is fully written. Never write `.specs-inferno/quick-fixes.md` or any other parking file; `state-transition.cjs check` reports it as drift. Couple work that changes one surface; never bundle unrelated small fixes into a catch-all intent.
 5. Under `autonomy.level: full`, resolve non-critical choices and record assumptions. Under `review`, relay only a decision that materially changes scope or architecture.
 6. Render the brief with the canonical template and add or update the state intent record. Preserve unknown state fields and unrelated comments.
 
