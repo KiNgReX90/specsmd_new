@@ -53,7 +53,9 @@ If the existing test suite has no viable seam and adding one would exceed owners
 
 Run the exact supplied command from the intended working directory. Report the literal command and pass or fail. Do not substitute a cheaper command or claim success from inspection.
 
-Browser-observable behavior should use the supplied browser test when the project supports one. Machine checks do not prove pixel-level appearance; report the cited design source so the orchestrator can request visual sign-off.
+A browser test is for functionality a person drives in the browser: a journey whose outcome crosses the screen. Copy, labels, formatting, computed display values and anything asserted on one component's rendered output are unit tests that render the component; a text change is proved by that test, never by a browser run. Appearance, and anything only the built binary shows, is a case in the project's integration case list, proved by the harness that owns it and never by a person; report the cited design source with it. The supplied command names one spec or test file, never a full suite, and it is a floor for correctness rather than permission to widen scope.
+
+When the project enforces a per-file line cap, run its check before returning ready. A file you touched that is over the cap or at the ceiling is split along a responsibility boundary in this item; shaving lines to squeeze under the number is a defect. Name the new module paths in changed files and record `split: <file> -> <new files>` in notes.
 
 For a batch, implement items in the supplied dependency order and run the single strictest end-of-batch command once. Return one result block per item in the same order, and list only that item's changed files.
 

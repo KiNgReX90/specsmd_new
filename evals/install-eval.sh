@@ -76,9 +76,9 @@ for n in inferno-builder-cheap inferno-config inferno-writer; do
 done
 # The oracle decides what a builder or the orchestrator would otherwise postpone,
 # so it is pinned to the frontier tier and never tiered down.
-grep -q '^model: claude-fable-5$' ".claude/agents/specsmd-inferno-oracle.md" \
+grep -q '^model: claude-fable-5-1$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle model"; FAIL=1; }
-grep -q '^effort: xhigh$' ".claude/agents/specsmd-inferno-oracle.md" \
+grep -q '^effort: max$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle effort"; FAIL=1; }
 for n in orchestrator planner builder_strong; do
   grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_$n.toml" \

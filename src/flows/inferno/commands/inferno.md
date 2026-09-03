@@ -23,14 +23,14 @@ It is the complete, self-contained procedure: intent selection menu (never auto-
 
 ## Per-Project Config
 
-Optional `.specs-inferno/config.yaml` (model tiers, finalize verification commands, autonomy level). Template: `.specsmd/inferno/agents/orchestrator/config.example.yaml`. Create it interactively with `/specsmd-inferno-config`.
+Optional `.specs-inferno/config.yaml` (model tiers, finalize verification commands, delivery mode). Template: `.specsmd/inferno/agents/orchestrator/config.example.yaml`. Create it interactively with `/specsmd-inferno-config`.
 
 ---
 
 ## Routing Targets
 
 - **Builders**: dispatched as `specsmd-inferno-builder` subagents by the orchestrator
-- **Oracle**: `specsmd-inferno-oracle`, spawned by the orchestrator (Fable 5, effort xhigh) for any judgment call a builder or the orchestrator would otherwise postpone or hand to the user
+- **Oracle**: `specsmd-inferno-oracle`, spawned by the orchestrator (the frontier tier, effort max) for any judgment call a builder or the orchestrator would otherwise postpone or hand to the user
 - **To INFERNO Planner**: `/specsmd-inferno-planner`
 
 ---

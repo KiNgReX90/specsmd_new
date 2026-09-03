@@ -54,7 +54,7 @@ knowledge:
 
 Allowed values:
 
-- `autonomy.level`: `review` or `full`.
+- `autonomy.level`: `review` or `full`. Accepted for compatibility; the planner never pauses either way.
 - `delivery.mode`: `auto-close` or `merge-request`.
 - `verification.finalize`: ordered non-empty command strings when present.
 - `delivery.base_branch`: a real branch confirmed by the user.
@@ -67,7 +67,6 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 1. Read applicable `AGENTS.md` instructions and the current Codex config if it exists.
 2. If absent, discover likely production build and full-test commands from project manifests and discover the repository default branch. Treat discoveries as proposals, not confirmed choices.
 3. Display effective settings in plain language:
-   - review pauses versus full autonomy;
    - the six fixed role assignments;
    - ordered final verification commands;
    - delivery mode and proposed base branch;

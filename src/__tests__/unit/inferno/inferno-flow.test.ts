@@ -68,12 +68,15 @@ describe('inferno flow', () => {
     expect(agent).toMatch(/verdict: decide \| defect \| user \| blocked/);
   });
 
-  // It decides about a tree it must not change: read-only tools, no Write/Edit.
-  it('the oracle command grants no file-editing tools', () => {
-    const fm = frontmatter(readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8'));
-    const tools = fm.match(/^tools:.*$/m)?.[0] ?? '';
+  // It edits in one case only: a session asks with `build: yes` for a change
+  // inside the fix-now box. The tools exist for that; the constraint fences them.
+  it('the oracle command carries the build tools and the constraint that fences them', () => {
+    const oracle = readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8');
+    const tools = frontmatter(oracle).match(/^tools:.*$/m)?.[0] ?? '';
     expect(tools).toMatch(/\bRead\b/);
-    expect(tools).not.toMatch(/\b(?:Write|Edit|MultiEdit|NotebookEdit)\b/);
+    expect(tools).toMatch(/\bEdit\b/);
+    expect(oracle).toMatch(/NEVER edit a tracked file on a decision question/);
+    expect(oracle).toMatch(/## When you build/);
   });
 
   it.each([
@@ -83,13 +86,13 @@ describe('inferno flow', () => {
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-writer.md', 'claude-sonnet-4-6', 'high'],
-    ['commands/inferno-oracle.md', 'claude-fable-5', 'xhigh'],
+    ['commands/inferno-oracle.md', 'claude-fable-5-1', 'max'],
     ['agents/orchestrator/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
     ['agents/writer/agent.md', 'claude-sonnet-4-6', 'high'],
-    ['agents/oracle/agent.md', 'claude-fable-5', 'xhigh'],
+    ['agents/oracle/agent.md', 'claude-fable-5-1', 'max'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));

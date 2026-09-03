@@ -24,7 +24,7 @@ Read applicable `AGENTS.md` instructions. Read canonical resources as references
 1. If `.specs-inferno/config.codex.yaml` is absent, return a compact `needs_config` result so the parent can complete `$specsmd-inferno-config`; do not create a silent default file.
 2. Read config, state when present, every non-completed intent brief and work-item set, project instructions, and repository metadata needed to ground real paths.
 3. Determine whether to capture a new intent, decompose an existing pending intent, or repair missing or invalid planning artifacts.
-4. When essential product facts are missing, return only a short ordered `questions` list. The parent conversation asks them, then uses `followup_task` to continue this same planner with the answers. Ask only questions whose answers materially change the plan.
+4. Settle essential product facts from the project's specs and the live code, never by asking. A call they leave open is returned as one `oracle` block (the question, the readings, what was measured, the paths) for the parent conversation to settle; write no artifact for the scope that call gates. Never return a `questions` list and never pause for a person.
 
 ## Capture and cross-intent reconciliation
 
@@ -33,10 +33,10 @@ Read applicable `AGENTS.md` instructions. Read canonical resources as references
    - **independent:** scopes and ownership can proceed separately;
    - **integrate:** fold the work into an existing pending intent;
    - **depend:** create it separately and record the prerequisite intent id in `depends_on_intents`;
-   - **conflict:** surface the incompatible decision before writing.
+   - **conflict:** read both briefs and the specs, decide when they settle it, and return an `oracle` block when they do not.
 3. Keep intent-level dependencies acyclic and point only to known non-completed intents.
-4. A one-item request is a one-item intent, graded `low` when its change spec is fully written. Never write `.specs-inferno/quick-fixes.md` or any other parking file; `state-transition.cjs check` reports it as drift. Couple work that changes one surface; never bundle unrelated small fixes into a catch-all intent.
-5. Under `autonomy.level: full`, resolve non-critical choices and record assumptions. Under `review`, relay only a decision that materially changes scope or architecture.
+4. A one-item request is a one-item intent, graded `low` when its change spec is fully written, unless it fits the fix-now box: one piece of work in a few files no open intent owns, its test lands with it, no look change, no encoding of an external rule the project tracks. Such an item is returned as a `fix-now` block for the parent conversation to fix in the same turn and never enters the ledger. Never write `.specs-inferno/quick-fixes.md` or any other parking file; `state-transition.cjs check` reports it as drift. Couple work that changes one surface; never bundle unrelated small fixes into a catch-all intent.
+5. Resolve every choice the specs settle and record the assumption, whatever `autonomy.level` says. There is no review pause in any mode.
 6. Render the brief with the canonical template and add or update the state intent record. Preserve unknown state fields and unrelated comments.
 
 ## Repository grounding
@@ -92,7 +92,9 @@ Split an item that spans more than two concerns, needs substantially more than s
 
 ### Verification-item convention
 
-Do not add a trailing test-only item by default. Each builder verifies its own slice and finalization runs the authoritative suite once. Put a cheap mechanical post-merge invariant on the owning item as a one-line `finalize_check`.
+Do not add a trailing test-only item by default. Each builder verifies its own slice and finalization runs the authoritative suite once. Put a cheap mechanical post-merge invariant on the owning item as a one-line `finalize_check`, scoped only (a parity script, a grep) and never a suite the finalize list already runs.
+
+Acceptance criteria and per-item verification commands name the one spec or test file the item adds or changes, never a full suite. A browser test is for functionality a person drives in the browser; copy, labels, formatting and anything asserted on one component's rendered output are unit tests that render the component. Appearance, and anything only the built binary shows, is a case in the project's integration case list with a test beside it, proved by the harness that owns it and never by a person.
 
 Create a `kind: test` item only when verification itself requires real reasoning, such as a computed cross-surface invariant or a genuinely new broad visual smoke surface. It depends on all relevant implementation items, stays capped, and does not rerun the full final gate.
 
@@ -133,9 +135,10 @@ Print:
 - intent title and id;
 - ordered work items with complexity and dependency summary;
 - which items can start in parallel;
-- assumptions, risks, or deferred decisions worth reviewing;
-- whether a small serial plan may be cheaper to implement directly from the captured specs.
+- the `fix-now` blocks, when there are any;
+- the `oracle` blocks, when there are any;
+- the significant look change the intent carries, when there is one.
 
-For `autonomy.level: full`, print the summary and stop. For `review`, add one concise “Worth a look before you build” block containing only urgent or questionable points, invite refinement, and stop. Never start builders or route directly into execution.
+Print the summary and stop, in every mode. Never add a “Worth a look before you build” block, never offer a choice of routes, never start builders or route directly into execution.
 
 End by saying the plan is ready and can be built later with `$specsmd-inferno`.

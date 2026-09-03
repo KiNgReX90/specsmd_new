@@ -1,7 +1,7 @@
 ---
 name: work-item-decompose
 description: Break an intent into discrete, executable, work items with context pointers, ownership, complexity assessment, and dependency validation.
-version: 1.2.0
+version: 1.3.0
 ---
 
 <objective>
@@ -24,6 +24,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <mandate>Each work item MUST include depends_on, context.required, and ownership.editable</mandate>
   <mandate>Behavior, architecture, UI, and API work MUST include context.patterns</mandate>
   <mandate>All work except docs-only and config-only MUST include context.tests</mandate>
+  <mandate>Acceptance criteria and per-item verification commands MUST name the one spec or test file the item adds or changes, NEVER a full suite; the full gate is `verification.finalize`, run once per intent by the orchestrator</mandate>
   <mandate>Record ownership and dependencies truthfully; never misreport them to manufacture parallelism</mandate>
   <mandate>Quality first, parallelism a close second: when slice boundaries are a free choice, prefer ones that give disjoint ownership and short depends_on chains so multiple builders run at once</mandate>
   <mandate>Work-item count ≈ the number of cold builder dispatches the work deserves: a strictly serial chain of small same-compile-tree items is an anti-pattern — merge adjacent steps until each item earns its dispatch; split only for parallelism or genuine size</mandate>
@@ -112,9 +113,9 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
   <step n="3b" title="Set Execution Mode">
     <action>Set mode: autopilot on every work item</action>
     <note>Execution is always autopilot: builders run as parallel subagents inside the
-    orchestrator's intent worktree and cannot pause for user checkpoints. Oversight happens
-    at planning time (under `autonomy.level: review`, the planner's single urgent-only review
-    point after decomposition) and at the orchestrator's verified finalize. Complexity from
+    orchestrator's intent worktree and cannot pause for user checkpoints. Oversight is the
+    specs and the oracle at planning time, and the orchestrator's verified finalize with the
+    project's harness on the built binary. Nobody pauses for a person. Complexity from
     step 3 still matters: the orchestrator uses it to pick the worker model tier.</note>
   </step>
 
@@ -123,6 +124,10 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
     <substep>What must be true when complete</substep>
     <substep>How to verify it works</substep>
     <substep>Any edge cases to handle</substep>
+    <substep>Test placement (2026-08-19): a browser e2e spec is for functionality a person drives in the browser, a journey or interaction whose outcome crosses the screen (navigate, fill in, submit, persist and reopen, export, an action and its effect on a board). Copy, labels, translations, validation messages, number and date formatting, visibility decided by props, computed display values, and anything else asserted on one component's rendered output are unit tests that render the component, or test the catalogue or the pure function, and assert the text or structure. A text change is verified by the unit test that renders it, never by a browser run. Appearance (paint, stacking, animation), and anything only the real binary shows, is a case in the project's integration case list with a test beside it, proved on the built binary by the harness that owns it, never by a person</substep>
+    <substep>Plan e2e specs per user journey, never one per acceptance criterion and never one per screen of text: one item may own the journey spec, and a copy or label item carries a component render test in `context.tests`</substep>
+    <substep>Name the one spec or test file the item adds or changes as its verification, never a full suite: the full gate is `verification.finalize`, run once per intent by the orchestrator, and `finalize_check:` holds scoped invariants only (a parity script, a grep), never a suite</substep>
+    <substep>Success criteria are measured, before and after: each names its instrument (a test file, an integration case id, a command) and the value it must show when the item is done. A criterion a person would judge by looking is a case for the harness, and the item that changes a journey owns its case text and its test in the same item</substep>
     <substep>For an item with a `design_contract`, a fidelity criterion: the cited design source is the specification, and every implemented value (spacing, sizing, color, type, iconography, states, motion, copy) matches it exactly; any deviation is a defect, not an interpretation</substep>
   </step>
 
@@ -154,17 +159,17 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
 
   <step n="6b" title="Cross-Intent Ownership Cross-Check" critical="true">
     <action>Now that ownership is known, cross-check it against the OTHER open intents. Read `.specs-inferno/state.yaml` plus the `ownership.editable` of every non-completed intent's work items (`.specs-inferno/intents/{other-id}/work-items/*.md`).</action>
-    <action>If any of THIS intent's `ownership.editable` paths collide with a `pending` intent's work-item ownership AND this intent is not already integrated into or dependent on it, you have a cross-intent file collision: two intents that edit the same files cannot safely build in arbitrary order across separate worktrees. Record an intent-level dependency — add `depends_on: [<that-intent-id>]` to THIS intent's state.yaml entry and brief — so the orchestrator serializes them. Under `autonomy.level: review` surface the collision and the added dependency; under `full` apply it and note it.</action>
-    <action>Never point the dependency at a `completed` intent and never create a cycle. A genuine same-file integration may instead warrant folding the two intents together — surface that option under `review`.</action>
+    <action>If any of THIS intent's `ownership.editable` paths collide with a `pending` intent's work-item ownership AND this intent is not already integrated into or dependent on it, you have a cross-intent file collision: two intents that edit the same files cannot safely build in arbitrary order across separate worktrees. Record an intent-level dependency, `depends_on: [<that-intent-id>]` on THIS intent's state.yaml entry and brief, so the orchestrator serializes them. Apply it and note it in the brief, in every mode.</action>
+    <action>Never point the dependency at a `completed` intent and never create a cycle. A genuine same-file integration may instead warrant folding the two intents together: decide it from the two briefs, or put it to the oracle.</action>
   </step>
 
   <step n="6c" title="One-Item Backstop" critical="true">
     <check if="the final plan is EXACTLY ONE work item">
-      <action>Keep it. A one-item intent is the normal shape for a small, fully understood change, and the ledger is the only queue anything builds from. Grade it honestly (a fully written change spec is `low`) so the orchestrator runs it on the cheap builder tier. NEVER demote it into `.specs-inferno/quick-fixes.md` or any other parking file: `state-transition.cjs check` reports that file as drift, and until 2026-08-30 demoted items sat unbuilt for days while the intents beside them shipped.</action>
+      <action>Keep it. A one-item intent is the normal shape for a small, fully understood change, and the ledger is the only queue anything builds from. Grade it honestly (a fully written change spec is `low`) so the orchestrator runs it on the cheap builder tier. NEVER demote it into `.specs-inferno/quick-fixes.md` or any other parking file: `state-transition.cjs check` reports that file as drift, and until 2026-08-30 demoted items sat unbuilt for days while the intents beside them shipped. The fix-now box was applied at intent-capture step 3c, before this intent existed; an intent that reaches this step keeps its one item.</action>
     </check>
   </step>
 
-  <step n="7" title="Present Plan">
+  <step n="7" title="Present Plan (no approval prompt)">
     <output>
       ## Work Items for "{intent-title}"
 
@@ -183,13 +188,12 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
 
       ---
 
-      Approve this plan? [Y/n/edit]
+      Writing the work items now.
     </output>
   </step>
 
   <step n="8" title="Save Work Items (parallel scribe fan-out)">
     <critical>ALL content and reasoning is done HERE, by you (the planner), BEFORE any file is written. The writing itself is fanned out to parallel scribes purely for speed — scribes make no decisions.</critical>
-    <check if="approved">
       <substep n="8.1" title="Build decision records">
         For EACH work item, produce a COMPLETE decision record — every field the
         template `templates/work-item.md.hbs` needs, fully decided: id, title,
@@ -235,11 +239,10 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
         On a host without subagents, skip the dispatch: render each item from the
         template and write the files yourself, sequentially, then do 8.5.
       </substep>
-    </check>
   </step>
 
   <step n="9" title="Transition">
-    Decomposition ends at writing the items — it never starts the build. After the files are written, hand back to the planner's `<handoff_format>`, which prints the summary, applies the `autonomy.level` review pause, and STOPS. The build is a separate, explicit step the user runs later with `/specsmd-inferno` (or `/schedule-inferno`).
+    Decomposition ends at writing the items, it never starts the build. After the files are written, hand back to the planner's `<handoff_format>`, which prints the summary and STOPS. The build is a separate, explicit step the user runs later with `/specsmd-inferno` (or `/schedule-inferno`).
     <output>
       **{count} work items created** for "{intent-title}".
 
@@ -260,6 +263,7 @@ Break an intent into discrete, executable work items for `/specsmd-inferno`.
 <success_criteria>
   <criterion>Intent decomposed into discrete work items</criterion>
   <criterion>Each work item has clear acceptance criteria</criterion>
+  <criterion>No acceptance criterion or verification command names a full suite; each names the one spec or test file the item adds or changes, and a copy or label item names a component render test</criterion>
   <criterion>Complexity assessed for each item</criterion>
   <criterion>Every work item has mode: autopilot (execution is checkpoint-free)</criterion>
   <criterion>Dependencies validated (no circular dependencies)</criterion>

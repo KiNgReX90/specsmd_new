@@ -5,21 +5,16 @@
 # absent config still yields a working flow. This file is where ALL project- and
 # machine-specific values live; the flow files stay portable.
 
-# Autonomy level for the planning -> build transition (read by the planner).
-# The planner ALWAYS stops after writing the work items — it NEVER starts the
-# build. The build is always a separate, explicit /specsmd-inferno step you run
-# later. autonomy.level controls ONLY whether the planner pauses for review after
-# writing the work items:
-#   full   - write the work items and stop, with no review pause.
-#   review - after writing, pause EXACTLY ONCE to surface only the urgent or
-#            questionable points (open design questions, risky assumptions,
-#            ambiguous requirements, deferred items) and invite you to weigh in /
-#            inspect the work items, then stop. Not a full work-item dump, and not
-#            a stop-and-wait — one focused, urgent-only review point. The
-#            design-doc step is never a mandatory gate.
-# Omit or leave unset to behave as `review`.
+# Autonomy level for the planning -> build transition.
+# The planner ALWAYS stops after writing the work items, it NEVER starts the
+# build, and since 2026-09-02 it never pauses for review either: it settles what
+# the specs settle, returns what they leave open as an `oracle:` block and what
+# fits the fix-now box as a `fix-now:` block. The build is always a separate,
+# explicit /specsmd-inferno step you run later, and the design-doc step is never
+# a mandatory gate. The key is still accepted, and still read by hosts whose own
+# procedure honours it; it changes nothing in the Claude planner.
 autonomy:
-  level: review        # full | review
+  level: full          # full | review
 
 # Worker model tiers. Two consumers read these:
 #  - the ORCHESTRATOR's complexity gate for builders: the strong tier runs

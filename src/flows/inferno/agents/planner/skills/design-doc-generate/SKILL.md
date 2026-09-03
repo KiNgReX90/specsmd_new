@@ -12,7 +12,7 @@ Generate design documents for high-complexity work items when an up-front design
   - Work item has complexity: high AND an up-front design doc genuinely helps
   - The planner opts to capture key decisions before the build
 
-This skill is an OPTIONAL planner capability, not a mandatory gate. Generating a design doc never halts the planning → build flow: under `autonomy.level: review` the only pause is the single urgent-only review point in the planner's `<handoff_format>`; under `full` there is none. Surface any genuinely open design question there rather than blocking on a separate approval.
+This skill is an OPTIONAL planner capability, not a mandatory gate. Generating a design doc never halts the planning → build flow, and there is no review pause in any mode. A genuinely open design question is an `oracle:` block in the planner's handoff summary, never a pause and never a separate approval.
 </triggers>
 
 <degrees_of_freedom>
@@ -91,7 +91,7 @@ This skill is an OPTIONAL planner capability, not a mandatory gate. Generating a
     <action>Generate design doc using template: templates/design.md.hbs</action>
     <action>Save to: .specs-inferno/intents/{intent-id}/work-items/{id}-design.md</action>
     <action>Update state.yaml</action>
-    <note>Do NOT block on a separate approval gate. This skill never halts the planning → build flow. If a genuine design question, risky assumption, or ambiguity remains open, carry it into the planner's single urgent-only review point (`<handoff_format>` under `autonomy.level: review`) so the user can weigh in there — not via a per-doc checkpoint.</note>
+    <note>Do NOT block on a separate approval gate. This skill never halts the planning → build flow. If a genuine design question, risky assumption, or ambiguity remains open, carry it into the planner's handoff summary as an `oracle:` block so the oracle settles it, never as a per-doc checkpoint and never as a question for the user.</note>
   </step>
 </flow>
 

@@ -1,5 +1,5 @@
 ---
-description: INFERNO Config - create or update .specs-inferno/config.yaml (autonomy level, worker model tiers, delivery mode, finalize verification)
+description: INFERNO Config - create or update .specs-inferno/config.yaml (worker model tiers, delivery mode, finalize verification)
 model: claude-sonnet-4-6
 effort: high
 ---
@@ -28,14 +28,14 @@ through every key one at a time.
    - **Complex work items** (the reasoning-heavy ones) → handled by the strong model at maximum effort. *(default: `claude-opus-5`, xhigh)*
    - **Simple work items** (mechanical: config, docs, small swaps) → handled by the fast model. *(default: `claude-sonnet-4-6`, high)*
    - **Plan writing** → drafted in parallel by fast scribe agents. *(default: `claude-sonnet-4-6`, high)*
-   - **After planning** → the planner pauses once to flag only the urgent or questionable points (open questions, risky assumptions, ambiguities) and let you weigh in / inspect the work items, then stops. Either way the build is a separate step you start later with `/specsmd-inferno`; the planner never starts it. *(default: `review`; the alternative, `full`, skips that review pause and stops straight after writing the work items)*
+   - **After planning** → the planner writes the work items and stops, with no review pause: what the specs leave open comes back as an `oracle:` block and what fits the fix-now box as a `fix-now:` block. The build is a separate step you start later with `/specsmd-inferno`; the planner never starts it.
    - **Delivery** → *autonomous* (build, merge, and close automatically) or *production* (open merge requests for review — per work item into the intent, and the whole intent into your base branch). *(default: autonomous)*
    - **Final check before closing** → the project's build + tests. *(propose what you discover from the repo, e.g. `package.json` scripts)*
    Keep the model IDs parenthetical/secondary: the user reasons about "complex vs simple work", not provider naming.
-3. If the user accepts, you're done — write only the non-default keys. If they want to adjust, change only what they name; everything else keeps its default. Map their plain-language choices to keys: complex→`models.strong`, simple→`models.cheap`, plan writing→`models.writer`, review→`autonomy.level`, delivery→`delivery.mode`, final check→`verification.finalize`.
+3. If the user accepts, you're done, write only the non-default keys. If they want to adjust, change only what they name; everything else keeps its default. Map their plain-language choices to keys: complex→`models.strong`, simple→`models.cheap`, plan writing→`models.writer`, delivery→`delivery.mode`, final check→`verification.finalize`.
 4. **If delivery = production (`merge-request`)**, propose the base branch the intent should merge into — the branch you're currently on, or the repo's default branch — and let the user confirm or change it. Record it as `delivery.base_branch` (omit it to let the orchestrator propose-and-confirm at finalize instead).
 5. Offer the optional extras only if asked: `halt.flag_file` + `halt.wait_script` (budget-halt) and `knowledge.index`. Skip silently otherwise.
-6. Write `.specs-inferno/config.yaml`, preserving any existing keys you did not touch. Keep the file minimal — only keys that differ from the documented defaults. Every key stays optional; an omitted `autonomy.level` behaves as `review`, an omitted `delivery.mode` as `auto-close`, an omitted `models.writer` as `models.cheap`.
+6. Write `.specs-inferno/config.yaml`, preserving any existing keys you did not touch. Keep the file minimal: only keys that differ from the documented defaults. Every key stays optional; `autonomy.level` changes nothing in the planner either way, an omitted `delivery.mode` behaves as `auto-close`, an omitted `models.writer` as `models.cheap`.
 7. Show the final file and note: model values apply only to Claude Code subagent dispatch; Codex uses `.specs-inferno/config.codex.yaml`.
 
 ---

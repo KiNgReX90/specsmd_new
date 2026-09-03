@@ -42,7 +42,7 @@ Complete this phase before spawning the orchestrator.
 The delegated orchestrator begins here.
 
 1. In one batched read, load the applicable `AGENTS.md` files, state, Codex config, every pending work-item spec for the selected intent, the halt flag when configured, UTC time, worktree list, and relevant branch status.
-2. Read configuration once. Missing keys use canonical behavior: `autonomy.level: review`, `delivery.mode: auto-close`, discovered project build and full tests for final verification, and no halt or knowledge integration.
+2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close`, discovered project build and full tests for final verification, and no halt or knowledge integration.
 3. Validate every pending work item before creating a worktree:
    - `context.required` is non-empty;
    - `ownership.editable` is non-empty;
@@ -133,7 +133,7 @@ On resume, read the intent halt note, reconcile state from disk, and dispatch re
 
 Finalize automatically once no work remains.
 
-1. Run every `verification.finalize` command in order, or discover and run the project's production build and full test suite when absent. Run every work-item `finalize_check`. Non-zero blocks close.
+1. Fold the base branch into the intent branch first (`git fetch origin <base>` then `git merge --no-edit origin/<base>`), resolving any conflict there so both goals survive, then run the gate once on that folded tree: every `verification.finalize` command in order, or the project's production build and full test suite when absent. That list is the gate and it runs once per intent. Run a work-item `finalize_check` only when it is a scoped invariant the list does not cover; one that repeats a listed command or the same suite under another filter is not run again. Non-zero blocks close. Never de-parallelize the gate, add retries to mask flake, or poll in a loop while waiting.
 2. Run ledger reconciliation:
 
    ```sh
@@ -148,8 +148,8 @@ Finalize automatically once no work remains.
    ```
 
    Its refusal over open items is authoritative.
-4. In `auto-close`, resolve the primary working tree, verify it is on the base branch and safe to merge, absorb the current remote base, merge the intent branch from the primary tree, rerun final verification if concurrent base changes touched shared paths, then push. Resolve ordinary conflicts by preserving both compatible goals; ask only about irreducible contradictions. Stop worktree-owned processes, remove the merged worktree from the primary tree, and delete the merged branch.
+4. In `auto-close`, resolve the primary working tree, verify it is on the base branch, absorb the current remote base and merge the intent branch from the primary tree, both merges with `--autostash` so another session's uncommitted edits are parked and restored. Then compare `HEAD^{tree}` on the base with the intent branch's tree: equal means the base holds exactly the tree the gate passed, so push and rerun nothing; unequal means the base moved, so fold it in again, run the gate once more, merge and compare again. That loop is the only post-merge rerun. Resolve ordinary conflicts by preserving both compatible goals; ask only about irreducible contradictions. Stop worktree-owned processes, remove the merged worktree from the primary tree, and delete the merged branch.
 5. In `merge-request`, keep the intent worktree and branch, push the intent branch, and open one intent-to-base merge request as the review gate. Stop only processes spawned in the worktree. If no forge is available, report the exact head, base, and title.
-6. Report a compact plain-language outcome: what changed, verification, delivery destination, worktree disposition, visual or interaction sign-off when relevant, and only non-ready audit entries under Problems.
+6. Report a compact plain-language outcome: what changed, verification, delivery destination, worktree disposition, the integration cases the harness proved when the intent touched a journey, and only non-ready audit entries under Problems.
 
 Never force destructive cleanup, discard another session's edits, guess a base branch, or hide an unmerged completed intent.
