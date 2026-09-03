@@ -457,6 +457,78 @@ test("a ledger-only commit keeps the tree green, a code commit does not", () => 
   assert.equal(run(fixture, ["green", "--tree", tree]).code, 3);
 });
 
+// --- gate --detach / --wait ------------------------------------------------
+// The gate outruns the cap a host puts on one tool call, and a background tool call is
+// orphaned when a headless run ends its turn. So the gate runs as its own process and the
+// orchestrator blocks on it in slices: 0 green, 2 red, 4 still running.
+const SLOW = CONFIG.replace("    - echo always", "    - sleep 2; echo slow");
+
+test("gate --detach starts the gate in its own process and --wait reports it green", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  const started = run(fixture, ["gate", "--tree", tree, "--detach"]);
+  assert.equal(started.code, 0, started.out + started.err);
+  assert.match(started.out, /gate started pid \d+/);
+  assert.match(started.out, /gate --wait/);
+
+  const waited = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]);
+  assert.equal(waited.code, 0, waited.out + waited.err);
+  assert.match(waited.out, /PASS \d+s echo always/);
+  assert.match(waited.out, /SKIP echo scoped/);
+  assert.match(waited.out, /green/);
+  assert.equal(run(fixture, ["green", "--tree", tree]).code, 0);
+});
+
+test("gate --wait exits 4 while the gate still runs and finishes on the next call", () => {
+  const fixture = repo({ config: SLOW });
+  const { tree } = opened(fixture);
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
+  const early = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.01"]);
+  assert.equal(early.code, 4, early.out + early.err);
+  assert.match(early.out, /still running pid \d+/);
+  const done = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]);
+  assert.equal(done.code, 0, done.out + done.err);
+  assert.match(done.out, /PASS \d+s sleep 2; echo slow/);
+});
+
+test("gate --wait reports a red gate with the failing command and its log", () => {
+  const config = CONFIG.replace("    - echo always", "    - echo the reason; exit 3");
+  const fixture = repo({ config });
+  const { tree } = opened(fixture);
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
+  const waited = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]);
+  assert.equal(waited.code, 2, waited.out + waited.err);
+  assert.match(waited.out, /FAIL \d+s echo the reason; exit 3 -> /);
+  assert.match(waited.out, /the reason/);
+  assert.equal(run(fixture, ["green", "--tree", tree]).code, 3);
+});
+
+test("gate --detach refuses to start a second gate while one runs", () => {
+  const fixture = repo({ config: SLOW });
+  const { tree } = opened(fixture);
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
+  const second = run(fixture, ["gate", "--tree", tree, "--detach"]);
+  assert.equal(second.code, 2);
+  assert.match(second.out + second.err, /already running/);
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]).code, 0);
+});
+
+test("gate --wait without a started gate says how to start one", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  const result = run(fixture, ["gate", "--tree", tree, "--wait"]);
+  assert.equal(result.code, 2);
+  assert.match(result.out + result.err, /gate --detach/);
+});
+
+test("gate --detach refuses a dirty tree before starting anything", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  write(tree, "src/a.ts", "export const a = 8;\n");
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 2);
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--wait"]).code, 2);
+});
+
 // --- ship ----------------------------------------------------------------
 /** Take alpha all the way to the state ship expects: closed, archived, gated. */
 function closed(fixture) {

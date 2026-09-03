@@ -13,7 +13,8 @@
  * scripts run inside consumer projects with no node_modules; and no ledger write of its own,
  * because state.yaml has one writer and this is not it.
  *
- * Exit codes: 0 ok, 1 usage, 2 failure (details printed), 3 gate needed (green and ship).
+ * Exit codes: 0 ok, 1 usage, 2 failure (details printed), 3 gate needed (green and ship),
+ * 4 gate still running (gate --wait: call it again).
  */
 
 const path = require('path');
@@ -35,6 +36,8 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs frontier <intent-id> [--tree <dir>]       validate the contracts, print the ready items
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
   node run.cjs gate [--tree <dir>] [--base <branch>]     the finalize gate, scoped by the config
+  node run.cjs gate --detach [--tree <dir>]              start the gate as its own process and return
+  node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the started gate: 0 green, 2 red, 4 still running (default 9 min)
   node run.cjs green [--tree <dir>]                      has this exact code already passed the gate
   node run.cjs ship <intent-id> --tree <dir>             fold, merge, push, verify, tear down
   node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>
@@ -44,8 +47,9 @@ Options
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
   --since <ref>     verify-item: what to compare the working tree against
   --intent <id>     verify-item: the intent owning the item, when the id is ambiguous
+  --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
 
-Exit codes: 0 ok, 1 usage, 2 failure, 3 gate needed.`;
+Exit codes: 0 ok, 1 usage, 2 failure, 3 gate needed, 4 gate still running.`;
 
 function required(value, usage) {
   if (!value) throw new RunError(`usage: node run.cjs ${usage}`, 'BAD_ARGS', 1);
@@ -66,6 +70,9 @@ const COMMANDS = {
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
 };
 
+/** Options that take no value. Everything else starting with `--` takes the next argument. */
+const FLAGS = new Set(['--json', '--detach', '--wait']);
+
 function parseArgs(argv) {
   const options = { cwd: process.cwd() };
   const args = [];
@@ -75,8 +82,8 @@ function parseArgs(argv) {
       args.push(arg);
       continue;
     }
-    if (arg === '--json') {
-      options.json = true;
+    if (FLAGS.has(arg)) {
+      options[arg.slice(2)] = true;
       continue;
     }
     const value = argv[i + 1];

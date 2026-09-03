@@ -137,6 +137,15 @@ describe('inferno flow', () => {
     expect(builder).not.toMatch(/yours to decide/);
   });
 
+  // A headless run ends with its turn, and a background tool call ends with it, gate and
+  // all (2026-09-03). The gate is its own process and the orchestrator blocks on it.
+  it('the orchestrator waits for the gate through gate --detach and gate --wait', () => {
+    const orchestrator = readFileSync(path.join(INFERNO, 'agents/orchestrator/agent.md'), 'utf8');
+    expect(orchestrator).toMatch(/gate --tree \{path\} --detach/);
+    expect(orchestrator).toMatch(/gate --tree \{path\} --wait/);
+    expect(orchestrator).not.toMatch(/background task that notifies/);
+  });
+
   it('Claude config defaults use only the requested exact model IDs', () => {
     const config = readFileSync(
       path.join(INFERNO, 'agents/orchestrator/config.example.yaml'),

@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const { resolveBase } = require('./run-intents.cjs');
@@ -106,9 +107,21 @@ function verifyItem(itemId, options) {
 // gate
 // ---------------------------------------------------------------------------
 
-function gate(options) {
-  const tree = treeOf(options);
-  refuseDirty(tree);
+/** The human lines for a gate's results, the same whether run here or read from a finished job. */
+function describe(results) {
+  const out = [];
+  for (const entry of results) {
+    if (entry.result === 'skip') out.push(`SKIP ${entry.command} (no path in scope changed)`);
+    else if (entry.result === 'pass') out.push(`PASS ${entry.seconds}s ${entry.command}`);
+    else {
+      out.push(`FAIL ${entry.seconds}s ${entry.command} -> ${entry.log}`);
+      out.push(...lib.tail(entry.log, 5));
+    }
+  }
+  return out;
+}
+
+function gateCommands(tree) {
   const config = lib.readConfig(tree);
   const commands = (config.verification && config.verification.finalize) || [];
   if (commands.length === 0) {
@@ -117,6 +130,14 @@ function gate(options) {
       'NO_GATE'
     );
   }
+  return { config, commands };
+}
+
+/** Run the finalize commands in this process. `gate` below dispatches between this, --detach and --wait. */
+function gateNow(options) {
+  const tree = treeOf(options);
+  refuseDirty(tree);
+  const { config, commands } = gateCommands(tree);
 
   const base = options.base || resolveBase(config, null, tree);
   const scopes = (config.verification && config.verification.finalize_scopes) || {};
@@ -124,32 +145,156 @@ function gate(options) {
   const branch = lib.currentBranch(tree);
   const dir = path.join(lib.cacheDir(tree), branch, `gate-${lib.stamp()}`);
 
-  const out = [];
   const results = [];
   for (const [index, command] of commands.entries()) {
     const scope = scopes[command];
     if (scope && !changed.some((file) => lib.matchesAny(file, scope))) {
-      out.push(`SKIP ${command} (no path in scope changed)`);
       results.push({ command, result: 'skip' });
       continue;
     }
     const run = lib.runShell(command, tree, path.join(dir, `${index}.log`));
     if (run.code === 0) {
-      out.push(`PASS ${run.seconds}s ${command}`);
       results.push({ command, result: 'pass', seconds: run.seconds });
       continue;
     }
-    out.push(`FAIL ${run.seconds}s ${command} -> ${run.log}`);
-    out.push(...lib.tail(run.log, 5));
     results.push({ command, result: 'fail', seconds: run.seconds, log: run.log });
-    return { exit: 2, payload: { ok: false, tree, branch, results }, out };
+    return { exit: 2, payload: { ok: false, tree, branch, results }, out: describe(results) };
   }
 
   const marker = markerFile(tree);
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, `${new Date().toISOString()}\n${branch}\n${commands.join('\n')}\n`, 'utf8');
-  out.push(`green ${path.basename(marker)}`);
-  return { exit: 0, payload: { ok: true, tree, branch, results, marker }, out };
+  return {
+    exit: 0,
+    payload: { ok: true, tree, branch, results, marker },
+    out: [...describe(results), `green ${path.basename(marker)}`],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// gate --detach / gate --wait
+//
+// The gate outruns the ten-minute cap a host puts on one tool call, and a background tool
+// call is orphaned the moment a headless run ends its turn (2026-09-03: the orchestrator
+// wrote "I'll continue when it exits" and the process exited with it, gate and all). So the
+// gate runs as its own detached process and the orchestrator blocks on it in slices that fit
+// the cap: `--wait` exits 0 green, 2 red, 4 still running, and 4 means call it again.
+// ---------------------------------------------------------------------------
+
+function jobPaths(tree) {
+  const dir = path.join(lib.cacheDir(tree), lib.currentBranch(tree));
+  return {
+    job: path.join(dir, 'gate-job.json'),
+    result: path.join(dir, 'gate-job.result.json'),
+    log: path.join(dir, 'gate-job.log'),
+  };
+}
+
+function readJson(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    return null;
+  }
+}
+
+/** Is the job's process still the gate we started, and still running. */
+function alive(job) {
+  if (!job || !job.pid) return false;
+  try {
+    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes('run.cjs')) return false;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+  }
+  try {
+    process.kill(job.pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function waitCommand(tree) {
+  return `node ${path.join(__dirname, 'run.cjs')} gate --wait --tree ${tree}`;
+}
+
+function gateDetach(options) {
+  const tree = treeOf(options);
+  refuseDirty(tree);
+  gateCommands(tree);
+  const paths = jobPaths(tree);
+  const existing = readJson(paths.job);
+  if (alive(existing)) {
+    throw new RunError(
+      `a gate is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree)}`,
+      'GATE_RUNNING'
+    );
+  }
+
+  fs.mkdirSync(path.dirname(paths.job), { recursive: true });
+  const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
+  if (options.base) args.push('--base', options.base);
+  const out = fs.openSync(paths.result, 'w');
+  const err = fs.openSync(paths.log, 'w');
+  const child = spawn(process.execPath, args, { cwd: tree, detached: true, stdio: ['ignore', out, err] });
+  fs.closeSync(out);
+  fs.closeSync(err);
+  child.unref();
+
+  const job = { pid: child.pid, started: new Date().toISOString(), tree, branch: lib.currentBranch(tree), ...paths };
+  fs.writeFileSync(paths.job, `${JSON.stringify(job)}\n`, 'utf8');
+  return {
+    exit: 0,
+    payload: { started: true, ...job },
+    out: [`gate started pid ${child.pid}`, `log ${paths.log}`, `wait with: ${waitCommand(tree)}`],
+  };
+}
+
+function finished(job) {
+  const result = readJson(job.result);
+  if (result && Array.isArray(result.results)) {
+    const out = describe(result.results);
+    if (result.ok) out.push(`green ${path.basename(result.marker)}`);
+    return { exit: result.ok ? 0 : 2, payload: result, out };
+  }
+  return {
+    exit: 2,
+    payload: { ok: false, tree: job.tree, branch: job.branch, results: [], died: true },
+    out: [`gate process ${job.pid} ended without a result -> ${job.log}`, ...lib.tail(job.log, 5)],
+  };
+}
+
+function gateWait(options) {
+  const tree = treeOf(options);
+  const job = readJson(jobPaths(tree).job);
+  if (!job) {
+    throw new RunError('no gate has been started for this tree; start one with gate --detach', 'NO_GATE_JOB');
+  }
+  const deadline = Date.now() + Number(options.minutes || 9) * 60000;
+  while (alive(job)) {
+    if (Date.now() >= deadline) {
+      const elapsed = Math.round((Date.now() - Date.parse(job.started)) / 60000);
+      return {
+        exit: 4,
+        payload: { running: true, ...job, elapsed_minutes: elapsed },
+        out: [`gate still running pid ${job.pid}, ${elapsed} min so far`, `log ${job.log}`, 'call gate --wait again'],
+      };
+    }
+    sleepSync(500);
+  }
+  return finished(job);
+}
+
+function gate(options) {
+  if (options.detach && options.wait) throw new RunError('gate takes --detach or --wait, not both', 'BAD_ARGS', 1);
+  if (options.detach) return gateDetach(options);
+  if (options.wait) return gateWait(options);
+  return gateNow(options);
 }
 
 // ---------------------------------------------------------------------------
