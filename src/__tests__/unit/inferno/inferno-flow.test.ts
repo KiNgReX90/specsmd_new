@@ -127,11 +127,13 @@ describe('inferno flow', () => {
   it.each([
     'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs',
     'agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs',
+    'agents/orchestrator/skills/orchestrate/scripts/run.test.cjs',
     'agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs',
+    // The runner suite builds throwaway git repos, so it needs more than the default 5s.
   ])('flow script suite %s passes', (rel) => {
     // throws (and fails the test) on non-zero exit
     execFileSync(process.execPath, [path.join(INFERNO, rel)], { stdio: 'pipe' });
-  });
+  }, 60_000);
 
   // The flow's scripts execute inside consumer projects (Rust apps, static sites) that have
   // no node_modules, so a single `require('yaml')` would make the script throw at the exact
