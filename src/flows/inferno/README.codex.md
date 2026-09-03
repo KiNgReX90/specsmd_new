@@ -10,12 +10,11 @@ instructions.
 - `$specsmd-inferno`: select, execute, or resume one planned intent.
 - `$specsmd-inferno-planner`: capture or repair an intent and its work items.
 - `$specsmd-inferno-config`: create, review, or update Codex execution settings.
-- `$specsmd-inferno-builder` and `$specsmd-inferno-writer`: internal worker
-  procedures; the orchestrator and planner dispatch them with complete
-  assignments.
+- `$specsmd-inferno-builder`: the internal worker procedure; the orchestrator
+  dispatches it with a complete assignment.
 
 Intent selection and configuration confirmation stay in the parent
-conversation. Builders and writers never choose work or spawn nested agents.
+conversation. Builders never choose work or spawn nested agents.
 
 ## Host files
 
@@ -38,7 +37,6 @@ conversation. Builders and writers never choose work or spawn nested agents.
 | Strong builder | `gpt-5.6-sol` | `xhigh` |
 | Config helper | `gpt-5.6-terra` | `high` |
 | Cheap builder | `gpt-5.6-terra` | `high` |
-| Writer | `gpt-5.6-terra` | `high` |
 
 Custom agents inherit the parent session's sandbox and approval policy. Model
 and reasoning values in `.codex/agents/*.toml` take precedence for their

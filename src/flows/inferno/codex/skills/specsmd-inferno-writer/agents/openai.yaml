@@ -1,4 +1,0 @@
-interface:
-  display_name: "Specsmd Inferno Writer"
-  short_description: "Write one INFERNO decision record"
-  default_prompt: "Use $specsmd-inferno-writer to write the single assigned INFERNO decision record."

@@ -1,6 +1,6 @@
 # Codex INFERNO planning procedure
 
-The planner captures or repairs intent artifacts, fully decides their work-item records, delegates only file rendering, updates state once, prints a handoff, and stops. It never starts implementation.
+The planner captures or repairs intent artifacts, fully decides their work-item records, renders every file itself, updates state once, prints a handoff, and stops. It never starts implementation.
 
 ## Paths and canonical resources
 
@@ -8,14 +8,9 @@ The planner captures or repairs intent artifacts, fully decides their work-item 
 - Codex configuration: `.specs-inferno/config.codex.yaml`
 - Intent brief: `.specs-inferno/intents/<intent-id>/brief.md`
 - Work item: `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`
-- Optional design: `.specs-inferno/intents/<intent-id>/work-items/<item-id>-design.md`
-- Brief template: `.specsmd/inferno/agents/planner/skills/intent-capture/templates/brief.md.hbs`
-- Work-item template: `.specsmd/inferno/agents/planner/skills/work-item-decompose/templates/work-item.md.hbs`
-- Design template: `.specsmd/inferno/agents/planner/skills/design-doc-generate/templates/design.md.hbs`
-- Detailed canonical contracts:
-  - `.specsmd/inferno/agents/planner/skills/intent-capture/SKILL.md`
-  - `.specsmd/inferno/agents/planner/skills/work-item-decompose/SKILL.md`
-  - `.specsmd/inferno/agents/planner/skills/design-doc-generate/SKILL.md`
+- Brief template: `.specsmd/inferno/agents/planner/templates/brief.md.hbs`
+- Work-item template: `.specsmd/inferno/agents/planner/templates/work-item.md.hbs`
+- Canonical planner body: `.specsmd/inferno/agents/planner/agent.md`
 
 Read applicable `AGENTS.md` instructions. Read canonical resources as references but never edit them. The `specsmd_inferno_planner` custom agent runs on `gpt-5.6-sol` with `xhigh` reasoning.
 
@@ -98,20 +93,18 @@ Acceptance criteria and per-item verification commands name the one spec or test
 
 Create a `kind: test` item only when verification itself requires real reasoning, such as a computed cross-surface invariant or a genuinely new broad visual smoke surface. It depends on all relevant implementation items, stays capped, and does not rerun the full final gate.
 
-### Optional design record
+### High-complexity decisions
 
-Create a design record only when a high-complexity item benefits from up-front decisions. Include decision, choice, rationale, domain model when applicable, technical approach, context and ownership assumptions, risks, mitigations, and implementation checklist. A design record is never a mandatory pause or permission gate.
+A high-complexity item carries its decisions under Technical Notes, one line each for the decision, the choice and the reason. No separate design file is written.
 
-## Pure-scribe fan-out
+## Rendering the artifacts
 
-The planner makes all decisions before dispatch.
+The planner makes every decision and writes every file.
 
-1. Build a complete immutable decision record for each work item, including every required and optional template field.
-2. In one parallel round, call `spawn_agent` once per output path targeting the `specsmd_inferno_writer` custom agent. Writers run on `gpt-5.6-terra` with `high` reasoning.
-3. Each assignment contains exactly one decision record, the canonical work-item template path, and one output path. No writer receives project-discovery work.
-4. Use `wait_agent` until every writer returns.
-5. Validate every `written` result and parse each resulting frontmatter. For a missing or failed artifact, use `followup_task` once with the exact missing field or render error. A second failure blocks the state update and is reported.
-6. Only after all files validate, update `.specs-inferno/state.yaml` once with the work-item list and intent metadata. Writers never touch state.
+1. Build a complete decision record for each work item, including every required and optional template field.
+2. Render each record from the canonical work-item template into its output path `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`.
+3. Parse the frontmatter of every file written and confirm each manifest field is present. A missing or unrenderable field is a defect in the decision record, so fix the record and render that file again.
+4. Only after all files validate, update `.specs-inferno/state.yaml` once with the work-item list and intent metadata.
 
 ## Validation
 
@@ -125,7 +118,7 @@ Before handoff:
 6. Run the canonical decomposition contract test when its prerequisites are available:
 
    ```sh
-   node --test .specsmd/inferno/agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs
+   node --test .specsmd/inferno/agents/planner/scripts/team-work-item-contract.test.cjs
    ```
 
 ## Handoff and stop
