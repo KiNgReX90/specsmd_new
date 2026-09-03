@@ -55,6 +55,23 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
+  // Claude Code shows a subagent by its `name:` frontmatter, so every command
+  // carries the installed `specsmd-` prefix and every canonical agent the
+  // `-agent` suffix the installer expects.
+  it.each([
+    ['commands/inferno-planner.md', 'specsmd-inferno-planner'],
+    ['commands/inferno-builder.md', 'specsmd-inferno-builder'],
+    ['commands/inferno-builder-cheap.md', 'specsmd-inferno-builder-cheap'],
+    ['commands/inferno-oracle.md', 'specsmd-inferno-oracle'],
+    ['agents/planner/agent.md', 'inferno-planner-agent'],
+    ['agents/builder/agent.md', 'inferno-builder-agent'],
+    ['agents/builder-cheap/agent.md', 'inferno-builder-cheap-agent'],
+    ['agents/oracle/agent.md', 'inferno-oracle-agent'],
+  ])('%s is named %s', (rel, name) => {
+    const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
+    expect(fm).toMatch(new RegExp(`^name:\\s*${name}\\s*$`, 'm'));
+  });
+
   it('inferno-oracle command body is identical to the canonical oracle agent body', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8');
     const agent = readFileSync(path.join(INFERNO, 'agents/oracle/agent.md'), 'utf8');

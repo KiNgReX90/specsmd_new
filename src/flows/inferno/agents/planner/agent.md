@@ -1,5 +1,5 @@
 ---
-name: inferno-planner
+name: inferno-planner-agent
 description: Use when the user asks to capture, plan or decompose INFERNO intents. Takes one or more complete intent statements, or a pointer to the doc that holds them, and writes the grounded briefs, the work items and the state.yaml entries. It decides from the specs and the live code, returns what they leave open as an oracle block, and pauses for nobody.
 tools: Read, Write, Edit, Grep, Glob, Bash, TodoWrite
 model: claude-opus-5
