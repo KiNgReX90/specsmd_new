@@ -20,7 +20,6 @@ const SKILLS = [
   'specsmd-inferno',
   'specsmd-inferno-planner',
   'specsmd-inferno-builder',
-  'specsmd-inferno-writer',
   'specsmd-inferno-config',
 ];
 const AGENTS: Record<string, [string, string]> = {
@@ -29,7 +28,6 @@ const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_builder_strong: ['gpt-5.6-sol', 'xhigh'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
-  specsmd_inferno_writer: ['gpt-5.6-terra', 'high'],
 };
 
 function tomlStrings(source: string): Record<string, string> {
@@ -76,7 +74,7 @@ describe.sequential('CodexInstaller native bundle', () => {
 
     const installedAgentFiles = readdirSync('.codex/agents')
       .filter((file) => file.startsWith('specsmd_') && file.endsWith('.toml'));
-    expect(installedAgentFiles).toHaveLength(6);
+    expect(installedAgentFiles).toHaveLength(5);
     const seen = new Set<string>();
     for (const file of installedAgentFiles) {
       const source = readFileSync(path.join('.codex/agents', file), 'utf8');

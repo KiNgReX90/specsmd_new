@@ -49,9 +49,9 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(cheapCommand)).toBe(stripFrontmatter(cheapAgent));
   });
 
-  it('inferno-writer command body is identical to the canonical writer agent body', () => {
-    const command = readFileSync(path.join(INFERNO, 'commands/inferno-writer.md'), 'utf8');
-    const agent = readFileSync(path.join(INFERNO, 'agents/writer/agent.md'), 'utf8');
+  it('inferno-planner command body is identical to the canonical planner agent body', () => {
+    const command = readFileSync(path.join(INFERNO, 'commands/inferno-planner.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/planner/agent.md'), 'utf8');
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
@@ -85,13 +85,11 @@ describe('inferno flow', () => {
     ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
-    ['commands/inferno-writer.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-oracle.md', 'claude-fable-5-1', 'max'],
     ['agents/orchestrator/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
-    ['agents/writer/agent.md', 'claude-sonnet-4-6', 'high'],
     ['agents/oracle/agent.md', 'claude-fable-5-1', 'max'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
@@ -120,14 +118,13 @@ describe('inferno flow', () => {
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5\b/m);
     expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-4-6\b/m);
-    expect(config).toMatch(/^\s*writer:\s*claude-sonnet-4-6\b/m);
     expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);
   });
 
   it.each([
     'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs',
     'agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs',
-    'agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs',
+    'agents/planner/scripts/team-work-item-contract.test.cjs',
   ])('flow script suite %s passes', (rel) => {
     // throws (and fails the test) on non-zero exit
     execFileSync(process.execPath, [path.join(INFERNO, rel)], { stdio: 'pipe' });

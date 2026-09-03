@@ -31,10 +31,6 @@ roles:
     agent: specsmd_inferno_builder_cheap
     model: gpt-5.6-terra
     reasoning_effort: high
-  writer:
-    agent: specsmd_inferno_writer
-    model: gpt-5.6-terra
-    reasoning_effort: high
 
 verification:
   finalize:

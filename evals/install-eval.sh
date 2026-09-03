@@ -36,26 +36,26 @@ req .specsmd/inferno/agents/orchestrator/skills/orchestrate/templates/intent-sel
 req .specsmd/inferno/agents/builder/agent.md
 req .specsmd/inferno/agents/builder/skills/workitem-execute/SKILL.md
 req .specsmd/inferno/agents/planner/agent.md
-req .specsmd/inferno/agents/planner/skills/work-item-decompose/SKILL.md
-req .specsmd/inferno/agents/planner/skills/work-item-decompose/templates/work-item.md.hbs
+req .specsmd/inferno/agents/planner/templates/brief.md.hbs
+req .specsmd/inferno/agents/planner/templates/work-item.md.hbs
 req .specsmd/inferno/agents/oracle/agent.md
 req .specsmd/inferno/README.md
 req .specsmd/inferno/README.codex.md
 
-# Claude Code keeps its seven command/agent wrappers.
-for n in inferno inferno-planner inferno-builder inferno-builder-cheap inferno-config inferno-writer inferno-oracle; do
+# Claude Code keeps its six command/agent wrappers.
+for n in inferno inferno-planner inferno-builder inferno-builder-cheap inferno-config inferno-oracle; do
   req ".claude/commands/specsmd-$n.md"
   req ".claude/agents/specsmd-$n.md"
 done
 
 # Codex installs its native project skills and custom agents, not converted
 # Claude command bodies under .codex/skills.
-for n in inferno inferno-planner inferno-builder inferno-config inferno-writer; do
+for n in inferno inferno-planner inferno-builder inferno-config; do
   req ".agents/skills/specsmd-$n/SKILL.md"
   req ".agents/skills/specsmd-$n/references/procedure.md"
   req ".agents/skills/specsmd-$n/agents/openai.yaml"
 done
-for n in orchestrator planner builder_strong builder_cheap config writer; do
+for n in orchestrator planner builder_strong builder_cheap config; do
   req ".codex/agents/specsmd_inferno_$n.toml"
 done
 req AGENTS.md
@@ -68,7 +68,7 @@ for n in inferno inferno-planner inferno-builder; do
   grep -q '^effort: xhigh$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude strong effort: $n"; FAIL=1; }
 done
-for n in inferno-builder-cheap inferno-config inferno-writer; do
+for n in inferno-builder-cheap inferno-config; do
   grep -q '^model: claude-sonnet-4-6$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude support model: $n"; FAIL=1; }
   grep -q '^effort: high$' ".claude/agents/specsmd-$n.md" \
@@ -86,7 +86,7 @@ for n in orchestrator planner builder_strong; do
   grep -q '^model_reasoning_effort = "xhigh"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Sol effort: $n"; FAIL=1; }
 done
-for n in builder_cheap config writer; do
+for n in builder_cheap config; do
   grep -q '^model = "gpt-5.6-terra"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Terra model: $n"; FAIL=1; }
   grep -q '^model_reasoning_effort = "high"$' ".codex/agents/specsmd_inferno_$n.toml" \
@@ -133,7 +133,7 @@ absent .specsmd/fire
   && note "OK   team-scheduler suite" || { note "FAIL team-scheduler suite"; FAIL=1; }
 ( cd "$SANDBOX" && node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs ) \
   && note "OK   state-transition suite" || { note "FAIL state-transition suite"; FAIL=1; }
-( cd "$SANDBOX" && node .specsmd/inferno/agents/planner/skills/work-item-decompose/scripts/team-work-item-contract.test.cjs ) \
+( cd "$SANDBOX" && node .specsmd/inferno/agents/planner/scripts/team-work-item-contract.test.cjs ) \
   && note "OK   work-item contract suite" || { note "FAIL work-item contract suite"; FAIL=1; }
 
 if [ "$FAIL" -eq 0 ]; then

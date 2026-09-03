@@ -11,9 +11,7 @@
 - Treat legacy slash-command wording as intent to invoke the matching Codex
   skill, never as a reason to read or execute another host's command file.
 - The orchestrator alone dispatches `specsmd_inferno_builder_strong` and
-  `specsmd_inferno_builder_cheap`; the planner alone dispatches
-  `specsmd_inferno_writer`. Never activate a builder or writer without a
-  complete assignment from its owning role, and never let a worker spawn nested
-  agents.
+  `specsmd_inferno_builder_cheap`. Never activate a builder without a complete
+  assignment from its owning role, and never let a worker spawn nested agents.
 - Codex roles use `.specs-inferno/config.codex.yaml`; Claude-specific files and
   `.specs-inferno/config.yaml` remain a separate host surface.

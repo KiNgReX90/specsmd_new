@@ -13,19 +13,18 @@ INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIR
 | `/specsmd-inferno` | Orchestrator: selects an intent, runs the parallel build to a verified merge |
 | `/specsmd-inferno-planner` | Captures an intent and decomposes it into work items |
 | `/specsmd-inferno-builder` | Subagent dispatched by the orchestrator for exactly one work item |
-| `/specsmd-inferno-writer` | Pure-scribe subagent dispatched by the planner to render exactly one work-item file |
 | `/specsmd-inferno-oracle` | Decision subagent spawned by the orchestrator (or any session) for a judgment call a builder or orchestrator would otherwise postpone; decides from the artifact, on the frontier tier, and builds a hard change inside the fix-now box when a session asks with `build: yes` |
 | `/specsmd-inferno-config` | Wizard for the optional `.specs-inferno/config.yaml` |
 
 ## What's different from FIRE
 
 - **No friction gates during planning.** Intent capture flows straight into work-item decomposition with no confirmation prompt. The planner writes the work items and STOPS; it never starts the build, which is always a separate, explicit step you run later with `/specsmd-inferno` (or `/schedule-inferno`). There is no review pause in any mode (2026-09-02): the planner settles every choice the specs settle, returns what they leave open as an `oracle:` block in its summary, and returns what fits the fix-now box as a `fix-now:` block. `autonomy.level` in `.specs-inferno/config.yaml` no longer changes what the Claude planner does.
-- **Every work item runs in autopilot.** Oversight is the specs and the oracle at planning time, and the orchestrator's verified finalize. No per-item checkpoints, and the design-doc step is never a mandatory gate.
-- **Parallel scribe authoring.** The planner (a strong model) does ALL decomposition reasoning, then fans the *writing* out to parallel `specsmd-inferno-writer` scribes — one file per work item — so authoring many work items doesn't serialize. Scribes make no decisions and never touch state; the planner alone updates `state.yaml`.
+- **Every work item runs in autopilot.** Oversight is the specs and the oracle at planning time, and the orchestrator's verified finalize. No per-item checkpoints.
+- **One planner body.** The planner grounds every claim in the live code, writes every brief and work item itself, and alone updates `state.yaml`. A high-complexity item carries its decisions under Technical Notes, so no separate design document is produced.
 
 ## Model tiers & effort
 
-The orchestrator dispatches builders by complexity: medium/high → the strong tier, low (and kind config-only/docs-only/test) → the cheap tier. Claude pins the strong orchestrator/planner/builder roles to `claude-opus-5` at `xhigh`, and config/cheap-builder/writer roles to `claude-sonnet-4-6` at `high`. The oracle is pinned to `claude-fable-5-1` at `max` and never tiered down: a mediocre implementation is caught by a test, a mediocre decision ships. Codex uses its isolated `.specs-inferno/config.codex.yaml` and `.codex/agents/*.toml` matrix: Sol/xhigh for strong roles and Terra/high for supporting roles.
+The orchestrator dispatches builders by complexity: medium/high → the strong tier, low (and kind config-only/docs-only/test) → the cheap tier. Claude pins the strong orchestrator/planner/builder roles to `claude-opus-5` at `xhigh`, and the config and cheap-builder roles to `claude-sonnet-4-6` at `high`. The oracle is pinned to `claude-fable-5-1` at `max` and never tiered down: a mediocre implementation is caught by a test, a mediocre decision ships. Codex uses its isolated `.specs-inferno/config.codex.yaml` and `.codex/agents/*.toml` matrix: Sol/xhigh for strong roles and Terra/high for supporting roles.
 
 ## Delivery modes
 
@@ -36,4 +35,4 @@ The orchestrator dispatches builders by complexity: medium/high → the strong t
 
 ## Per-project config
 
-Optional `.specs-inferno/config.yaml` carries worker model tiers (`strong` / `cheap` / `writer`), the finalize verification gate, the delivery mode, and optional budget-halt / knowledge-base settings. First run shows the defaults in plain language and lets you confirm or adjust. See `agents/orchestrator/config.example.yaml` or run `/specsmd-inferno-config`. Every key is optional; without the file the flow runs on host/project defaults.
+Optional `.specs-inferno/config.yaml` carries worker model tiers (`strong` / `cheap`), the finalize verification gate, the delivery mode, and optional budget-halt / knowledge-base settings. First run shows the defaults in plain language and lets you confirm or adjust. See `agents/orchestrator/config.example.yaml` or run `/specsmd-inferno-config`. Every key is optional; without the file the flow runs on host/project defaults.
