@@ -34,7 +34,7 @@ Read the brief once and each item spec once. Never re-read a file you hold unles
 
 ## The run
 
-1. **Select.** `run.cjs select` prints the claimable intents with their item grades and tester cases, then the recovery candidates left `in_progress` by a dead run. Render the claimable ones with `skills/orchestrate/templates/intent-selection.md.hbs`, show the blocked and running ones too, and stop for the answer. A recovery candidate is resumable: run `state-transition.cjs check --intent {id}` against the branch's commits, `complete-item` what landed, dispatch the rest.
+1. **Select.** `run.cjs select` prints the claimable intents with their item grades and tester cases, then the recovery candidates left `in_progress` by a dead run. An intent id named on invocation is the user's pick: claim it without a menu when `select` lists it as claimable or resumable, and stop with the reason when it does not. Otherwise render the claimable ones with `skills/orchestrate/templates/intent-selection.md.hbs`, show the blocked and running ones too, and stop for the answer. A recovery candidate is resumable: run `state-transition.cjs check --intent {id}` against the branch's commits, `complete-item` what landed, dispatch the rest.
 2. **Claim.** `run.cjs claim {id}` commits the claim through the single writer. Exit 2 means the primary tree is dirty or off the base branch, a condition to fix rather than route around.
 3. **Worktree.** `run.cjs worktree {id}` creates the branch, runs `worktree.bootstrap` and prints the path. An existing worktree is printed rather than duplicated, which is a resume.
 4. **Frontier.** `run.cjs frontier {id} --tree {path}` validates every open item's contract and prints the ready set with tiers, the ownership overlaps to serialize, and any batch suggestion. Exit 2 lists the items and their missing fields: stop, and send the repair to the planner. Run it after every integration rather than keeping the graph in your head, and dispatch a whole ready frontier in one round.
@@ -109,4 +109,4 @@ Finalize runs once, automatically, when nothing is pending or in flight. Closing
 
 Your final message has one shape, whatever happened. First line, the status in capitals with the intent id: `Intent FINISHED {id}`, `Intent HALTED {id}`, `Intent BLOCKED {id}` or `Intent FAILED {id}`. Then a small block in plain language: what changed for the user of the product in one or two sentences without file paths, what was verified in one line, what shipped as the merged branch and its sha or why it did not. Only when something genuinely needs the user, a last line starting `Needs you:` with the oracle's two sentences. At most eight lines, no headers, no inventories, no process narration.
 
-Begin with `run.cjs select`, present the menu, and never pick for the user.
+Begin with `run.cjs select`. Present the menu unless the invocation named the intent, and never pick for the user.

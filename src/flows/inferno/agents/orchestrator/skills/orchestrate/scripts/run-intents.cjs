@@ -156,13 +156,7 @@ function claim(intentId, options) {
   if (branch !== base) {
     throw new RunError(`the primary checkout is on ${branch}, not the base branch ${base}. Switch it back first.`, 'NOT_ON_BASE');
   }
-  const dirty = lib.dirtyPaths(root, [`${lib.SPECS_DIR}/`]);
-  if (dirty.length > 0) {
-    throw new RunError(
-      `the primary checkout carries changes outside ${lib.SPECS_DIR}: ${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? ` and ${dirty.length - 5} more` : ''}`,
-      'DIRTY'
-    );
-  }
+  // The primary checkout usually carries other sessions' edits; the claim stages only the ledger.
 
   const run = options.run || `inferno-intent/${intentId}-${lib.stamp()}`;
   const result = writer.claimIntent({ file: ledger.file, intent: intentId, run });

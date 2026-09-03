@@ -69,10 +69,7 @@ function ship(intentId, options) {
   if (on !== base) {
     throw new RunError(`refusing to ship: the primary checkout is on ${on}, not the base branch ${base}.`, 'NOT_ON_BASE');
   }
-  const dirtyPrimary = lib.dirtyPaths(primary, [`${lib.SPECS_DIR}/`]);
-  if (dirtyPrimary.length > 0) {
-    throw new RunError(`refusing to ship: the primary checkout carries ${dirtyPrimary.slice(0, 5).join(', ')}`, 'DIRTY');
-  }
+  // The primary checkout usually carries other sessions' edits; every merge below runs with --autostash.
   const dirtyTree = lib.dirtyPaths(tree);
   if (dirtyTree.length > 0) {
     throw new RunError(`refusing to ship: the worktree carries ${dirtyTree.slice(0, 5).join(', ')}`, 'DIRTY');

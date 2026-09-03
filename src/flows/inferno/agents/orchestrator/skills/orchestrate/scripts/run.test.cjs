@@ -218,12 +218,16 @@ test("select reads the live ledger only, never the archive", () => {
 });
 
 // --- claim / unclaim -----------------------------------------------------
-test("claim refuses while the primary tree is dirty outside the ledger", () => {
+test("claim commits only the ledger while the primary tree is dirty outside it", () => {
   const fixture = repo();
   write(fixture.root, "src/a.ts", "export const a = 99;\n");
+  write(fixture.root, "HANDOFF.md", "another session's note\n");
   const result = run(fixture, ["claim", "alpha"]);
-  assert.equal(result.code, 2);
-  assert.match(result.out + result.err, /src\/a\.ts/);
+  assert.equal(result.code, 0, result.out + result.err);
+  const committed = git(fixture.root, ["show", "--name-only", "--pretty=", "HEAD"]).trim().split("\n");
+  assert.deepEqual(committed, [".specs-inferno/state.yaml"]);
+  assert.match(git(fixture.root, ["status", "--porcelain"]), /src\/a\.ts/);
+  assert.match(git(fixture.root, ["status", "--porcelain"]), /HANDOFF\.md/);
 });
 
 test("claim commits the claim and prints the sha", () => {
@@ -463,6 +467,21 @@ test("ship merges, pushes, and tears the worktree and branch down", () => {
   assert.equal(git(fixture.root, ["rev-parse", "main"]), git(fixture.root, ["rev-parse", "origin/main"]));
   assert.equal(fs.existsSync(tree), false);
   assert.equal(git(fixture.root, ["branch", "--list", branch]).trim(), "");
+});
+
+test("ship merges with a dirty primary checkout and keeps its edits", () => {
+  const fixture = repo();
+  const { tree, branch } = closed(fixture);
+  assert.equal(run(fixture, ["gate", "--tree", tree]).code, 0);
+  // Another session's edit to a file the intent never touched, plus an untracked note.
+  write(fixture.root, "docs/b.md", "docs, edited by another session\n");
+  write(fixture.root, "HANDOFF.md", "another session's note\n");
+  const result = run(fixture, ["ship", "alpha", "--tree", tree]);
+
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(git(fixture.root, ["log", "-1", "--pretty=%s"]), new RegExp(`Merge branch '${branch}'`));
+  assert.equal(fs.readFileSync(path.join(fixture.root, "docs/b.md"), "utf8"), "docs, edited by another session\n");
+  assert.equal(fs.existsSync(path.join(fixture.root, "HANDOFF.md")), true);
 });
 
 test("ship refuses an intent that is not closed", () => {

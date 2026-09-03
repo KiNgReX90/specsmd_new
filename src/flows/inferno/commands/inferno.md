@@ -1,10 +1,13 @@
 ---
 description: INFERNO Orchestrator - parallel builder subagents in one intent worktree
+argument-hint: "[intent-id]"
 ---
 
 # Activate INFERNO
 
-**Command**: `/specsmd-inferno`
+**Command**: `/specsmd-inferno [intent-id]`
+
+Arguments: `$ARGUMENTS`. An intent id given here is the user's pick, so the orchestrator claims it without showing the selection menu.
 
 ---
 
