@@ -63,8 +63,15 @@ done
 req AGENTS.md
 absent .codex/skills/specsmd-inferno
 
-# Exact host model matrices remain isolated.
-for n in inferno inferno-planner inferno-builder; do
+# Exact host model matrices remain isolated. The orchestrator is the main thread
+# and inherits the session's model and effort, so its command pins neither.
+for n in inferno; do
+  grep -q '^model:' ".claude/agents/specsmd-$n.md" \
+    && { note "FAIL Claude orchestrator pins a model: $n"; FAIL=1; }
+  grep -q '^effort:' ".claude/agents/specsmd-$n.md" \
+    && { note "FAIL Claude orchestrator pins an effort: $n"; FAIL=1; }
+done
+for n in inferno-planner inferno-builder; do
   grep -q '^model: claude-opus-5$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude strong model: $n"; FAIL=1; }
   grep -q '^effort: xhigh$' ".claude/agents/specsmd-$n.md" \
