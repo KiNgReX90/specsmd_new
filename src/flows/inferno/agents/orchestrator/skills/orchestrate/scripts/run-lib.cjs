@@ -419,6 +419,31 @@ function processesIn(dir) {
   return found;
 }
 
+/**
+ * Minutes since the worktree last showed work: its tip commit, or the newest
+ * edit among its changed and untracked (non-ignored) paths. A process check
+ * alone misses every interactive orchestrator, which sits in the primary
+ * checkout while its builders edit here; the edits and commits are the signal.
+ * Null when nothing can be read.
+ */
+function idleMinutes(dir, now = Date.now()) {
+  let newest = null;
+  const tip = git(dir, ['log', '-1', '--format=%ct'], { tolerate: true });
+  if (tip && /^\d+$/.test(tip)) newest = Number(tip) * 1000;
+  const changed = gitLines(dir, ['status', '--porcelain', '--untracked-files=all'], { tolerate: true });
+  for (const line of changed.slice(0, 2000)) {
+    const rel = line.slice(3).split(' -> ').pop();
+    try {
+      const mtime = fs.statSync(path.join(dir, rel)).mtimeMs;
+      if (newest === null || mtime > newest) newest = mtime;
+    } catch (error) {
+      continue;
+    }
+  }
+  if (newest === null) return null;
+  return Math.max(0, Math.floor((now - newest) / 60000));
+}
+
 /** A UTC branch stamp: 20260903T061242Z. */
 function stamp(now) {
   return (now || new Date()).toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
@@ -443,6 +468,7 @@ module.exports = {
   git,
   gitLines,
   globToRegExp,
+  idleMinutes,
   isHeavy,
   matchesAny,
   onPath,

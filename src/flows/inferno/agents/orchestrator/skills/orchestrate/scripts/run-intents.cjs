@@ -12,6 +12,9 @@ const lib = require('./run-lib.cjs');
 const writer = require('./state-transition.cjs');
 const scheduler = require('./team-scheduler.cjs');
 
+/** An in_progress intent counts as abandoned after this long with no process, edit or commit in its worktree. */
+const DEFAULT_IDLE_MINUTES = 60;
+
 const { RunError } = lib;
 
 const CHEAP_KINDS = new Set(['test', 'docs-only', 'docs', 'config-only', 'config']);
@@ -96,6 +99,8 @@ function checkLine(file, intentId) {
 function select(options) {
   const root = lib.primaryRoot(options.cwd);
   const ledger = lib.readLedger(root);
+  const config = lib.readConfig(root);
+  const idleWindow = Number((config.recovery || {}).idle_minutes) || DEFAULT_IDLE_MINUTES;
   const claimable = [];
   const blocked = [];
   const recovery = [];
@@ -112,12 +117,17 @@ function select(options) {
 
     const branch = branchesFor(root, intent.id);
     const tree = worktreeFor(root, intent.id);
-    const live = tree ? lib.processesIn(tree.path) : null;
     let reason = null;
     if (branch.length === 0 && !tree) reason = 'branch and worktree are both gone';
     else if (!tree) reason = 'no worktree for the branch';
     else if (branch.length === 0) reason = 'no branch for the worktree';
-    else if (live && live.length === 0) reason = 'no process running in the worktree';
+    else {
+      const live = lib.processesIn(tree.path);
+      const idle = lib.idleMinutes(tree.path);
+      const busy = (live && live.length > 0) || (idle !== null && idle < idleWindow);
+      if (!busy && idle !== null) reason = `no process in the worktree and idle for ${idle} min`;
+      else if (!busy && live && live.length === 0) reason = 'no process running in the worktree';
+    }
     if (reason) {
       recovery.push({ id: intent.id, reason, tree: tree ? tree.path : null, check: checkLine(ledger.file, intent.id) });
     }

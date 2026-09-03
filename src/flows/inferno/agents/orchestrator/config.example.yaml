@@ -45,6 +45,9 @@ dispatch:
 #   mode: auto-close              # auto-close or merge-request
 #   base_branch: main             # the branch an intent merges into; omit to have the orchestrator propose and confirm
 
+# recovery:
+#   idle_minutes: 60                                     # an in_progress intent is offered for recovery only after this long with no process, edit or commit in its worktree
+
 # halt:
 #   flag_file: /absolute/path/to/HALT                    # checked before every dispatch round
 #   wait_script: /absolute/path/to/wait-for-reset.sh     # launched in the background at halt, exits when the budget window resets

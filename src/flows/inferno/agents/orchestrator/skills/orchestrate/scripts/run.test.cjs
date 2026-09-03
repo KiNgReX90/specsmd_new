@@ -117,8 +117,13 @@ function write(root, rel, body) {
   fs.writeFileSync(path.join(root, rel), body, "utf8");
 }
 
-function git(cwd, args) {
-  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+function git(cwd, args, env = {}) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, ...env },
+  });
 }
 
 /** A throwaway repo shaped like a host project: a bare origin, a ledger, item specs. */
@@ -208,6 +213,28 @@ test("select reports a claimed intent with no branch as a recovery candidate", (
   const recovery = result.recovery.map((entry) => entry.id);
   assert.deepEqual(recovery, ["gamma"]);
   assert.match(result.recovery[0].check, /ledger|DRIFT/);
+});
+
+test("select keeps a claimed intent off the recovery list while its worktree is being edited", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  write(tree, "src/a.ts", "export const a = 2;\n");
+  const result = JSON.parse(run(fixture, ["select", "--json"]).out);
+  assert.deepEqual(result.recovery.map((entry) => entry.id), ["gamma"]);
+});
+
+test("select recovers a claimed intent whose worktree has been idle past the window", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  const threeHoursAgo = `@${Math.floor(Date.now() / 1000) - 3 * 3600} +0000`;
+  git(tree, ["commit", "-q", "--amend", "--no-edit", "--date", threeHoursAgo], {
+    GIT_COMMITTER_DATE: threeHoursAgo,
+  });
+  const result = JSON.parse(run(fixture, ["select", "--json"]).out);
+  const alpha = result.recovery.find((entry) => entry.id === "alpha");
+  assert.ok(alpha, "alpha is a recovery candidate");
+  assert.match(alpha.reason, /idle for \d+ min/);
+  assert.equal(alpha.tree, tree);
 });
 
 test("select reads the live ledger only, never the archive", () => {
