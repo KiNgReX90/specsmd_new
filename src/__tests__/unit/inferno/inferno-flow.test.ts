@@ -143,6 +143,7 @@ describe('inferno flow', () => {
     const orchestrator = readFileSync(path.join(INFERNO, 'agents/orchestrator/agent.md'), 'utf8');
     expect(orchestrator).toMatch(/gate --tree \{path\} --detach/);
     expect(orchestrator).toMatch(/gate --tree \{path\} --wait/);
+    expect(orchestrator).toMatch(/first folds the base branch in, so the tree it proves is the tree ship merges/);
     expect(orchestrator).not.toMatch(/background task that notifies/);
   });
 

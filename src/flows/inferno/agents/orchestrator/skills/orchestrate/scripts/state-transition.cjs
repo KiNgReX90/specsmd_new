@@ -475,7 +475,14 @@ function check(options) {
   const lines = loadState(file);
   const entries = locateIntents(lines);
   const scope = options.intent ? entries.filter((entry) => entry.id === options.intent) : entries;
-  if (options.intent && scope.length === 0) getIntent(lines, options.intent);
+  if (options.intent && scope.length === 0) {
+    // Finalize runs check after archive-intent has moved the block out of the live ledger:
+    // an archived intent is a finished one, not an unknown one (2026-09-03).
+    if (archivedIds(archivePaths(file).archiveFile).has(options.intent)) {
+      return { drift: [], intents: 0, archived: options.intent };
+    }
+    getIntent(lines, options.intent);
+  }
 
   const drift = [];
   for (const intent of scope) {
@@ -926,7 +933,9 @@ function main(argv) {
   if (command === 'check') {
     const result = check(options);
     if (options.json) process.stdout.write(`${JSON.stringify(result)}\n`);
-    else if (result.drift.length === 0) {
+    else if (result.archived) {
+      process.stdout.write(`intent ${result.archived} is archived; nothing left to check in the live ledger\n`);
+    } else if (result.drift.length === 0) {
       process.stdout.write(`ledger consistent across ${result.intents} intent(s)\n`);
     } else {
       for (const entry of result.drift) process.stdout.write(`DRIFT ${entry.intent}: ${entry.detail}\n`);

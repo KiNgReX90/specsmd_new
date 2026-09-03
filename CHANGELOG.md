@@ -17,6 +17,8 @@ You can also view this changelog at [specs.md/changelog](https://specs.md/change
 
 ### Changed
 
+- INFERNO: the finalize gate folds the base branch in before it runs, so the tree it proves is the tree `ship` merges. Until now the procedure gated first and folded at ship, so every intent whose base moved while it was open paid a second full gate after `ship` found the green marker stale
+- INFERNO: `state-transition.cjs check --intent <id>` on an intent already moved to the archive answers "archived" with exit 0 instead of `INTENT_NOT_FOUND`, since finalize runs the check after `archive-intent`
 - INFERNO: the finalize gate runs as its own process. `run.cjs gate --detach` starts it and `run.cjs gate --wait` blocks on it in slices that fit a host's per-call cap, exiting 4 while it still runs. A headless run used to start the gate as a background tool call and exit with the turn, which orphaned the gate and left the intent in progress with no readout
 - INFERNO: a one-item request is now a one-item intent, and `.specs-inferno/quick-fixes.md` is retired. The planner's intent-worthiness gate used to park single-item work in that file, which nothing reads, so parked entries sat unbuilt while the intents beside them shipped. `state-transition.cjs check` drops the `one-item-intent-without-reason` drift and the `single_item_reason` field, and reports a `quick-fixes.md` beside the ledger as drift instead
 

@@ -612,3 +612,77 @@ test("dispatch-log appends one line per dispatch", () => {
   assert.equal(lines(log).length, 2);
   assert.match(log, /a-one\tcheap\tbuilder/);
 });
+
+// --- gate folds the base in ---------------------------------------------
+/** Move the base branch on after the intent forked, the way another intent's ship does. */
+function baseMoved(fixture, rel = "docs/moved.md", body = "main moved\n") {
+  write(fixture.root, rel, body);
+  git(fixture.root, ["add", "-A"]);
+  git(fixture.root, ["commit", "-qm", "main moved while the intent was open"]);
+  git(fixture.root, ["push", "-q", "origin", "main"]);
+}
+
+test("gate folds the base branch in first, so the tree it proves is the tree that ships", () => {
+  const fixture = repo();
+  const { tree, branch } = closed(fixture);
+  baseMoved(fixture);
+
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 0, gate.out + gate.err);
+  assert.match(gate.out, new RegExp(`folded main into ${branch}`));
+  assert.ok(fs.existsSync(path.join(tree, "docs/moved.md")));
+  const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
+  assert.equal(ship.code, 0, ship.out + ship.err);
+});
+
+test("gate says nothing about folding when the base has not moved", () => {
+  const fixture = repo();
+  const { tree } = closed(fixture);
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 0, gate.out + gate.err);
+  assert.doesNotMatch(gate.out, /folded/);
+});
+
+test("gate folds commits that reached origin but not the local base branch", () => {
+  const fixture = repo();
+  const { tree } = closed(fixture);
+  const other = path.join(fixture.dir, "other");
+  git(fixture.dir, ["clone", "-q", "-b", "main", fixture.remote, other]);
+  git(other, ["config", "user.email", "test@example.com"]);
+  git(other, ["config", "user.name", "Test"]);
+  write(other, "docs/remote.md", "pushed from elsewhere\n");
+  git(other, ["add", "-A"]);
+  git(other, ["commit", "-qm", "pushed from elsewhere"]);
+  git(other, ["push", "-q", "origin", "main"]);
+
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 0, gate.out + gate.err);
+  assert.ok(fs.existsSync(path.join(tree, "docs/remote.md")));
+  const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
+  assert.equal(ship.code, 0, ship.out + ship.err);
+});
+
+test("gate stops on a fold conflict and names the files", () => {
+  const fixture = repo();
+  const { tree } = closed(fixture);
+  baseMoved(fixture, "src/a.ts", "export const a = 9;\n");
+
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 2, gate.out + gate.err);
+  assert.match(gate.out + gate.err, /conflict folding main into/);
+  assert.match(gate.out + gate.err, /src\/a\.ts/);
+});
+
+test("gate --detach folds the base in before the gate process starts", () => {
+  const fixture = repo({ config: SLOW });
+  const { tree, branch } = closed(fixture);
+  baseMoved(fixture);
+
+  const started = run(fixture, ["gate", "--tree", tree, "--detach"]);
+  assert.equal(started.code, 0, started.out + started.err);
+  assert.match(started.out, new RegExp(`folded main into ${branch}`));
+  assert.ok(fs.existsSync(path.join(tree, "docs/moved.md")));
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--wait"]).code, 0);
+  const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
+  assert.equal(ship.code, 0, ship.out + ship.err);
+});

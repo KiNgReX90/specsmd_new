@@ -47,6 +47,34 @@ function mergeBase(tree, base) {
   return lib.git(tree, ['merge-base', 'HEAD', base], { tolerate: true }) || base;
 }
 
+/**
+ * Fold the base branch into the worktree before the gate runs, so the tree the gate proves is
+ * the tree ship merges. Without it every intent whose base moved while it was open paid two
+ * gates: one here, one after ship folded the base in and found the marker stale (2026-09-03).
+ * Commits that reached origin but not the local base are folded too. A conflict stops here with
+ * the files named and the merge left in the worktree to resolve.
+ */
+function foldBase(tree, base) {
+  const branch = lib.currentBranch(tree);
+  const before = lib.git(tree, ['rev-parse', 'HEAD']);
+  const refs = [base];
+  if (lib.git(tree, ['remote'], { tolerate: true })) {
+    lib.git(tree, ['fetch', '--quiet', 'origin', base], { tolerate: true });
+    if (lib.git(tree, ['rev-parse', '--verify', '--quiet', `origin/${base}`], { tolerate: true })) refs.push(`origin/${base}`);
+  }
+  for (const ref of refs) {
+    if (lib.git(tree, ['merge', '--no-edit', ref], { tolerate: true }) === null) {
+      const conflicts = lib.gitLines(tree, ['diff', '--name-only', '--diff-filter=U'], { tolerate: true });
+      throw new RunError(
+        `conflict folding ${ref} into ${branch}: ${conflicts.slice(0, 10).join(', ')}. ` +
+          'Resolve them in the worktree so both sides\' goals survive, commit, then run gate again.',
+        'FOLD_CONFLICT'
+      );
+    }
+  }
+  return lib.git(tree, ['rev-parse', 'HEAD']) === before ? [] : [`folded ${base} into ${branch}`];
+}
+
 // ---------------------------------------------------------------------------
 // verify-item
 // ---------------------------------------------------------------------------
@@ -140,6 +168,7 @@ function gateNow(options) {
   const { config, commands } = gateCommands(tree);
 
   const base = options.base || resolveBase(config, null, tree);
+  const folded = foldBase(tree, base);
   const scopes = (config.verification && config.verification.finalize_scopes) || {};
   const changed = lib.gitLines(tree, ['diff', '--name-only', `${mergeBase(tree, base)}..HEAD`], { tolerate: true });
   const branch = lib.currentBranch(tree);
@@ -158,7 +187,7 @@ function gateNow(options) {
       continue;
     }
     results.push({ command, result: 'fail', seconds: run.seconds, log: run.log });
-    return { exit: 2, payload: { ok: false, tree, branch, results }, out: describe(results) };
+    return { exit: 2, payload: { ok: false, tree, branch, folded: folded.length > 0, results }, out: [...folded, ...describe(results)] };
   }
 
   const marker = markerFile(tree);
@@ -166,8 +195,8 @@ function gateNow(options) {
   fs.writeFileSync(marker, `${new Date().toISOString()}\n${branch}\n${commands.join('\n')}\n`, 'utf8');
   return {
     exit: 0,
-    payload: { ok: true, tree, branch, results, marker },
-    out: [...describe(results), `green ${path.basename(marker)}`],
+    payload: { ok: true, tree, branch, folded: folded.length > 0, results, marker },
+    out: [...folded, ...describe(results), `green ${path.basename(marker)}`],
   };
 }
 
@@ -226,7 +255,7 @@ function waitCommand(tree) {
 function gateDetach(options) {
   const tree = treeOf(options);
   refuseDirty(tree);
-  gateCommands(tree);
+  const { config } = gateCommands(tree);
   const paths = jobPaths(tree);
   const existing = readJson(paths.job);
   if (alive(existing)) {
@@ -236,6 +265,7 @@ function gateDetach(options) {
     );
   }
 
+  const folded = foldBase(tree, options.base || resolveBase(config, null, tree));
   fs.mkdirSync(path.dirname(paths.job), { recursive: true });
   const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
@@ -250,8 +280,8 @@ function gateDetach(options) {
   fs.writeFileSync(paths.job, `${JSON.stringify(job)}\n`, 'utf8');
   return {
     exit: 0,
-    payload: { started: true, ...job },
-    out: [`gate started pid ${child.pid}`, `log ${paths.log}`, `wait with: ${waitCommand(tree)}`],
+    payload: { started: true, folded: folded.length > 0, ...job },
+    out: [...folded, `gate started pid ${child.pid}`, `log ${paths.log}`, `wait with: ${waitCommand(tree)}`],
   };
 }
 

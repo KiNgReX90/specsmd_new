@@ -823,3 +823,18 @@ test("claim-intent through the CLI refuses without --intent", () => {
   const { file } = sandbox(CLAIMABLE);
   assert.throws(() => main(["claim-intent", "--file", file]), (error) => error.code === "BAD_ARGS");
 });
+
+// --- check after archive ---------------------------------------------------
+test("check scoped to an archived intent answers archived with no drift", () => {
+  const { file } = sandbox(ARCHIVABLE);
+  archiveIntent({ file, intent: "foundation", now: NOW });
+  const result = check({ file, intent: "foundation" });
+  assert.deepEqual(result.drift, []);
+  assert.equal(result.archived, "foundation");
+  assert.equal(main(["check", "--intent", "foundation", "--file", file]), 0);
+});
+
+test("check scoped to an intent nobody knows still refuses", () => {
+  const { file } = sandbox(ARCHIVABLE);
+  assert.throws(() => check({ file, intent: "never-existed" }), (error) => error.code === "INTENT_NOT_FOUND");
+});

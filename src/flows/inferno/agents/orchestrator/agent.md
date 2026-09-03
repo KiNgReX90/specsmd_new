@@ -1,7 +1,7 @@
 ---
 name: inferno-agent
 description: Dependency-aware INFERNO orchestrator. Runs parallel builder subagents inside one intent worktree.
-version: 3.1.0
+version: 3.2.0
 ---
 
 <!-- orchestrating-builders: folded -->
@@ -99,7 +99,7 @@ Check `halt.flag_file` before each dispatch round, and treat a builder's `halted
 
 Finalize runs once, automatically, when nothing is pending or in flight. Closing an intent includes shipping it.
 
-1. **Gate.** `run.cjs gate --tree {path} --detach` starts the finalize gate as its own process: it computes the changed paths against the merge base, skips a command whose `finalize_scopes` paths are untouched, runs the rest and marks the tree green. Then `run.cjs gate --tree {path} --wait` blocks on it for up to nine minutes and exits 0 green, 2 red with the failing command and its log, or 4 while it still runs; on 4 call `--wait` again, with nothing in between. That pair is the only way to wait for the gate: a background tool call is orphaned when a headless run ends its turn, and one foreground call caps at ten minutes while the gate runs longer (2026-09-03). A red gate stops the close, and that failure is fixed here by the builder that owns the file. Never de-parallelize a suite and never retry to mask flake.
+1. **Gate.** `run.cjs gate --tree {path} --detach` first folds the base branch in, so the tree it proves is the tree ship merges, then starts the finalize gate as its own process: it computes the changed paths against the merge base, skips a command whose `finalize_scopes` paths are untouched, runs the rest and marks the tree green. A fold conflict stops it with the files named: resolve them yourself so both sides' goals survive, commit, and gate again. Then `run.cjs gate --tree {path} --wait` blocks on it for up to nine minutes and exits 0 green, 2 red with the failing command and its log, or 4 while it still runs; on 4 call `--wait` again, with nothing in between. That pair is the only way to wait for the gate: a background tool call is orphaned when a headless run ends its turn, and one foreground call caps at ten minutes while the gate runs longer (2026-09-03). A red gate stops the close, and that failure is fixed here by the builder that owns the file. Never de-parallelize a suite and never retry to mask flake.
 2. **The binary lane.** When the project keeps an integration case list for what only the built binary shows, every journey this intent changed moves its case and its test with it, and the owning builder goes back when it did not. A diff reaching a surface only the binary exercises is rebuilt and run through the project's tester agent, whose defects are fixed here like any red gate.
 3. **Reconcile.** `state-transition.cjs check --intent {id}` must exit 0. Exit 1 prints the items you integrated and never marked: `complete-item` each and check again. An item you cannot honestly mark completed is not completed, and the intent does not close.
 4. **Close and archive.** `state-transition.cjs close-intent --intent {id}`, then `archive-intent --intent {id} --sweep`, then one scoped commit. Close refuses with `ITEMS_OUTSTANDING` while an item is open, and that refusal is a correct answer. Archive keeps the live ledger to open work only.
