@@ -349,6 +349,123 @@ function closeIntent(options) {
   return { changed: true, intent: options.intent, status: 'completed', previous, completed_at: completedAt, items: items.length };
 }
 
+/** The ids in an intent's inline `depends_on_intents: [a, b]`, or [] when it has none. */
+function dependsOnIntents(lines, intent) {
+  const idx = findKeyLine(lines, intent.start, intent.end, intent.keyIndent, 'depends_on_intents');
+  if (idx === -1) return [];
+  const raw = stripInlineComment(
+    lines[idx].slice(intent.keyIndent + 'depends_on_intents:'.length)
+  ).trim();
+  if (!raw.startsWith('[') || !raw.endsWith(']')) {
+    throw new TransitionError(
+      `intent ${intent.id} does not write depends_on_intents as the inline [a, b] form: ` +
+        `${raw || '(block sequence)'}`,
+      'DEPENDS_FORM'
+    );
+  }
+  return raw
+    .slice(1, -1)
+    .split(',')
+    .map((value) => unquote(value))
+    .filter((value) => value.length > 0);
+}
+
+/**
+ * Take the intent for one run: `pending` -> `in_progress`, with the run recorded.
+ *
+ * This is the transition that stops two sessions building the same intent, so it is a
+ * refusal first and a write second. It refuses an intent another run holds, and it refuses
+ * one whose prerequisites have not shipped; both were prose rules an orchestrator could
+ * read past. `claimed_by` carries the run id (the branch the run will use), which is what
+ * makes the claim idempotent for the run that already holds it.
+ *
+ * A prerequisite id the ledger does not answer to counts as met: an archived intent is
+ * removed from the live ledger by design, so refusing it would make every intent whose
+ * prerequisite shipped permanently unclaimable.
+ */
+function claimIntent(options) {
+  const file = options.file || DEFAULT_STATE_PATH;
+  const lines = loadState(file);
+  const intent = getIntent(lines, options.intent);
+  const previous = statusOf(lines, intent);
+
+  if (previous !== 'pending') {
+    const holderIdx = findKeyLine(lines, intent.start, intent.end, intent.keyIndent, 'claimed_by');
+    const held =
+      holderIdx === -1
+        ? null
+        : unquote(lines[holderIdx].slice(intent.keyIndent + 'claimed_by:'.length));
+    if (options.run && held === options.run) {
+      return {
+        changed: false,
+        intent: options.intent,
+        status: previous,
+        run: held,
+        note: 'already claimed by this run',
+      };
+    }
+    throw new TransitionError(
+      `refusing to claim ${options.intent}: status is ${previous || 'unset'}, not pending` +
+        `${held ? ` (held by ${held})` : ''}.`,
+      'NOT_PENDING'
+    );
+  }
+
+  const known = new Map(locateIntents(lines).map((entry) => [entry.id, statusOf(lines, entry)]));
+  const unmet = dependsOnIntents(lines, intent).filter(
+    (id) => known.has(id) && !isComplete(known.get(id))
+  );
+  if (unmet.length > 0) {
+    throw new TransitionError(
+      `refusing to claim ${options.intent}: prerequisite intent(s) not completed: ` +
+        `${unmet.join(', ')}. Build those first.`,
+      'DEPENDS_UNMET'
+    );
+  }
+
+  const claimedAt = nowIso(options.now);
+  // Each insert lands directly under `status:`, so write the pair back to front to leave
+  // the ledger's own order: claimed_at, then claimed_by.
+  setField(lines, intent, 'status', 'in_progress');
+  if (options.run) setField(lines, intent, 'claimed_by', options.run);
+  setField(lines, intent, 'claimed_at', claimedAt);
+  writeState(file, lines);
+
+  return {
+    changed: true,
+    intent: options.intent,
+    status: 'in_progress',
+    previous,
+    claimed_at: claimedAt,
+    run: options.run || null,
+  };
+}
+
+/** Give the intent back: `in_progress` -> `pending`, claim fields removed. */
+function unclaimIntent(options) {
+  const file = options.file || DEFAULT_STATE_PATH;
+  const lines = loadState(file);
+  const intent = getIntent(lines, options.intent);
+  const previous = statusOf(lines, intent);
+
+  if (previous === 'pending') {
+    return { changed: false, intent: options.intent, status: 'pending', note: 'not claimed' };
+  }
+  if (previous !== 'in_progress') {
+    throw new TransitionError(
+      `refusing to unclaim ${options.intent}: status is ${previous || 'unset'}, not in_progress.`,
+      'NOT_CLAIMED'
+    );
+  }
+
+  setField(lines, intent, 'status', 'pending');
+  removeField(lines, intent, 'claimed_at');
+  removeField(lines, intent, 'claimed_by');
+  writeState(file, lines);
+
+  return { changed: true, intent: options.intent, status: 'pending', previous };
+}
+
 /**
  * Detect ledger drift. This is the check that never existed: a run could finish, merge and
  * push while state.yaml still read `pending`, and nothing anywhere would notice.
@@ -679,6 +796,8 @@ function archiveIntent(options) {
 
 const USAGE = `INFERNO state.yaml single-writer
 
+  node state-transition.cjs claim-intent   --intent <id> [--run <run-id>]
+  node state-transition.cjs unclaim-intent --intent <id>
   node state-transition.cjs complete-item --intent <id> --item <id>
   node state-transition.cjs close-intent  --intent <id>
   node state-transition.cjs archive-intent [--intent <id>] [--sweep]
@@ -686,8 +805,14 @@ const USAGE = `INFERNO state.yaml single-writer
 
 Options
   --file <path>   state file (default ${DEFAULT_STATE_PATH})
+  --run <run-id>  the run taking the intent, recorded as claimed_by (claim-intent)
   --now <iso>     override the timestamp (tests / backfill)
   --json          machine-readable output
+
+claim-intent takes a pending intent for one run: status in_progress plus claimed_at and
+claimed_by. It refuses an intent another run holds and one whose prerequisite intents are
+not all completed or archived, so two sessions cannot build the same intent. Committing the
+claim is the caller's job. unclaim-intent gives back a claim that never integrated.
 
 archive-intent moves completed intents into archive/state.yaml and archive/intents/, frees
 them from the remaining intents' depends_on_intents, and refuses anything not completed.
@@ -722,6 +847,28 @@ function main(argv) {
 
   if (!command || ['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
+
+  if (command === 'claim-intent') {
+    if (!options.intent) throw new TransitionError('claim-intent requires --intent', 'BAD_ARGS');
+    const result = claimIntent(options);
+    if (options.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else if (result.changed) {
+      process.stdout.write(
+        `claimed ${result.intent} at ${result.claimed_at}${result.run ? ` for ${result.run}` : ''}\n`
+      );
+    } else process.stdout.write(`intent ${result.intent} ${result.note}\n`);
+    return 0;
+  }
+
+  if (command === 'unclaim-intent') {
+    if (!options.intent) throw new TransitionError('unclaim-intent requires --intent', 'BAD_ARGS');
+    const result = unclaimIntent(options);
+    if (options.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else if (result.changed) {
+      process.stdout.write(`unclaimed ${result.intent} (was ${result.previous}); it is pending again\n`);
+    } else process.stdout.write(`intent ${result.intent} ${result.note}\n`);
     return 0;
   }
 
@@ -802,4 +949,23 @@ if (require.main === module) {
   }
 }
 
-module.exports = { completeItem, closeIntent, archiveIntent, check, TransitionError, main };
+module.exports = {
+  completeItem,
+  closeIntent,
+  archiveIntent,
+  claimIntent,
+  unclaimIntent,
+  check,
+  TransitionError,
+  main,
+  // Read-only primitives, so a sibling script reads the ledger the way this one writes it
+  // instead of growing a second, subtly different YAML reader beside it.
+  loadState,
+  locateIntents,
+  locateWorkItems,
+  statusOf,
+  dependsOnIntents,
+  isComplete,
+  unquote,
+  findKeyLine,
+};

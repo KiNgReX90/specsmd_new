@@ -4,7 +4,15 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { completeItem, closeIntent, check, archiveIntent, main } = require("./state-transition.cjs");
+const {
+  completeItem,
+  closeIntent,
+  check,
+  archiveIntent,
+  claimIntent,
+  unclaimIntent,
+  main,
+} = require("./state-transition.cjs");
 
 // Mirrors the real artifacts: load-bearing comment blocks, quoted and unquoted titles,
 // and per-entry field order that differs between intents (status before/after kind).
@@ -651,4 +659,167 @@ test("archive-intent notes the freed prerequisite in a hash-comment entry too", 
     out,
     /# Problem: the delete path never consults the protected list\.\n {4}# Prerequisite pipeline completed; record moved to archive\/state\.yaml on 2026-07-14\.\n {4}work_items:/
   );
+});
+
+// --- claim-intent / unclaim-intent ---------------------------------------
+
+// A ledger at the moment a run picks its intent: one claimable intent, one already
+// claimed by another run, one waiting on a prerequisite that has not shipped.
+const CLAIMABLE = `project:
+  name: demo
+intents:
+  - id: ready-one
+    title: "Ready one"
+    status: pending
+    created: 2026-07-10
+    base_branch: main
+    depends_on_intents: [long-gone]
+    # Capture rationale that must survive the claim.
+    work_items:
+      - id: ready-item
+        title: "Ready item"
+        status: pending
+        depends_on: []
+  - id: taken
+    title: "Taken"
+    status: in_progress
+    claimed_at: 2026-07-11T09:00:00Z
+    claimed_by: inferno-intent/taken-20260711T090000Z
+    depends_on_intents: []
+    work_items:
+      - id: taken-item
+        title: "Taken item"
+        status: pending
+        depends_on: []
+  - id: waiting
+    title: "Waiting"
+    status: pending
+    depends_on_intents: [blocker]
+    work_items:
+      - id: waiting-item
+        title: "Waiting item"
+        status: pending
+        depends_on: []
+  - id: blocker
+    title: "Blocker"
+    status: pending
+    depends_on_intents: []
+    work_items:
+      - id: blocker-item
+        title: "Blocker item"
+        status: pending
+        depends_on: []
+`;
+
+const RUN = "inferno-intent/ready-one-20260714T120000Z";
+
+test("claim-intent moves a pending intent to in_progress and records the run", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const result = claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+
+  assert.equal(result.changed, true);
+  assert.equal(result.previous, "pending");
+  const out = fs.readFileSync(file, "utf8");
+  assert.match(
+    out,
+    /- id: ready-one\n {4}title: "Ready one"\n {4}status: in_progress\n {4}claimed_at: 2026-07-14T12:00:00Z\n {4}claimed_by: inferno-intent\/ready-one-20260714T120000Z\n/
+  );
+});
+
+test("claim-intent leaves the rest of the ledger untouched", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const before = fs.readFileSync(file, "utf8").split("\n");
+  claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+  const after = fs.readFileSync(file, "utf8").split("\n");
+
+  // One status line replaced, two claim lines added. Anything more is a rewrite.
+  assert.deepEqual(multisetDifference(before, after), ["    status: pending"]);
+  assert.equal(multisetDifference(after, before).length, 3);
+  assert.match(fs.readFileSync(file, "utf8"), /# Capture rationale that must survive the claim\./);
+});
+
+test("claim-intent refuses an intent another run already holds", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(
+    () => claimIntent({ file, intent: "taken", run: RUN, now: NOW }),
+    (error) => error.code === "NOT_PENDING" && /in_progress/.test(error.message)
+  );
+});
+
+test("claim-intent is idempotent for the run that already holds the intent", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const result = claimIntent({
+    file,
+    intent: "taken",
+    run: "inferno-intent/taken-20260711T090000Z",
+    now: NOW,
+  });
+
+  assert.equal(result.changed, false);
+  assert.match(result.note, /already claimed/);
+});
+
+test("claim-intent refuses while a prerequisite intent is still open", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(
+    () => claimIntent({ file, intent: "waiting", run: RUN, now: NOW }),
+    (error) => error.code === "DEPENDS_UNMET" && /blocker/.test(error.message)
+  );
+});
+
+test("claim-intent accepts a prerequisite that has already left for the archive", () => {
+  // An archived intent is gone from the live ledger by design, so an id nothing in the
+  // ledger answers to is shipped, not missing. Refusing it would make every intent whose
+  // prerequisite archived permanently unclaimable.
+  const { file } = sandbox(CLAIMABLE);
+  const result = claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+  assert.equal(result.changed, true);
+});
+
+test("claim-intent re-uses an existing claimed_at line rather than adding a second", () => {
+  const { file } = sandbox(CLAIMABLE);
+  claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+  unclaimIntent({ file, intent: "ready-one" });
+  claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+  const out = fs.readFileSync(file, "utf8");
+
+  assert.equal(out.match(/claimed_at: 2026-07-14T12:00:00Z/g).length, 1);
+});
+
+test("unclaim-intent returns the intent to pending and drops the claim", () => {
+  const { file } = sandbox(CLAIMABLE);
+  claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
+  const result = unclaimIntent({ file, intent: "ready-one" });
+
+  assert.equal(result.changed, true);
+  const out = fs.readFileSync(file, "utf8");
+  assert.match(out, /- id: ready-one\n {4}title: "Ready one"\n {4}status: pending\n {4}created: 2026-07-10\n/);
+  assert.doesNotMatch(out, /claimed_by: inferno-intent\/ready-one/);
+});
+
+test("unclaim-intent is idempotent on an intent that is already pending", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const result = unclaimIntent({ file, intent: "ready-one" });
+  assert.equal(result.changed, false);
+});
+
+test("unclaim-intent refuses a completed intent", () => {
+  const { file } = sandbox(FIXTURE);
+  assert.throws(
+    () => unclaimIntent({ file, intent: "already-shipped" }),
+    (error) => error.code === "NOT_CLAIMED"
+  );
+});
+
+test("claim-intent and unclaim-intent are reachable through the CLI", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.equal(main(["claim-intent", "--intent", "ready-one", "--run", RUN, "--file", file, "--now", NOW]), 0);
+  assert.match(fs.readFileSync(file, "utf8"), /status: in_progress/);
+  assert.equal(main(["unclaim-intent", "--intent", "ready-one", "--file", file]), 0);
+  assert.doesNotMatch(fs.readFileSync(file, "utf8"), /claimed_by: inferno-intent\/ready-one/);
+});
+
+test("claim-intent through the CLI refuses without --intent", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(() => main(["claim-intent", "--file", file]), (error) => error.code === "BAD_ARGS");
 });

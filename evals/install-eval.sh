@@ -32,6 +32,8 @@ req .specsmd/inferno/agents/orchestrator/agent.md
 req .specsmd/inferno/agents/orchestrator/config.example.yaml
 req .specsmd/inferno/agents/orchestrator/skills/orchestrate/SKILL.md
 req .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/team-scheduler.cjs
+req .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs
+req .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.test.cjs
 req .specsmd/inferno/agents/orchestrator/skills/orchestrate/templates/intent-selection.md.hbs
 req .specsmd/inferno/agents/builder/agent.md
 req .specsmd/inferno/agents/builder/skills/workitem-execute/SKILL.md
