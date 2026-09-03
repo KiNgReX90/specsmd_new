@@ -31,14 +31,20 @@ roles:
     agent: specsmd_inferno_builder_cheap
     model: gpt-5.6-terra
     reasoning_effort: high
-  writer:
-    agent: specsmd_inferno_writer
-    model: gpt-5.6-terra
-    reasoning_effort: high
 
 verification:
   finalize:
     - <ordered shell command>
+  finalize_scopes:
+    "<one finalize command>": ["<path glob>"]
+
+worktree:
+  bootstrap:
+    - <command run once in a fresh intent worktree>
+
+dispatch:
+  constraints:
+    - "<line pasted verbatim into every builder and tester dispatch>"
 
 delivery:
   mode: auto-close
@@ -57,18 +63,22 @@ Allowed values:
 - `autonomy.level`: `review` or `full`. Accepted for compatibility; the planner never pauses either way.
 - `delivery.mode`: `auto-close` or `merge-request`.
 - `verification.finalize`: ordered non-empty command strings when present.
+- `verification.finalize_scopes`: a map from one of those commands to the path globs that make it worth running. An unlisted command always runs.
+- `worktree.bootstrap`: ordered commands run inside a fresh intent worktree before the first dispatch.
+- `dispatch.constraints`: machine rules pasted verbatim into every builder and tester dispatch.
 - `delivery.base_branch`: a real branch confirmed by the user.
 - halt paths and knowledge index: project-relative paths when present.
 
-The role names, custom agent names, models, and reasoning efforts above are fixed compatibility values. Do not silently substitute aliases or downgrade a role.
+The role names, custom agent names, models, and reasoning efforts above are fixed compatibility values. Do not silently substitute aliases or downgrade a role. There is no writer role: the planner writes its own work items, so a `roles.writer` block from an older config is dropped.
 
 ## Parent-thread review
 
 1. Read applicable `AGENTS.md` instructions and the current Codex config if it exists.
 2. If absent, discover likely production build and full-test commands from project manifests and discover the repository default branch. Treat discoveries as proposals, not confirmed choices.
 3. Display effective settings in plain language:
-   - the six fixed role assignments;
-   - ordered final verification commands;
+   - the five fixed role assignments;
+   - ordered final verification commands, and any path scopes that let one be skipped;
+   - worktree bootstrap commands and the machine rules pasted into every dispatch;
    - delivery mode and proposed base branch;
    - optional halt and knowledge integrations.
 4. Ask one compact confirmation question. If the user requests changes, show the revised effective values and confirm them. Keep this interaction in the parent conversation.
@@ -81,7 +91,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 3. Preserve unknown top-level and nested keys, comments, and existing settings the user did not change.
 4. Use a focused `apply_patch`; do not rewrite the entire file when a local edit is sufficient.
 5. Write no file other than `.specs-inferno/config.codex.yaml`.
-6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values.
+6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
 7. Return:
 
 ```yaml

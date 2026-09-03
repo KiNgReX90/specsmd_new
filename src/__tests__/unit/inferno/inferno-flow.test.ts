@@ -80,14 +80,12 @@ describe('inferno flow', () => {
   });
 
   it.each([
-    ['commands/inferno.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-planner.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-writer.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-oracle.md', 'claude-fable-5-1', 'max'],
-    ['agents/orchestrator/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
@@ -98,6 +96,17 @@ describe('inferno flow', () => {
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
     expect(fm).toMatch(new RegExp(`^effort:\\s*${level}\\s*$`, 'm'));
   });
+
+  // The orchestrator is the main thread: it inherits the session's model and
+  // effort, so pinning either one here would override the user's own session.
+  it.each(['commands/inferno.md', 'agents/orchestrator/agent.md'])(
+    '%s pins neither model nor effort',
+    (rel) => {
+      const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
+      expect(fm).not.toMatch(/^model:/m);
+      expect(fm).not.toMatch(/^effort:/m);
+    }
+  );
 
   // A judgment call a builder or the orchestrator would otherwise park as a
   // "residual" or hand to the user as "your call" goes to the oracle instead.
@@ -120,7 +129,10 @@ describe('inferno flow', () => {
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5\b/m);
     expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-4-6\b/m);
-    expect(config).toMatch(/^\s*writer:\s*claude-sonnet-4-6\b/m);
+    expect(config).toMatch(/^\s*tester:\s*claude-opus-5\b/m);
+    expect(config).toMatch(/^\s*tester_high:\s*claude-fable-5-1\b/m);
+    // The planner writes its own work items, so the scribe tier is gone.
+    expect(config).not.toMatch(/^\s*writer:/m);
     expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);
   });
 

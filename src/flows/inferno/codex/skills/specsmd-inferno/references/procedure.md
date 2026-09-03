@@ -9,8 +9,9 @@ This procedure adapts the canonical INFERNO lifecycle to Codex. The canonical sc
 - Intent artifacts: `.specs-inferno/intents/<intent-id>/`
 - Work items: `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`
 - Halt notes: `.specs-inferno/halt-notes/`
+- Run script, one subcommand per mechanical step: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs` (exit 0 ok, 1 usage, 2 failure, 3 gate needed)
 - Ledger writer: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs`
-- Optional scheduler helpers: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/team-scheduler.cjs`
+- Scheduler helpers behind `run.cjs frontier`: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/team-scheduler.cjs`
 - Selection template: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/templates/intent-selection.md.hbs`
 
 Do not read `.specsmd/inferno/memory-bank.yaml`. Never edit a canonical flow resource during a run. Read applicable `AGENTS.md` instructions before work and again when entering a nested scope.
@@ -42,8 +43,8 @@ Complete this phase before spawning the orchestrator.
 The delegated orchestrator begins here.
 
 1. In one batched read, load the applicable `AGENTS.md` files, state, Codex config, every pending work-item spec for the selected intent, the halt flag when configured, UTC time, worktree list, and relevant branch status.
-2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close`, discovered project build and full tests for final verification, and no halt or knowledge integration.
-3. Validate every pending work item before creating a worktree:
+2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close`, discovered project build and full tests for final verification, and no halt or knowledge integration. `verification.finalize_scopes` narrows a gate command to the paths that make it worth running, `worktree.bootstrap` lists commands run in a fresh worktree, and `dispatch.constraints` lists machine rules pasted verbatim into every dispatch.
+3. Validate every pending work item before creating a worktree, with `run.cjs frontier <intent-id> --tree <path>` where Node is available:
    - `context.required` is non-empty;
    - `ownership.editable` is non-empty;
    - `context.patterns` is non-empty for behavior, architecture, UI, or API work;
@@ -58,7 +59,7 @@ The delegated orchestrator begins here.
 
    Mark with `complete-item` only work proven present on the branch but absent from the ledger. Never redispatch landed work.
 5. For a fresh or stale-claim run, claim on the default branch before worktree creation: set intent status to `in_progress`, add ISO `claimed_at`, and set `claimed_by` to the intended `inferno-intent/<id>-<timestamp>` branch. Stage only state plus this intent's artifacts and commit `specsmd(<id>): claim intent for run`.
-6. Create one clean worktree from that claim commit on branch `inferno-intent/<id>-<timestamp>`. An in-place run is allowed only after an explicit user override.
+6. Create one clean worktree from that claim commit on branch `inferno-intent/<id>-<timestamp>`, then run every `worktree.bootstrap` command inside it before the first dispatch. An in-place run is allowed only after an explicit user override.
 
 If a fresh run is abandoned before any item integrates, revert the claim to pending and commit that reversal. A halted run retains its claim.
 
@@ -73,15 +74,17 @@ Repeat until all items are completed or the run blocks or halts.
 5. Choose the custom builder deterministically:
    - `kind: config-only`, `kind: docs-only`, `kind: test`, or `complexity: low` uses `specsmd_inferno_builder_cheap` on `gpt-5.6-terra` with `high` reasoning;
    - other `complexity: medium` or `high` work uses `specsmd_inferno_builder_strong` on `gpt-5.6-sol` with `xhigh` reasoning.
-   Kind-based cheap routing takes precedence. Do not down-tier medium or high work by intuition.
+   Kind-based cheap routing takes precedence. Do not down-tier medium or high work by intuition. A cheap build that fails integration review once is re-dispatched to the strong role with the review findings, never corrected twice on the cheap role. When the project ships its own tester agent, spawn it with `models.tester_high` for a high-complexity item or intent and with `models.tester` otherwise.
 6. Use `spawn_agent` for every item or approved batch in the frontier in the same dispatch round. The prompt contains only:
    - intent and work-item ids;
    - worktree and work-item spec paths;
    - the item's `context` manifest and `ownership.editable` verbatim;
    - `design_contract` verbatim when present;
-   - the exact verification command;
-   - already-landed dependency outputs and specific known hazards.
-   Pass pointers, not file bodies or broad search instructions.
+   - the exact verification command, as the whole verification budget;
+   - `dispatch.constraints` pasted verbatim;
+   - firewall files by name with the sanctioned alternative for each;
+   - already-landed dependency outputs, semantics that must survive, skipped items, and specific known hazards.
+   Pass pointers, not file bodies or broad search instructions. Never ask for residual risks: that slot is how a builder parks a defect it could have fixed.
 7. Use `wait_agent` until every dispatched builder returns. Keep an in-memory audit keyed by item id and attempt with dispatch time, status, and first failure line.
 
 ## Builder result and bounded retries
@@ -110,8 +113,8 @@ Allowed statuses are `ready`, `blocked`, and `halted`. A batch returns one block
 
 Process ready results one at a time.
 
-1. Reject noisy output. Check `changed_files` against `ownership.editable`; accept an extra file only when the result gives concrete evidence that the assigned change requires it.
-2. Run or independently confirm the assigned verification. For a `design_contract`, require explicit verification against the cited source.
+1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path>` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only when the result gives concrete evidence that the assigned change requires it.
+2. Run or independently confirm the assigned verification. For a `design_contract`, require explicit verification against the cited source. A note naming a defect the builder saw and left, a residual or a product call is postponed work: send it back to the same agent with `followup_task` before integrating, never into the ledger, the report or the user's lap.
 3. Before staging or committing, run:
 
    ```sh
@@ -133,7 +136,7 @@ On resume, read the intent halt note, reconcile state from disk, and dispatch re
 
 Finalize automatically once no work remains.
 
-1. Fold the base branch into the intent branch first (`git fetch origin <base>` then `git merge --no-edit origin/<base>`), resolving any conflict there so both goals survive, then run the gate once on that folded tree: every `verification.finalize` command in order, or the project's production build and full test suite when absent. That list is the gate and it runs once per intent. Run a work-item `finalize_check` only when it is a scoped invariant the list does not cover; one that repeats a listed command or the same suite under another filter is not run again. Non-zero blocks close. Never de-parallelize the gate, add retries to mask flake, or poll in a loop while waiting.
+1. Fold the base branch into the intent branch first (`git fetch origin <base>` then `git merge --no-edit origin/<base>`), resolving any conflict there so both goals survive, then run the gate once on that folded tree: `run.cjs gate --tree <path>` where Node is available, otherwise every `verification.finalize` command in order, or the project's production build and full test suite when absent. A command listed in `verification.finalize_scopes` is skipped when no changed path matches it; an unlisted command always runs. That list is the gate and it runs once per intent. Run a work-item `finalize_check` only when it is a scoped invariant the list does not cover; one that repeats a listed command or the same suite under another filter is not run again. Non-zero blocks close. Never de-parallelize the gate, add retries to mask flake, or poll in a loop while waiting.
 2. Run ledger reconciliation:
 
    ```sh
@@ -150,6 +153,6 @@ Finalize automatically once no work remains.
    Its refusal over open items is authoritative.
 4. In `auto-close`, resolve the primary working tree, verify it is on the base branch, absorb the current remote base and merge the intent branch from the primary tree, both merges with `--autostash` so another session's uncommitted edits are parked and restored. Then compare `HEAD^{tree}` on the base with the intent branch's tree: equal means the base holds exactly the tree the gate passed, so push and rerun nothing; unequal means the base moved, so fold it in again, run the gate once more, merge and compare again. That loop is the only post-merge rerun. Resolve ordinary conflicts by preserving both compatible goals; ask only about irreducible contradictions. Stop worktree-owned processes, remove the merged worktree from the primary tree, and delete the merged branch.
 5. In `merge-request`, keep the intent worktree and branch, push the intent branch, and open one intent-to-base merge request as the review gate. Stop only processes spawned in the worktree. If no forge is available, report the exact head, base, and title.
-6. Report a compact plain-language outcome: what changed, verification, delivery destination, worktree disposition, the integration cases the harness proved when the intent touched a journey, and only non-ready audit entries under Problems.
+6. Report the run in one shape. The first line is the status in capitals with the intent id: `Intent FINISHED <id>`, `Intent HALTED <id>`, `Intent BLOCKED <id>` or `Intent FAILED <id>`. Then a small block in plain language: what changed for the user of the product without file paths, what was verified in one line, what shipped as the merged branch and its sha or why it did not, and only when something genuinely needs the user a last line starting `Needs you:`. At most eight lines, no headers, no inventories, no process narration.
 
 Never force destructive cleanup, discard another session's edits, guess a base branch, or hide an unmerged completed intent.
