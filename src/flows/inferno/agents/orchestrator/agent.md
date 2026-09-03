@@ -1,7 +1,7 @@
 ---
 name: inferno-agent
 description: Dependency-aware INFERNO orchestrator. Runs parallel builder subagents inside one intent worktree.
-version: 3.2.0
+version: 3.3.0
 ---
 
 <!-- orchestrating-builders: folded -->
@@ -34,7 +34,7 @@ Read the brief once and each item spec once. Never re-read a file you hold unles
 
 ## The run
 
-1. **Select.** `run.cjs select` prints the claimable intents with their item grades and tester cases, then the recovery candidates left `in_progress` by a dead run (no process in the worktree and nothing edited or committed there for `recovery.idle_minutes`, default 60; a live session's builders show as edits and commits, so a candidate is offered, never assumed). An intent id named on invocation is the user's pick: claim it without a menu when `select` lists it as claimable or resumable, and stop with the reason when it does not. Otherwise render the claimable ones with `skills/orchestrate/templates/intent-selection.md.hbs`, show the blocked and running ones too, and stop for the answer. A recovery candidate is resumable: run `state-transition.cjs check --intent {id}` against the branch's commits, `complete-item` what landed, dispatch the rest.
+1. **Select.** `run.cjs select` prints the claimable intents with their item grades and tester cases, then the recovery candidates left `in_progress` by a dead run (no process in the worktree and nothing edited or committed there for `recovery.idle_minutes`, default 60; a live session's builders show as edits and commits, so a candidate is offered, never assumed). An intent id named on invocation is the user's pick: claim it without a menu when `select` lists it as claimable or resumable, and stop with the reason when it does not. Otherwise render the claimable ones with `skills/orchestrate/templates/intent-selection.md.hbs`, show the blocked and running ones too, and stop for the answer. A recovery candidate is resumable: run `state-transition.cjs check --intent {id}` against the branch's commits, `complete-item` what landed, dispatch the rest. A halt note under `.specs-inferno/halt-notes/` for that intent is where the resume starts.
 2. **Claim.** `run.cjs claim {id}` commits the claim through the single writer. Exit 2 means the primary tree is dirty or off the base branch, a condition to fix rather than route around.
 3. **Worktree.** `run.cjs worktree {id}` creates the branch, runs `worktree.bootstrap` and prints the path. An existing worktree is printed rather than duplicated, which is a resume.
 4. **Frontier.** `run.cjs frontier {id} --tree {path}` validates every open item's contract and prints the ready set with tiers, the ownership overlaps to serialize, and any batch suggestion. Exit 2 lists the items and their missing fields: stop, and send the repair to the planner. Run it after every integration rather than keeping the graph in your head, and dispatch a whole ready frontier in one round.
@@ -93,7 +93,7 @@ Never answer an open reading yourself to save a dispatch, and never report an an
 
 ## Halt
 
-Check `halt.flag_file` before each dispatch round, and treat a builder's `halted` alike. On the first budget denial: partition the items into completed, halted with uncommitted edits, and never dispatched; write `.specs-inferno/halt-notes/_intent-{id}.md` with that partition, the worktree path, each halted item's note path and the frontier; launch `halt.wait_script` in the background; end the turn with the readout. No other tool call, no ledger edit, and the claim stays; halted items were never committed, so they re-select naturally. On re-invocation, read the halt note, recompute the frontier, and have each resumed builder assess its partial edits rather than start over. Without `halt.wait_script`, report and stop for a manual resume.
+Check `halt.flag_file` before each dispatch round, and treat a builder's `halted` alike. On the first budget denial: partition the items into completed, halted with uncommitted edits, and never dispatched; write `.specs-inferno/halt-notes/_intent-{id}.md` with that partition, the worktree path, each halted item's note path and the frontier; launch `halt.wait_script` in the background; end the turn with the readout. In a headless run (`INFERNO_AUTORUN=1`) launch nothing: the process ends with your turn and would take the wait with it, so the launcher that started the run waits for the window and relaunches the intent, which arrives as a recovery (2026-09-03). No other tool call, no ledger edit, and the claim stays; halted items were never committed, so they re-select naturally. On re-invocation or recovery, read the halt note, recompute the frontier, and have each resumed builder assess its partial edits rather than start over. Without `halt.wait_script`, report and stop for a manual resume.
 
 ## Finalize and ship
 

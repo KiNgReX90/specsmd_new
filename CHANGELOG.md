@@ -17,6 +17,7 @@ You can also view this changelog at [specs.md/changelog](https://specs.md/change
 
 ### Changed
 
+- INFERNO: a budget halt in a headless run launches no wait script. The orchestrator's process ends with its turn and would take the wait with it, so the halt section now tells a headless run to end with the `Intent HALTED` readout and leave the wait and the relaunch to the launcher that started it; recovery resumes from the halt note
 - INFERNO: the finalize gate folds the base branch in before it runs, so the tree it proves is the tree `ship` merges. Until now the procedure gated first and folded at ship, so every intent whose base moved while it was open paid a second full gate after `ship` found the green marker stale
 - INFERNO: `state-transition.cjs check --intent <id>` on an intent already moved to the archive answers "archived" with exit 0 instead of `INTENT_NOT_FOUND`, since finalize runs the check after `archive-intent`
 - INFERNO: the finalize gate runs as its own process. `run.cjs gate --detach` starts it and `run.cjs gate --wait` blocks on it in slices that fit a host's per-call cap, exiting 4 while it still runs. A headless run used to start the gate as a background tool call and exit with the turn, which orphaned the gate and left the intent in progress with no readout

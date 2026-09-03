@@ -145,6 +145,7 @@ describe('inferno flow', () => {
     expect(orchestrator).toMatch(/gate --tree \{path\} --wait/);
     expect(orchestrator).toMatch(/first folds the base branch in, so the tree it proves is the tree ship merges/);
     expect(orchestrator).not.toMatch(/background task that notifies/);
+    expect(orchestrator).toMatch(/In a headless run \(`INFERNO_AUTORUN=1`\) launch nothing/);
   });
 
   it('Claude config defaults use only the requested exact model IDs', () => {
