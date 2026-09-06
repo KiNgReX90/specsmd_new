@@ -301,10 +301,13 @@ test("check does not flag a completed intent whose remaining item is parked", ()
 });
 
 test("check still flags a genuinely open intent whose items are all done", () => {
+  // The BOX. line keeps this fixture down to its own subject: one item, exit named.
   const { file } = sandbox(`intents:
   - id: stuck
     title: "The reported bug"
     status: in_progress
+    comment: |
+      BOX. in flight: the file is owned by another run.
     work_items:
       - id: item-1
         title: "Item"
@@ -316,9 +319,10 @@ test("check still flags a genuinely open intent whose items are all done", () =>
   assert.equal(result.drift[0].kind, "all-items-completed-intent-open");
 });
 
-// A one-item intent is the normal shape for a small change. Until 2026-08-30 the check
-// pushed such an intent into quick-fixes.md, where nothing read it; now the parking file
-// itself is the drift.
+// A one-item intent is the normal shape for a small change, and the fix-now box is where
+// most of those belong. An intent carrying exactly one work item has to name the exit that
+// took it out of the box, on a BOX. line in its entry comment. Without one, nothing tells a
+// change that had to be an intent apart from a change somebody should have fixed in place.
 
 const ONE_ITEM = `intents:
   - id: title-bar-ink
@@ -338,13 +342,40 @@ const ONE_ITEM = `intents:
         depends_on: []
 `;
 
-test("check accepts a pending intent with exactly one work item", () => {
+// The same intent with its exit named. One added line is the whole difference.
+const ONE_ITEM_BOXED = ONE_ITEM.replace(
+  "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n",
+  "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n" +
+    "      BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr\n"
+);
+
+test("check reports an open one-item intent without a BOX line", () => {
   const { file } = sandbox(ONE_ITEM);
+  const result = check({ file });
+
+  assert.equal(result.drift.length, 1);
+  assert.equal(result.drift[0].intent, "title-bar-ink");
+  assert.equal(result.drift[0].kind, "one-item-intent-without-box-line");
+});
+
+test("check accepts a one-item intent that names its exit from the fix-now box", () => {
+  const { file } = sandbox(ONE_ITEM_BOXED);
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check accepts a BOX line written as a YAML comment", () => {
+  const hashed = ONE_ITEM.replace(
+    "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n",
+    "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n" +
+      "    # BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr\n"
+  );
+  const { file } = sandbox(hashed);
+
   assert.deepEqual(check({ file }).drift, []);
 });
 
 test("check reports a quick-fixes.md beside the ledger as drift", () => {
-  const { dir, file } = sandbox(ONE_ITEM);
+  const { dir, file } = sandbox(ONE_ITEM_BOXED);
   fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n\n## parked\n\nstatus: open\n", "utf8");
   const result = check({ file });
   assert.equal(result.drift.length, 1);
@@ -353,7 +384,7 @@ test("check reports a quick-fixes.md beside the ledger as drift", () => {
 });
 
 test("check scoped to one intent still reports the parking file", () => {
-  const { dir, file } = sandbox(ONE_ITEM);
+  const { dir, file } = sandbox(ONE_ITEM_BOXED);
   fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n", "utf8");
   assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "quick-fixes-file-present");
 });
@@ -363,6 +394,31 @@ test("check does not report the intent it is scoped away from", () => {
   const { file } = sandbox(FIXTURE.replace("runs:\n", finished.replace("intents:\n", "") + "runs:\n"));
   assert.deepEqual(check({ file, intent: "already-shipped" }).drift, []);
   assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "all-items-completed-intent-open");
+});
+
+test("check does not ask a parked one-item intent for a BOX line", () => {
+  // Parked is a resting place, not work in flight, so there is no exit to name.
+  const { file } = sandbox(ONE_ITEM.replace(/^    status: pending$/m, "    status: on_hold"));
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check does not ask a two-item intent for a BOX line", () => {
+  // Size is the rule: more than one work item is already out of the fix-now box.
+  const { file } = sandbox(`intents:
+  - id: two-items
+    title: "Two items"
+    status: pending
+    work_items:
+      - id: item-1
+        title: "First"
+        status: pending
+        depends_on: []
+      - id: item-2
+        title: "Second"
+        status: pending
+        depends_on: []
+`);
+  assert.deepEqual(check({ file }).drift, []);
 });
 
 test("close-intent still refuses over a parked item", () => {

@@ -27,7 +27,8 @@
  * `check` also refuses a parking file: `.specs-inferno/quick-fixes.md` beside the ledger is
  * drift on its own. Nothing reads that file, so work written there is never built (three
  * entries captured on 2026-08-27 beside five intents were untouched on 2026-08-30 while the
- * intents shipped). A one-item request is a one-item intent; the ledger is the only queue.
+ * intents shipped). A one-item request that leaves the fix-now box is a one-item intent, one
+ * that fits it is fixed in place; the ledger is the only queue.
  */
 
 const fs = require('fs');
@@ -467,6 +468,18 @@ function unclaimIntent(options) {
 }
 
 /**
+ * True when the intent's block carries a `BOX.` line naming its exit from the fix-now box.
+ * A ledger writes its entry comment either as free text inside a block scalar or as real
+ * YAML `#` comments, so the line is accepted with or without the hash.
+ */
+function hasBoxLine(lines, intent) {
+  for (let i = intent.start; i < intent.end; i += 1) {
+    if (/^\s+(?:#\s*)?BOX\./.test(lines[i])) return true;
+  }
+  return false;
+}
+
+/**
  * Detect ledger drift. This is the check that never existed: a run could finish, merge and
  * push while state.yaml still read `pending`, and nothing anywhere would notice.
  */
@@ -512,19 +525,34 @@ function check(options) {
       });
     }
 
+    // Size is what puts work in the ledger, so an intent carrying a single work item has to
+    // name the exit that took it out of the fix-now box. Without that line nothing tells an
+    // intent that had to be one apart from a change somebody should have fixed in place.
+    if (isOpen(intentStatus) && items.length === 1 && !hasBoxLine(lines, intent)) {
+      drift.push({
+        intent: intent.id,
+        kind: 'one-item-intent-without-box-line',
+        detail: 'one work item and no BOX. line in the entry comment. Name the exit that took it ' +
+          'out of the fix-now box (size with the count and the command, a file in flight or a ' +
+          'change that lands after one, a look nobody has decided, a regulatory encoding), or ' +
+          'fix it in place and drop the intent.',
+      });
+    }
   }
 
   // A parking file beside the ledger is drift on its own. Nothing reads it, so work written
   // there is never built: three entries captured on 2026-08-27 beside five intents were
-  // untouched on 2026-08-30 while the intents shipped. A one-item request is a one-item
-  // intent (planner intent-capture step 3c), and the ledger is the only queue.
+  // untouched on 2026-08-30 while the intents shipped. A one-item request that leaves the
+  // fix-now box is a one-item intent, one that fits it is fixed in place (planner
+  // intent-capture step 3c), and the ledger is the only queue.
   const parked = path.join(path.dirname(file), 'quick-fixes.md');
   if (fs.existsSync(parked)) {
     drift.push({
       intent: 'ledger',
       kind: 'quick-fixes-file-present',
-      detail: `${parked} exists. Nothing builds from it: capture each entry as a one-item intent ` +
-        'with the planner and delete the file.',
+      detail: `${parked} exists. Nothing builds from it: fix each entry in place when it fits ` +
+        'the fix-now box, otherwise capture it as a one-item intent with the planner, and ' +
+        'delete the file.',
     });
   }
   return { drift, intents: scope.length };
@@ -825,8 +853,10 @@ archive-intent moves completed intents into archive/state.yaml and archive/inten
 them from the remaining intents' depends_on_intents, and refuses anything not completed.
 --sweep adds every other completed intent except one another session is still shipping.
 close-intent refuses while any work item is still open; complete each item first.
-check exits 1 when the ledger drifts from its work items, or when .specs-inferno/quick-fixes.md
-exists beside it (nothing builds from a parking file; a one-item request is a one-item intent).`;
+check exits 1 when the ledger drifts from its work items, when a one-item intent names no exit
+from the fix-now box on a BOX. line, or when .specs-inferno/quick-fixes.md exists beside it
+(nothing builds from a parking file; a one-item request that leaves the fix-now box is a
+one-item intent, one that fits it is fixed in place).`;
 
 function parseArgs(argv) {
   const options = { file: DEFAULT_STATE_PATH };
