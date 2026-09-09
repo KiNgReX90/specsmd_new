@@ -24,7 +24,7 @@ INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIR
 
 ## Model tiers & effort
 
-The orchestrator dispatches builders by complexity: medium/high → the strong tier, low (and kind config-only/docs-only/test) → the cheap tier. Claude pins the strong orchestrator/planner/builder roles to `claude-opus-5` at `xhigh`, and the config and cheap-builder roles to `claude-sonnet-4-6` at `high`. The oracle is pinned to `claude-fable-5-1` at `max` and never tiered down: a mediocre implementation is caught by a test, a mediocre decision ships. Codex uses its isolated `.specs-inferno/config.codex.yaml` and `.codex/agents/*.toml` matrix: Sol/xhigh for strong roles and Terra/high for supporting roles.
+The orchestrator dispatches builders by complexity: medium/high → the strong tier, low (and kind config-only/docs-only/test) → the cheap tier. Claude pins the strong orchestrator/planner/builder roles to `claude-opus-5` at `xhigh`, and the config and cheap-builder roles to `claude-sonnet-4-6` at `high`. The oracle is pinned to `claude-fable-5-1` at `xhigh` and never tiered down: a mediocre implementation is caught by a test, a mediocre decision ships. Codex uses its isolated `.specs-inferno/config.codex.yaml` and `.codex/agents/*.toml` matrix: Sol/xhigh for strong roles and Terra/high for supporting roles.
 
 ## Delivery modes
 

@@ -79,7 +79,7 @@ Report one line per landing in plain language: what it means for the product, wh
 
 <oracle critical="true">
 
-A judgment call is never yours to postpone and never the user's by default. It goes to `specsmd-inferno-oracle` (`.specsmd/inferno/agents/oracle/agent.md`), pinned to `claude-fable-5-1` at effort max; pass the model explicitly only when that pin is missing.
+A judgment call is never yours to postpone and never the user's by default. It goes to `specsmd-inferno-oracle` (`.specsmd/inferno/agents/oracle/agent.md`), pinned to `claude-fable-5-1` at effort xhigh; pass the model explicitly only when that pin is missing.
 
 **Trigger.** A builder returns `blocked` with `notes` starting `oracle:`. Its notes name a defect or an open reading whose fix is not obvious to you. Two merged changes look genuinely contradictory. You are about to write "your call", "left open" or a menu of options. A defect with one obvious fix is no trigger and goes back as a correction.
 

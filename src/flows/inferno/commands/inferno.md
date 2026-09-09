@@ -31,7 +31,7 @@ Optional `.specs-inferno/config.yaml`: builder and tester model tiers, the final
 ## Routing Targets
 
 - **Builders**: dispatched as `specsmd-inferno-builder` or `specsmd-inferno-builder-cheap` subagents by the orchestrator
-- **Oracle**: `specsmd-inferno-oracle`, spawned by the orchestrator (`claude-fable-5-1`, effort max) for any judgment call a builder or the orchestrator would otherwise postpone or hand to the user
+- **Oracle**: `specsmd-inferno-oracle`, spawned by the orchestrator (`claude-fable-5-1`, effort xhigh) for any judgment call a builder or the orchestrator would otherwise postpone or hand to the user
 - **To INFERNO Planner**: `/specsmd-inferno-planner`
 
 ---
