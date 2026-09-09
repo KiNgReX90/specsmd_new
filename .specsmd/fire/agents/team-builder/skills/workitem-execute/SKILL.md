@@ -1,7 +1,0 @@
----
-name: workitem-execute
-description: Superseded stub — the complete team-builder procedure lives in the team-builder agent definition.
-version: 2.2.0
----
-
-The full workitem-execute procedure (assignment validation, token discipline, focused context, implement, verify, compact result contract) lives in `../../agent.md` — the canonical builder definition, materialized into `.claude/agents/specsmd-fire-team-builder.md` for Claude Code spawns. Read that file; do not look for additional procedure here.
