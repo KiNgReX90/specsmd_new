@@ -85,15 +85,17 @@ describe('inferno flow', () => {
     expect(agent).toMatch(/verdict: decide \| defect \| user \| blocked/);
   });
 
-  // It edits in one case only: a session asks with `build: yes` for a change
-  // inside the fix-now box. The tools exist for that; the constraint fences them.
-  it('the oracle command carries the build tools and the constraint that fences them', () => {
+  // It never edits: a fix-now block goes to the builder tier, after the oracle's
+  // decision when the block says hard (2026-09-10). No editing tool is on the
+  // list, and the constraint fences the rest.
+  it('the oracle command carries no editing tool and the constraint that fences it', () => {
     const oracle = readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8');
     const tools = frontmatter(oracle).match(/^tools:.*$/m)?.[0] ?? '';
     expect(tools).toMatch(/\bRead\b/);
-    expect(tools).toMatch(/\bEdit\b/);
-    expect(oracle).toMatch(/NEVER edit a tracked file on a decision question/);
-    expect(oracle).toMatch(/## When you build/);
+    expect(tools).not.toMatch(/\b(Write|Edit|MultiEdit)\b/);
+    expect(oracle).toMatch(/NEVER edit a tracked file, NEVER commit/);
+    expect(oracle).toMatch(/## Who builds/);
+    expect(oracle).not.toMatch(/## When you build/);
   });
 
   it.each([

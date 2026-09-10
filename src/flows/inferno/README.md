@@ -13,7 +13,7 @@ INFERNO is a standalone specsmd flow — chosen at install time *instead of* FIR
 | `/specsmd-inferno` | Orchestrator: selects an intent, runs the parallel build to a verified merge |
 | `/specsmd-inferno-planner` | Captures an intent and decomposes it into work items |
 | `/specsmd-inferno-builder` | Subagent dispatched by the orchestrator for exactly one work item |
-| `/specsmd-inferno-oracle` | Decision subagent spawned by the orchestrator (or any session) for a judgment call a builder or orchestrator would otherwise postpone; decides from the artifact, on the frontier tier, and builds a hard change inside the fix-now box when a session asks with `build: yes` |
+| `/specsmd-inferno-oracle` | Decision subagent spawned by the orchestrator (or any session) for a judgment call a builder or orchestrator would otherwise postpone; decides from the artifact, on the frontier tier, and never builds: a fix-now block goes to the builder tier, after the oracle's decision when the block says hard |
 | `/specsmd-inferno-config` | Wizard for the optional `.specs-inferno/config.yaml` |
 
 ## What's different from FIRE
