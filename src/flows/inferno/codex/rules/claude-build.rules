@@ -1,0 +1,5 @@
+# Builds and test runs go through the machine-wide build wrapper, which queues them,
+# caps their memory in buildcap.slice and gives them sccache and sockets. Inside the
+# Codex sandbox none of that exists, so the wrapper runs on the host.
+prefix_rule(pattern=["claude-build"], decision="allow")
+prefix_rule(pattern=["/home/ruben/.local/bin/claude-build"], decision="allow")

@@ -65,7 +65,7 @@ Run only the verification the dispatch names, never a whole suite, never `npm ru
 
 After a patch, run the one test file whose inputs that patch changed; the rest of the budget the dispatch names runs once, after the last patch and before the envelope.
 
-The exec tool yields at 30 seconds by design; a cargo test or Playwright run queues behind every other build on this box, so follow its yield with one `wait` at `yield_time_ms` 1800000, never a shorter poll. After an interruption, `wait` on the session you already hold: the same command started again from the same tree is refused with exit 75 while the first copy is queued or running, and that refusal is not a failed check.
+The exec tool yields at 30 seconds by design; a cargo test or Playwright run queues behind every other build on this box, so follow its yield with one `wait` at `yield_time_ms` 1800000, never a shorter poll. After an interruption, `wait` on the session you already hold: the same command started again from the same tree is refused with exit 75 while the first copy is queued or running, and that refusal is not a failed check. A wrapper line saying the run `passed its ... run cap and was killed`, or that it was `refused`, is an environment result: return `blocked` with that line as the failing line and never start the command again.
 
 A check that has failed three times on a tree whose non-test files did not change between the runs is not run a fourth time: return `blocked` with the failing line.
 

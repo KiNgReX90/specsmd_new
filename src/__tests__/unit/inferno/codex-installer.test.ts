@@ -66,6 +66,8 @@ describe.sequential('CodexInstaller native bundle', () => {
     writeFileSync('.agents/skills/user-skill/SKILL.md', 'user owned\n');
     mkdirSync('.codex/agents', { recursive: true });
     writeFileSync('.codex/agents/user_agent.toml', 'name = "user_agent"\n');
+    mkdirSync('.codex/rules', { recursive: true });
+    writeFileSync('.codex/rules/user.rules', 'prefix_rule(pattern=["ls"], decision="allow")\n');
 
     const installer = new CodexInstaller();
     await installer.installCommands(INFERNO, {});
@@ -96,6 +98,12 @@ describe.sequential('CodexInstaller native bundle', () => {
     }
     expect([...seen].sort()).toEqual(Object.keys(AGENTS).sort());
 
+    // The build wrapper runs on the host under an allow rule, so a Codex build
+    // is queued, capped and cached exactly like a Claude build.
+    const rules = readFileSync('.codex/rules/claude-build.rules', 'utf8');
+    expect(rules).toContain('prefix_rule(pattern=["claude-build"], decision="allow")');
+    expect(rules).toContain('prefix_rule(pattern=["/home/ruben/.local/bin/claude-build"], decision="allow")');
+
     let agents = readFileSync('AGENTS.md', 'utf8');
     expect(agents.startsWith(projectInstructions)).toBe(true);
     expect(agents).toContain(CodexInstaller.MANAGED_START);
@@ -115,6 +123,8 @@ describe.sequential('CodexInstaller native bundle', () => {
     for (const name of Object.keys(AGENTS)) {
       expect(existsSync(path.join('.codex/agents', `${name}.toml`))).toBe(false);
     }
+    expect(existsSync('.codex/rules/claude-build.rules')).toBe(false);
+    expect(readFileSync('.codex/rules/user.rules', 'utf8')).toContain('"ls"');
     expect(readFileSync('.agents/skills/user-skill/SKILL.md', 'utf8')).toBe('user owned\n');
     expect(readFileSync('.codex/agents/user_agent.toml', 'utf8')).toContain('user_agent');
     expect(readFileSync('AGENTS.md', 'utf8')).toContain('Keep this project-owned rule.');

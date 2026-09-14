@@ -39,6 +39,13 @@ class CodexInstaller extends ToolInstaller {
         return path.join('.codex', 'agents');
     }
 
+    // Execpolicy rules: a command matched by an "allow" rule runs on the host
+    // without a review. The build wrapper is the one, so a build under Codex
+    // gets the same queue, memory cap, compile cache and sockets as under Claude.
+    get nativeRulesDir() {
+        return path.join('.codex', 'rules');
+    }
+
     get detectPath() {
         return '.codex';
     }
@@ -76,6 +83,19 @@ class CodexInstaller extends ToolInstaller {
                 if (!entry.isFile() || !entry.name.endsWith('.toml')) continue;
                 const target = path.join(this.nativeAgentsDir, entry.name);
                 await fs.copy(path.join(sourceAgentsDir, entry.name), target, { overwrite: true });
+                installedFiles.push(target);
+            }
+        }
+
+        const sourceRulesDir = path.join(nativeDir, 'rules');
+        if (await fs.pathExists(sourceRulesDir)) {
+            console.log(theme.dim(`  Installing execpolicy rules to ${this.nativeRulesDir}/...`));
+            await fs.ensureDir(this.nativeRulesDir);
+            const ruleEntries = await fs.readdir(sourceRulesDir, { withFileTypes: true });
+            for (const entry of ruleEntries) {
+                if (!entry.isFile() || !entry.name.endsWith('.rules')) continue;
+                const target = path.join(this.nativeRulesDir, entry.name);
+                await fs.copy(path.join(sourceRulesDir, entry.name), target, { overwrite: true });
                 installedFiles.push(target);
             }
         }
@@ -193,7 +213,18 @@ class CodexInstaller extends ToolInstaller {
             }
         }
 
+        const sourceRulesDir = path.join(nativeDir, 'rules');
+        if (await fs.pathExists(sourceRulesDir)) {
+            const entries = await fs.readdir(sourceRulesDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isFile() && entry.name.endsWith('.rules')) {
+                    await fs.remove(path.join(this.nativeRulesDir, entry.name));
+                }
+            }
+        }
+
         await this.removeManagedAgentsBlock();
+        await removeDirIfEmpty(this.nativeRulesDir);
         await removeDirIfEmpty(this.nativeSkillsDir);
         await removeDirIfEmpty(path.dirname(this.nativeSkillsDir));
         await removeDirIfEmpty(this.nativeAgentsDir);

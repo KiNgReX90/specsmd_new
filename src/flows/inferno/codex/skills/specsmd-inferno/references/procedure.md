@@ -99,6 +99,7 @@ A single item returns the envelope in the builder procedure. Allowed statuses ar
 
 - Malformed output (empty, prose-only, missing keys) gets one `followup_task` with the result contract and the missing fields; a second malformed result blocks the run.
 - A blocked result beginning `tool_failure:` gets one evidence-based retry: a missing path located with `rg`, a fresh read for a stale edit fingerprint, or a bounded error line for a shell failure. A permission denial is answered once with the sandboxed form of the command; only a genuinely missing authorization goes to the user. A second failure blocks.
+- A blocked result whose failing line comes from the build wrapper (a run cap kill, a queue refusal) or from the sandbox (`EPERM`, a read-only path) is an environment failure and never a code defect: it goes to the oracle once with that line and what the tree holds, and its decision rides in one fresh dispatch or ends the item in two sentences. No such result waits for a person.
 - A normal blocked result stops dependent dispatch, preserves the worktree and reports the reason, changed files, failing command and next step. A halted one is not retried.
 - Preserve a halted item's partial edits and proceed to halt finalization.
 
