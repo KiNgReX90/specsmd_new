@@ -103,6 +103,7 @@ describe.sequential('CodexInstaller native bundle', () => {
     const rules = readFileSync('.codex/rules/claude-build.rules', 'utf8');
     expect(rules).toContain('prefix_rule(pattern=["claude-build"], decision="allow")');
     expect(rules).toContain('prefix_rule(pattern=["/home/ruben/.local/bin/claude-build"], decision="allow")');
+    expect(rules).toContain('prefix_rule(pattern=["node", ".specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs", "ship"], decision="allow")');
 
     let agents = readFileSync('AGENTS.md', 'utf8');
     expect(agents.startsWith(projectInstructions)).toBe(true);
