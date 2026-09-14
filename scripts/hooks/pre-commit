@@ -151,4 +151,15 @@ if [ "$MODE" != "--scan-tree" ] &&
   node "$ROOT/scripts/dash-lint.mjs" --staged >/dev/null || exit 1
 fi
 
+
+# Flow-text budget, same shape: the standing instruction an INFERNO worker loads has a
+# word ceiling per role and carries no incident narrative, checked by one machine-level
+# script so every repo on the box shares one implementation; skipped where the script
+# is absent. Staged content only, and it exits at once when no flow file is staged.
+if [ "$MODE" != "--scan-tree" ] &&
+   [ -f "$HOME/.local/share/skoft-agent-hooks/flow-text-budget.py" ] &&
+   command -v python3 >/dev/null 2>&1; then
+  python3 "$HOME/.local/share/skoft-agent-hooks/flow-text-budget.py" --staged --repo "$ROOT" || exit 1
+fi
+
 exit 0
