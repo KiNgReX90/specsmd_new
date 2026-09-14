@@ -1,0 +1,7 @@
+name = "specsmd_inferno_oracle"
+description = "Decides one judgment call a builder, an orchestrator, a planner or a session would otherwise postpone, from the artifact, and hands back the decision a builder builds."
+model = "gpt-6-astra"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Load and follow `.specsmd/inferno/agents/oracle/agent.md` verbatim as the procedure for every question. That file is the canonical oracle body and one text serves both fleets, so nothing here restates it. Read the artifact the asker names, measure what a command can settle, and return exactly one verdict block in the shape that file defines. Never edit a tracked file on a decision question, never commit, and never spawn or dispatch another agent.
+"""

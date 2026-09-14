@@ -60,6 +60,42 @@ test("validateWorkItem requires patterns for behavior work and tests unless docs
     "behavior-item: context.tests is required unless the item is docs-only or config-only",
   ]);
 });
+const READS = [
+  {
+    path: "src/app/session.ts",
+    source: "the current-user request",
+    when: "at mount and after a sign in or a sign out",
+    stale: "the page keeps greeting the user who signed out",
+  },
+];
+
+test("validateWorkItem accepts a well-formed reads block", () => {
+  const result = validateWorkItem(item({ id: "reads-item", reads: READS }));
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});
+
+test("validateWorkItem rejects a reads entry with no when, naming the item and the key", () => {
+  const entry = { ...READS[0] };
+  delete entry.when;
+
+  const result = validateWorkItem(item({ id: "reads-item", reads: [entry] }));
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors, ["reads-item: reads[0].when must be a non-empty string"]);
+  assert.deepEqual(validateWorkItem(item({ id: "reads-item", reads: [] })).errors, [
+    "reads-item: reads must list at least one entry when the item declares it",
+  ]);
+});
+
+test("validateWorkItem accepts an item that declares no reads at all", () => {
+  const result = validateWorkItem(item({ id: "no-reads-item" }));
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});
+
 
 test("selectDispatchableItems dispatches newly unblocked dependency frontier items", () => {
   const items = [
@@ -136,6 +172,19 @@ test("buildBuilderPrompt includes pointers and policy but not file bodies", () =
   assert.match(prompt, /Start from the listed paths/);
   assert.doesNotMatch(prompt, /SECRET_FILE_BODY/);
 });
+test("buildBuilderPrompt lists the path, source, when and stale of every reads entry", () => {
+  const prompt = buildBuilderPrompt(item({ reads: READS }));
+
+  assert.match(prompt, /What this surface reads/);
+  for (const value of Object.values(READS[0])) {
+    assert.ok(prompt.includes(value), `prompt is missing ${value}`);
+  }
+});
+
+test("buildBuilderPrompt carries no reads section for an item that declares none", () => {
+  assert.doesNotMatch(buildBuilderPrompt(item()), /What this surface reads/);
+});
+
 
 test("validateBuilderResult accepts compact ready result and rejects noisy result", () => {
   const ready = validateBuilderResult({

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Intents"
+  short_description: "List current INFERNO intents without starting one"
+  default_prompt: "Use $specsmd-inferno-intents to list the current INFERNO intents."

@@ -11,7 +11,13 @@ const {
   archiveIntent,
   claimIntent,
   unclaimIntent,
+  blockIntent,
+  unblockIntent,
   main,
+  loadState,
+  locateIntents,
+  findKeyLine,
+  unquote,
 } = require("./state-transition.cjs");
 
 // Mirrors the real artifacts: load-bearing comment blocks, quoted and unquoted titles,
@@ -29,6 +35,7 @@ intents:
     claimed_by: inferno-intent/tools-menu-20260713-064412
     # Captured 2026-07-13. This comment block is load-bearing: it carries the
     # capture rationale and must survive every transition.
+    # INTENT. the menu and its wiring cannot be tested before the shell lands.
     created: 2026-07-13
     base_branch: main
     depends_on_intents: []
@@ -80,11 +87,22 @@ function sandbox(content = FIXTURE) {
 
 const NOW = "2026-07-14T12:00:00Z";
 
+/** The archive beside a ledger, where a shipped prerequisite answers from. */
+function withArchive(box, ids = ["long-gone"]) {
+  fs.mkdirSync(path.join(box.dir, "archive"), { recursive: true });
+  fs.writeFileSync(
+    path.join(box.dir, "archive", "state.yaml"),
+    `intents:\n${ids.map((id) => `  - id: ${id}\n    status: completed\n`).join("")}`,
+    "utf8",
+  );
+  return box;
+}
+
 // --- complete-item -------------------------------------------------------
 
 test("complete-item marks the target item completed with a timestamp", () => {
   const { file } = sandbox();
-  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
 
   assert.equal(result.changed, true);
   assert.equal(result.previous, "pending");
@@ -94,7 +112,7 @@ test("complete-item marks the target item completed with a timestamp", () => {
 
 test("complete-item leaves every other item untouched", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   const out = fs.readFileSync(file, "utf8");
 
   // The sibling shares the old status value; only the addressed item may move.
@@ -103,7 +121,7 @@ test("complete-item leaves every other item untouched", () => {
 
 test("complete-item never touches the intent-level status", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   const out = fs.readFileSync(file, "utf8");
 
   // Intent status sits at a shallower indent than item status; the writer must
@@ -113,7 +131,7 @@ test("complete-item never touches the intent-level status", () => {
 
 test("complete-item preserves load-bearing comment blocks", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   const out = fs.readFileSync(file, "utf8");
 
   assert.match(out, /# Captured 2026-07-13\. This comment block is load-bearing: it carries the\n {4}# capture rationale and must survive every transition\./);
@@ -122,7 +140,7 @@ test("complete-item preserves load-bearing comment blocks", () => {
 test("complete-item writes a minimal diff", () => {
   const { file } = sandbox();
   const before = fs.readFileSync(file, "utf8").split("\n");
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   const after = fs.readFileSync(file, "utf8").split("\n");
 
   // Exactly one line replaced and one added. A whole-file re-serialization would
@@ -136,15 +154,17 @@ test("complete-item writes a minimal diff", () => {
   assert.deepEqual(removed, ["        status: pending"]);
   assert.deepEqual(added, [
     "        completed_at: 2026-07-14T12:00:00Z",
+    "        integrated_at: 2026-07-14T12:00:00Z",
+    "        integrated_sha: abc1234",
     "        status: completed",
   ]);
 });
 
 test("complete-item is idempotent", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   const first = fs.readFileSync(file, "utf8");
-  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", now: "2099-01-01T00:00:00Z" });
+  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: "2099-01-01T00:00:00Z" });
 
   assert.equal(result.changed, false);
   assert.equal(fs.readFileSync(file, "utf8"), first, "re-running must not rewrite the timestamp");
@@ -153,7 +173,7 @@ test("complete-item is idempotent", () => {
 test("complete-item rejects an unknown item and names the known ones", () => {
   const { file } = sandbox();
   assert.throws(
-    () => completeItem({ file, intent: "tools-menu", item: "nope", now: NOW }),
+    () => completeItem({ file, intent: "tools-menu", item: "nope", proof: "abc1234", now: NOW }),
     (error) => error.code === "ITEM_NOT_FOUND" && /menu-shell, menu-wiring/.test(error.message)
   );
 });
@@ -161,7 +181,7 @@ test("complete-item rejects an unknown item and names the known ones", () => {
 test("complete-item rejects an unknown intent", () => {
   const { file } = sandbox();
   assert.throws(
-    () => completeItem({ file, intent: "ghost", item: "menu-shell", now: NOW }),
+    () => completeItem({ file, intent: "ghost", item: "menu-shell", proof: "abc1234", now: NOW }),
     (error) => error.code === "INTENT_NOT_FOUND"
   );
 });
@@ -173,7 +193,7 @@ test("complete-item syncs the work-item markdown frontmatter", () => {
   const md = path.join(mdDir, "menu-shell.md");
   fs.writeFileSync(md, "---\nid: menu-shell\nstatus: pending\n---\n\n# Menu shell\n\nBody stays.\n", "utf8");
 
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
 
   const out = fs.readFileSync(md, "utf8");
   assert.match(out, /^---\nid: menu-shell\nstatus: completed\ncompleted_at: 2026-07-14T12:00:00Z\n---\n/);
@@ -182,7 +202,7 @@ test("complete-item syncs the work-item markdown frontmatter", () => {
 
 test("complete-item succeeds when the work-item markdown is absent", () => {
   const { file } = sandbox();
-  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
+  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
   assert.equal(result.changed, true);
   assert.equal(result.markdown, null);
 });
@@ -200,8 +220,8 @@ test("close-intent refuses while any work item is open", () => {
 
 test("close-intent completes the intent and drops claimed_by once every item is done", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
-  completeItem({ file, intent: "tools-menu", item: "menu-wiring", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-wiring", proof: "abc1234", now: NOW });
 
   const result = closeIntent({ file, intent: "tools-menu", now: NOW });
 
@@ -223,8 +243,8 @@ test("close-intent is idempotent", () => {
 
 test("check flags an open intent whose items are all completed (the reported bug)", () => {
   const { file } = sandbox();
-  completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW });
-  completeItem({ file, intent: "tools-menu", item: "menu-wiring", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
+  completeItem({ file, intent: "tools-menu", item: "menu-wiring", proof: "abc1234", now: NOW });
 
   const result = check({ file });
 
@@ -319,10 +339,10 @@ test("check still flags a genuinely open intent whose items are all done", () =>
   assert.equal(result.drift[0].kind, "all-items-completed-intent-open");
 });
 
-// A one-item intent is the normal shape for a small change, and the fix-now box is where
-// most of those belong. An intent carrying exactly one work item has to name the exit that
-// took it out of the box, on a BOX. line in its entry comment. Without one, nothing tells a
-// change that had to be an intent apart from a change somebody should have fixed in place.
+// Work is built directly and an intent is the exception, whatever its size. Every intent
+// waiting to be claimed says on an INTENT. line why one builder on the default branch could
+// not do it, and a reason that only restates size or file count says nothing: two mechanisms
+// and six files are a batched dispatch, not an intent (Ruben, 2026-09-09).
 
 const ONE_ITEM = `intents:
   - id: title-bar-ink
@@ -349,17 +369,45 @@ const ONE_ITEM_BOXED = ONE_ITEM.replace(
     "      BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr\n"
 );
 
-test("check reports an open one-item intent without a BOX line", () => {
+test("check reports an intent waiting to be claimed with no reason line", () => {
   const { file } = sandbox(ONE_ITEM);
   const result = check({ file });
 
   assert.equal(result.drift.length, 1);
   assert.equal(result.drift[0].intent, "title-bar-ink");
-  assert.equal(result.drift[0].kind, "one-item-intent-without-box-line");
+  assert.equal(result.drift[0].kind, "intent-without-exception-reason");
 });
 
 test("check accepts a one-item intent that names its exit from the fix-now box", () => {
   const { file } = sandbox(ONE_ITEM_BOXED);
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check accepts an INTENT line, the name the BOX line took on 2026-09-06", () => {
+  const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", "INTENT. the change must not reach main before the full gate proves it whole"));
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+// The line is the reason, so the keyword on its own is the same postponement the
+// check exists to catch: an entry that says INTENT. and nothing else names no exit.
+test("check reports an INTENT line with nothing after it", () => {
+  const { file } = sandbox(
+    ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", "INTENT.")
+  );
+  const result = check({ file });
+
+  assert.equal(result.drift.length, 1);
+  assert.equal(result.drift[0].kind, "intent-without-exception-reason");
+  assert.match(result.drift[0].detail, /reason after it/);
+});
+
+test("check accepts an INTENT line that carries its reason", () => {
+  const { file } = sandbox(
+    ONE_ITEM_BOXED.replace(
+      "BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr",
+      "INTENT. one migration the gate must prove whole"
+    )
+  );
   assert.deepEqual(check({ file }).drift, []);
 });
 
@@ -380,7 +428,7 @@ test("check reports a quick-fixes.md beside the ledger as drift", () => {
   const result = check({ file });
   assert.equal(result.drift.length, 1);
   assert.equal(result.drift[0].kind, "quick-fixes-file-present");
-  assert.match(result.drift[0].detail, /one-item intent/);
+  assert.match(result.drift[0].detail, /builder directly/);
 });
 
 test("check scoped to one intent still reports the parking file", () => {
@@ -402,8 +450,7 @@ test("check does not ask a parked one-item intent for a BOX line", () => {
   assert.deepEqual(check({ file }).drift, []);
 });
 
-test("check does not ask a two-item intent for a BOX line", () => {
-  // Size is the rule: more than one work item is already out of the fix-now box.
+test("check asks a two-item intent for its reason too, since size is no reason", () => {
   const { file } = sandbox(`intents:
   - id: two-items
     title: "Two items"
@@ -418,6 +465,30 @@ test("check does not ask a two-item intent for a BOX line", () => {
         status: pending
         depends_on: []
 `);
+  assert.equal(check({ file }).drift[0].kind, "intent-without-exception-reason");
+});
+
+test("check rejects a reason that only restates size or file count", () => {
+  for (const reason of ["INTENT. six files and two mechanisms", "INTENT. past the item ceiling, about thirty builder rounds"]) {
+    const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", reason));
+    const drift = check({ file }).drift;
+    assert.equal(drift.length, 1, `"${reason}" is size, not an exception`);
+    assert.match(drift[0].detail, /only restates size/);
+  }
+});
+
+test("check accepts a reason that names what one builder could not do", () => {
+  const { file } = sandbox(ONE_ITEM_BOXED.replace(
+    "BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr",
+    "INTENT. a persisted format migration the cheap checks cannot prove piecemeal"
+  ));
+  assert.deepEqual(check({ file }).drift, []);
+});
+
+test("check leaves an intent a run already holds alone", () => {
+  // The reason is a capture-time gate. An intent in flight is being built, and reporting it
+  // now would only block its own close.
+  const { file } = sandbox(ONE_ITEM.replace("    status: pending", "    status: in_progress"));
   assert.deepEqual(check({ file }).drift, []);
 });
 
@@ -469,7 +540,7 @@ test("does not confuse an item id with an intent id", () => {
         depends_on: []
 `;
   const { file } = sandbox(collide);
-  completeItem({ file, intent: "shared-name", item: "shared-name", now: NOW });
+  completeItem({ file, intent: "shared-name", item: "shared-name", proof: "abc1234", now: NOW });
   const out = fs.readFileSync(file, "utf8");
 
   assert.match(out, /- id: shared-name\n {4}title: "Intent"\n {4}status: in_progress\n/);
@@ -645,7 +716,7 @@ test("archive-intent loses no line of the ledger: every archived line lands in t
   assert.deepEqual(multisetDifference(gone, archive), []);
 });
 
-test("archive-intent refuses a block-sequence dependency rather than skipping it", () => {
+test("archive-intent frees a block-sequence dependency", () => {
   const blockForm = `intents:
   - id: done-one
     title: "Done"
@@ -667,7 +738,10 @@ test("archive-intent refuses a block-sequence dependency rather than skipping it
         depends_on: []
 `;
   const { file } = sandbox(blockForm);
-  assert.throws(() => archiveIntent({ file, sweep: true, now: NOW }), /DEPENDS_FORM|block sequence/);
+  assert.deepEqual(archiveIntent({ file, sweep: true, now: NOW }).freed, [
+    { intent: "dependent", freed: ["done-one"] },
+  ]);
+  assert.match(fs.readFileSync(file, "utf8"), /depends_on_intents: \[\]/);
 });
 
 test("archive-intent --sweep parses as a flag, not as a key expecting a value", () => {
@@ -770,7 +844,7 @@ intents:
 const RUN = "inferno-intent/ready-one-20260714T120000Z";
 
 test("claim-intent moves a pending intent to in_progress and records the run", () => {
-  const { file } = sandbox(CLAIMABLE);
+  const { file } = withArchive(sandbox(CLAIMABLE));
   const result = claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
 
   assert.equal(result.changed, true);
@@ -783,7 +857,7 @@ test("claim-intent moves a pending intent to in_progress and records the run", (
 });
 
 test("claim-intent leaves the rest of the ledger untouched", () => {
-  const { file } = sandbox(CLAIMABLE);
+  const { file } = withArchive(sandbox(CLAIMABLE));
   const before = fs.readFileSync(file, "utf8").split("\n");
   claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
   const after = fs.readFileSync(file, "utf8").split("\n");
@@ -823,17 +897,29 @@ test("claim-intent refuses while a prerequisite intent is still open", () => {
   );
 });
 
-test("claim-intent accepts a prerequisite that has already left for the archive", () => {
-  // An archived intent is gone from the live ledger by design, so an id nothing in the
-  // ledger answers to is shipped, not missing. Refusing it would make every intent whose
-  // prerequisite archived permanently unclaimable.
+test("claim-intent accepts a prerequisite the archive holds", () => {
+  // An archived intent is gone from the live ledger by design, so the archive is where a
+  // shipped prerequisite answers from.
+  const { file } = withArchive(sandbox(CLAIMABLE));
+
+  assert.equal(claimIntent({ file, intent: "ready-one", run: RUN, now: NOW }).changed, true);
+});
+
+// A misspelled prerequisite used to count as met, because an id nothing answered to was read
+// as shipped. The claim then built on a foundation that had never been planned.
+test("claim-intent refuses a prerequisite neither the ledger nor the archive knows", () => {
   const { file } = sandbox(CLAIMABLE);
-  const result = claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
-  assert.equal(result.changed, true);
+  const before = fs.readFileSync(file, "utf8");
+
+  assert.throws(
+    () => claimIntent({ file, intent: "ready-one", run: RUN, now: NOW }),
+    (error) => error.code === "DEPENDS_UNKNOWN" && /long-gone/.test(error.message),
+  );
+  assert.equal(fs.readFileSync(file, "utf8"), before, "a refusal writes nothing");
 });
 
 test("claim-intent re-uses an existing claimed_at line rather than adding a second", () => {
-  const { file } = sandbox(CLAIMABLE);
+  const { file } = withArchive(sandbox(CLAIMABLE));
   claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
   unclaimIntent({ file, intent: "ready-one" });
   claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
@@ -843,7 +929,7 @@ test("claim-intent re-uses an existing claimed_at line rather than adding a seco
 });
 
 test("unclaim-intent returns the intent to pending and drops the claim", () => {
-  const { file } = sandbox(CLAIMABLE);
+  const { file } = withArchive(sandbox(CLAIMABLE));
   claimIntent({ file, intent: "ready-one", run: RUN, now: NOW });
   const result = unclaimIntent({ file, intent: "ready-one" });
 
@@ -868,7 +954,7 @@ test("unclaim-intent refuses a completed intent", () => {
 });
 
 test("claim-intent and unclaim-intent are reachable through the CLI", () => {
-  const { file } = sandbox(CLAIMABLE);
+  const { file } = withArchive(sandbox(CLAIMABLE));
   assert.equal(main(["claim-intent", "--intent", "ready-one", "--run", RUN, "--file", file, "--now", NOW]), 0);
   assert.match(fs.readFileSync(file, "utf8"), /status: in_progress/);
   assert.equal(main(["unclaim-intent", "--intent", "ready-one", "--file", file]), 0);
@@ -893,4 +979,230 @@ test("check scoped to an archived intent answers archived with no drift", () => 
 test("check scoped to an intent nobody knows still refuses", () => {
   const { file } = sandbox(ARCHIVABLE);
   assert.throws(() => check({ file, intent: "never-existed" }), (error) => error.code === "INTENT_NOT_FOUND");
+});
+
+// --- complete-item needs the integration proof ---------------------------
+// An item used to be marked completed before `integrate` ran, so a run that died
+// between the mark and the checks left a ledger saying verified about a tree
+// nothing had verified (five hours of red e2e on 2026-09-09). The proof is the
+// sha integrate ran the checks on, and only integrate has it.
+
+test("complete-item refuses an item with no integration proof and prints the fix", () => {
+  const { file } = sandbox();
+  assert.throws(
+    () => completeItem({ file, intent: "tools-menu", item: "menu-shell", now: NOW }),
+    (error) => error.code === "NO_PROOF" && /integrate --item menu-shell/.test(error.message)
+  );
+  assert.match(fs.readFileSync(file, "utf8"), /- id: menu-shell\n[\s\S]*?status: pending/);
+});
+
+test("complete-item records the sha and the moment the checks proved it", () => {
+  const { file } = sandbox();
+  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
+
+  assert.equal(result.changed, true);
+  assert.equal(result.integrated_sha, "abc1234");
+  const out = fs.readFileSync(file, "utf8");
+  assert.match(out, / {8}integrated_sha: abc1234\n/);
+  assert.match(out, / {8}integrated_at: 2026-07-14T12:00:00Z\n/);
+});
+
+test("complete-item backfills the proof onto an item an older run left unproven", () => {
+  const { file } = sandbox(FIXTURE.replace(
+    "      - id: menu-shell\n        title: \"Menu shell\"\n        kind: ui\n        complexity: low\n        mode: autopilot\n        status: pending\n",
+    "      - id: menu-shell\n        title: \"Menu shell\"\n        kind: ui\n        complexity: low\n        mode: autopilot\n        status: completed\n"
+  ));
+  const result = completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "deadbee", now: NOW });
+
+  assert.equal(result.changed, true);
+  assert.match(fs.readFileSync(file, "utf8"), / {8}integrated_sha: deadbee\n/);
+  assert.equal(
+    completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "deadbee", now: NOW }).changed,
+    false,
+    "a proven item is already complete"
+  );
+});
+
+// --- block-intent / unblock-intent ----------------------------------------
+// The ledger could say an intent was waiting on another intent, and it could say nothing at
+// all about one waiting on the world. So an intent that existed and could not be built yet
+// sat on `pending` and was offered at every selection, and the only way to keep it out of a
+// run was to leave it out of the ledger. `blocked` was already a parked status the drift
+// check tolerated; nothing could write it.
+
+/** A ledger entry someone parks: pending, no work items, its reason still to be written. */
+const PARKED = `project:
+  name: demo
+intents:
+  - id: waits-on-the-world
+    title: "Waits on the world"
+    status: pending
+    created: 2026-09-10
+    base_branch: main
+    depends_on_intents: []
+    # INTENT. the recapture spans two packages and cannot start before the app is finished.
+`;
+
+const REASON = "waits on the application being finished, the whole strip is re-recorded then";
+
+/** Read one field back out of an intent entry, the way the ledger's own readers do. */
+function fieldOf(file, intentId, key) {
+  const lines = loadState(file);
+  const intent = locateIntents(lines).find((entry) => entry.id === intentId);
+  const idx = findKeyLine(lines, intent.start, intent.end, intent.keyIndent, key);
+  return idx === -1 ? null : unquote(lines[idx].slice(intent.keyIndent + `${key}:`.length));
+}
+
+test("block-intent parks a pending intent with its reason and the moment", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const result = blockIntent({ file, intent: "ready-one", reason: REASON, now: NOW });
+
+  assert.equal(result.changed, true);
+  assert.equal(result.previous, "pending");
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reason, REASON);
+  const out = fs.readFileSync(file, "utf8");
+  assert.match(
+    out,
+    new RegExp(
+      `- id: ready-one\\n {4}title: "Ready one"\\n {4}status: blocked\\n` +
+        ` {4}blocked_at: ${NOW}\\n {4}blocked_reason: "${REASON}"\\n`
+    )
+  );
+});
+
+test("block-intent refuses without a reason and writes nothing", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const before = fs.readFileSync(file, "utf8");
+
+  assert.throws(
+    () => blockIntent({ file, intent: "ready-one", reason: "   ", now: NOW }),
+    (error) => error.code === "NO_REASON" && /reason/.test(error.message)
+  );
+  assert.equal(fs.readFileSync(file, "utf8"), before, "a refusal writes nothing");
+});
+
+test("block-intent refuses an intent a run holds and names the way to release it", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(
+    () => blockIntent({ file, intent: "taken", reason: REASON, now: NOW }),
+    (error) => error.code === "NOT_PENDING" && /unclaim-intent --intent taken/.test(error.message)
+  );
+});
+
+test("block-intent refuses a completed intent", () => {
+  const { file } = sandbox(FIXTURE);
+  assert.throws(
+    () => blockIntent({ file, intent: "already-shipped", reason: REASON, now: NOW }),
+    (error) => error.code === "NOT_PENDING" && /completed/.test(error.message)
+  );
+});
+
+test("block-intent is idempotent and keeps one pair of block fields", () => {
+  const { file } = sandbox(CLAIMABLE);
+  blockIntent({ file, intent: "ready-one", reason: REASON, now: NOW });
+  const result = blockIntent({ file, intent: "ready-one", reason: "a second reason", now: NOW });
+
+  assert.equal(result.changed, false);
+  assert.match(result.note, /already blocked/);
+  const out = fs.readFileSync(file, "utf8");
+  assert.equal(out.match(/blocked_at:/g).length, 1);
+  assert.equal(fieldOf(file, "ready-one", "blocked_reason"), REASON, "the first reason stands");
+});
+
+test("block-intent leaves the rest of the ledger untouched", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const before = fs.readFileSync(file, "utf8").split("\n");
+  blockIntent({ file, intent: "ready-one", reason: REASON, now: NOW });
+  const after = fs.readFileSync(file, "utf8").split("\n");
+
+  // One status line replaced, two block lines added. Anything more is a rewrite.
+  assert.deepEqual(multisetDifference(before, after), ["    status: pending"]);
+  assert.equal(multisetDifference(after, before).length, 3);
+  assert.match(fs.readFileSync(file, "utf8"), /# Capture rationale that must survive the claim\./);
+});
+
+test("a blocked intent cannot be claimed", () => {
+  const { file } = withArchive(sandbox(CLAIMABLE));
+  blockIntent({ file, intent: "ready-one", reason: REASON, now: NOW });
+  assert.throws(
+    () => claimIntent({ file, intent: "ready-one", run: RUN, now: NOW }),
+    (error) => error.code === "NOT_PENDING" && /blocked/.test(error.message)
+  );
+});
+
+// The reason is free text a person types, so it reaches the ledger as one quoted scalar.
+// An unquoted one would end at the first hash and take the rest of the sentence with it.
+test("block-intent keeps a reason carrying a colon, a hash and a quote readable", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const awkward = 'waits on the app: the "strip" is re-recorded # and recaptured';
+  blockIntent({ file, intent: "ready-one", reason: awkward, now: NOW });
+
+  assert.equal(fieldOf(file, "ready-one", "blocked_reason"), awkward);
+  assert.equal(fieldOf(file, "ready-one", "status"), "blocked");
+});
+
+test("block-intent folds a reason written over several lines into one", () => {
+  const { file } = sandbox(CLAIMABLE);
+  blockIntent({ file, intent: "ready-one", reason: "waits on the app\nand on the recapture", now: NOW });
+
+  assert.equal(fieldOf(file, "ready-one", "blocked_reason"), "waits on the app and on the recapture");
+  assert.equal(fieldOf(file, "ready-one", "status"), "blocked");
+});
+
+test("unblock-intent returns the intent to pending and drops the block fields", () => {
+  const { file } = sandbox(CLAIMABLE);
+  blockIntent({ file, intent: "ready-one", reason: REASON, now: NOW });
+  const result = unblockIntent({ file, intent: "ready-one" });
+
+  assert.equal(result.changed, true);
+  assert.equal(result.previous, "blocked");
+  const out = fs.readFileSync(file, "utf8");
+  assert.match(out, /- id: ready-one\n {4}title: "Ready one"\n {4}status: pending\n {4}created: 2026-07-10\n/);
+  assert.doesNotMatch(out, /blocked_reason:/);
+  assert.doesNotMatch(out, /blocked_at:/);
+});
+
+test("unblock-intent is idempotent on an intent that is already pending", () => {
+  const { file } = sandbox(CLAIMABLE);
+  const result = unblockIntent({ file, intent: "ready-one" });
+
+  assert.equal(result.changed, false);
+  assert.match(result.note, /not blocked/);
+});
+
+test("unblock-intent refuses an intent a run holds", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(
+    () => unblockIntent({ file, intent: "taken" }),
+    (error) => error.code === "NOT_BLOCKED" && /in_progress/.test(error.message)
+  );
+});
+
+// The whole point of the status: an intent parked with no work items is a resting place, and
+// `check` has to stay quiet about it or finalize blocks on somebody else's parked intent.
+test("check reports no drift over a blocked intent", () => {
+  const { file } = sandbox(PARKED);
+  blockIntent({ file, intent: "waits-on-the-world", reason: REASON, now: NOW });
+
+  assert.deepEqual(check({ file }).drift, []);
+  assert.equal(main(["check", "--file", file]), 0);
+});
+
+test("block-intent and unblock-intent are reachable through the CLI", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.equal(main(["block-intent", "--intent", "ready-one", "--reason", REASON, "--file", file, "--now", NOW]), 0);
+  assert.equal(fieldOf(file, "ready-one", "status"), "blocked");
+  assert.equal(main(["unblock-intent", "--intent", "ready-one", "--file", file]), 0);
+  assert.equal(fieldOf(file, "ready-one", "status"), "pending");
+});
+
+test("block-intent through the CLI refuses without --intent or --reason", () => {
+  const { file } = sandbox(CLAIMABLE);
+  assert.throws(() => main(["block-intent", "--file", file]), (error) => error.code === "BAD_ARGS");
+  assert.throws(
+    () => main(["block-intent", "--intent", "ready-one", "--file", file]),
+    (error) => error.code === "BAD_ARGS"
+  );
+  assert.throws(() => main(["unblock-intent", "--file", file]), (error) => error.code === "BAD_ARGS");
 });

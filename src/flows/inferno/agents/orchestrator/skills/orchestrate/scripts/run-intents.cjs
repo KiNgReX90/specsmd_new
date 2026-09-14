@@ -1,30 +1,35 @@
 'use strict';
 
 /**
- * Intent-level steps of `run.cjs`: select, claim, unclaim, worktree, frontier and the
- * dispatch log. Every ledger write goes through state-transition.cjs, the single writer.
+ * Intent-level steps of `run.cjs`: select, claim, unclaim, worktree and the dispatch log.
+ * Every ledger write goes through state-transition.cjs, the single writer.
+ *
+ * `frontier` is the sixth step and lives in run-frontier.cjs, which is the item graph rather
+ * than the intent. It is re-exported here so `run.cjs` keeps one intent-level module.
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const writer = require('./state-transition.cjs');
-const scheduler = require('./team-scheduler.cjs');
+const { frontier, tierOf } = require('./run-frontier.cjs');
+const { archivePaths, archivedIds } = require('./state-archive.cjs');
+const { PARKED_VALUES } = require('./state-ledger.cjs');
+const { branchesFor, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
+const { ownership } = require('./run-owner.cjs');
 
 /** An in_progress intent counts as abandoned after this long with no process, edit or commit in its worktree. */
 const DEFAULT_IDLE_MINUTES = 60;
 
 const { RunError } = lib;
+// The completion vocabulary the ledger itself uses, rather than a second copy of it here.
+const { isComplete } = writer;
 
-const CHEAP_KINDS = new Set(['test', 'docs-only', 'docs', 'config-only', 'config']);
-const TERMINAL = new Set(['completed', 'done']);
 /** The `TC-12` case-id convention a project's case list uses. */
 const CASE_ID = /\bTC-\d+\b/g;
-
-function isComplete(status) {
-  return TERMINAL.has(status);
-}
 
 /** The branch an intent merges into: config first, then the intent's own record. */
 function resolveBase(config, intent, root) {
@@ -36,10 +41,16 @@ function resolveBase(config, intent, root) {
   return lib.currentBranch(root);
 }
 
-/** Prerequisite ids that have not shipped. An id the ledger cannot answer to is archived. */
+/**
+ * Prerequisite ids that have not shipped. A shipped prerequisite answers from the archive, and
+ * an id neither the ledger nor the archive knows is a name nobody planned, so it blocks too.
+ */
 function unmetPrerequisites(ledger, intent) {
   const known = new Map(ledger.intents.map((entry) => [entry.id, entry.status]));
-  return intent.depends_on_intents.filter((id) => known.has(id) && !isComplete(known.get(id)));
+  const archived = archivedIds(archivePaths(ledger.file).archiveFile);
+  return intent.depends_on_intents.filter((id) =>
+    known.has(id) ? !isComplete(known.get(id)) : !archived.has(id)
+  );
 }
 
 function grades(intent) {
@@ -57,28 +68,6 @@ function testerCases(root, intent) {
   const brief = path.join(root, lib.SPECS_DIR, 'intents', intent.id, 'brief.md');
   const prose = intent.comment + (fs.existsSync(brief) ? fs.readFileSync(brief, 'utf8') : '');
   return [...new Set(prose.match(CASE_ID) || [])];
-}
-
-function worktreeEntries(root) {
-  const out = [];
-  let current = null;
-  for (const line of lib.gitLines(root, ['worktree', 'list', '--porcelain'], { tolerate: true })) {
-    if (line.startsWith('worktree ')) current = { path: line.slice(9), branch: null };
-    else if (line.startsWith('branch ') && current) current.branch = line.slice(7).replace('refs/heads/', '');
-    if (current && !out.includes(current)) out.push(current);
-  }
-  return out;
-}
-
-function branchesFor(root, intentId) {
-  return lib
-    .gitLines(root, ['branch', '--list', `inferno-intent/${intentId}-*`, '--format=%(refname:short)'], { tolerate: true });
-}
-
-function worktreeFor(root, intentId) {
-  return worktreeEntries(root).find(
-    (entry) => entry.branch && entry.branch.startsWith(`inferno-intent/${intentId}-`)
-  );
 }
 
 /** What `check` says about one intent, in one line. */
@@ -99,11 +88,13 @@ function checkLine(file, intentId) {
 function select(options) {
   const root = lib.primaryRoot(options.cwd);
   const ledger = lib.readLedger(root);
-  const config = lib.readConfig(root);
+  const config = lib.readConfig(root, options.config);
   const idleWindow = Number((config.recovery || {}).idle_minutes) || DEFAULT_IDLE_MINUTES;
   const claimable = [];
   const blocked = [];
+  const parked = [];
   const recovery = [];
+  const running = [];
 
   for (const intent of ledger.intents) {
     if (intent.status === 'pending') {
@@ -111,6 +102,20 @@ function select(options) {
       const entry = { id: intent.id, title: intent.title, items: grades(intent) };
       if (unmet.length > 0) blocked.push({ ...entry, unmet });
       else claimable.push({ ...entry, cases: testerCases(root, intent) });
+      continue;
+    }
+    // A parked intent exists and cannot be built yet. It used to fall through this loop and
+    // appear nowhere, so a blocked intent was as invisible as one nobody had captured. It
+    // belongs in the listing and never in `claimable`. It is a bucket of its own because a
+    // `blocked` entry above carries prerequisite ids that clear themselves, and this carries
+    // free text and clears only when a person runs unblock-intent.
+    if (PARKED_VALUES.has(intent.status)) {
+      parked.push({
+        id: intent.id,
+        title: intent.title,
+        status: intent.status,
+        reason: intent.blocked_reason || '',
+      });
       continue;
     }
     if (intent.status !== 'in_progress') continue;
@@ -122,6 +127,14 @@ function select(options) {
     else if (!tree) reason = 'no worktree for the branch';
     else if (branch.length === 0) reason = 'no branch for the worktree';
     else {
+      // A live session or a live detached gate owns the tree, however idle the worktree looks:
+      // a gate works from the cache dir and its integration suite commits nothing for forty
+      // minutes, which is exactly what an abandoned tree looks like from here (2026-09-10).
+      const owner = ownership(tree.path);
+      if (owner) {
+        running.push({ id: intent.id, tree: tree.path, ...owner });
+        continue;
+      }
       const live = lib.processesIn(tree.path);
       const idle = lib.idleMinutes(tree.path);
       const busy = (live && live.length > 0) || (idle !== null && idle < idleWindow);
@@ -133,14 +146,33 @@ function select(options) {
     }
   }
 
+  // A repository with no commit yet has no base to resolve and no worktree to have left behind.
+  const base = lib.git(root, ['rev-parse', '--verify', '--quiet', 'HEAD'], { tolerate: true }) === null
+    ? null
+    : resolveBase(config, null, root);
+  const leftovers = base ? leftoverWorktrees(root, ledger, base) : [];
+
   const out = [];
   out.push(claimable.length > 0 ? 'claimable' : 'no claimable intent');
   for (const entry of claimable) {
     out.push(`  ${entry.id}  ${entry.title}  ${entry.items}${entry.cases.length > 0 ? `  cases ${entry.cases.join(' ')}` : ''}`);
   }
   for (const entry of blocked) out.push(`blocked ${entry.id}  waiting on ${entry.unmet.join(', ')}`);
+  for (const entry of parked) {
+    out.push(`parked ${entry.id}  ${entry.status}: ${entry.reason || 'no reason recorded'}`);
+  }
+  for (const entry of running) {
+    out.push(
+      entry.kind === 'session'
+        ? `running ${entry.id}  owned by live session pid ${entry.pid}, last step ${entry.step} ${entry.minutes} min ago`
+        : `running ${entry.id}  gate pid ${entry.pid} still running since ${entry.started}`
+    );
+  }
   for (const entry of recovery) out.push(`recover ${entry.id}  ${entry.reason}  ${entry.check}`);
-  return { exit: 0, payload: { claimable, blocked, recovery }, out };
+  for (const entry of leftovers) {
+    out.push(`leftover ${entry.id}  ${entry.path}  merged into ${base}; run teardown --tree ${entry.path}`);
+  }
+  return { exit: 0, payload: { claimable, blocked, parked, running, recovery, leftovers }, out };
 }
 
 // ---------------------------------------------------------------------------
@@ -155,9 +187,28 @@ function stageAndCommit(root, intentId, message) {
   return lib.git(root, ['rev-parse', '--short', 'HEAD']);
 }
 
+/**
+ * The standing instruction a worker loads is paid on every round of every builder, and the
+ * text only stops growing where a run refuses to start under it. One machine-level script
+ * holds the ceilings for every repo on the box; a box without it claims as before.
+ */
+const FLOW_BUDGET = process.env.SKOFT_FLOW_BUDGET ||
+  path.join(os.homedir(), '.local', 'share', 'skoft-agent-hooks', 'flow-text-budget.py');
+
+function refuseOverBudget(root) {
+  if (!fs.existsSync(FLOW_BUDGET)) return;
+  const result = spawnSync('python3', [FLOW_BUDGET, '--repo', root, '--quiet'], { encoding: 'utf8' });
+  if (result.error || result.status === null || result.status === 0) return;
+  throw new RunError(
+    `the flow text a worker loads is over its budget; a run cannot start under it.\n${result.stdout || ''}${result.stderr || ''}`.trim(),
+    'FLOW_TEXT_OVER_BUDGET',
+  );
+}
+
 function claim(intentId, options) {
   const root = lib.primaryRoot(options.cwd);
-  const config = lib.readConfig(root);
+  const config = lib.readConfig(root, options.config);
+  refuseOverBudget(root);
   const ledger = lib.readLedger(root);
   const intent = lib.findIntent(ledger, intentId);
   const base = resolveBase(config, intent, root);
@@ -188,7 +239,7 @@ function claim(intentId, options) {
 
 function unclaim(intentId, options) {
   const root = lib.primaryRoot(options.cwd);
-  const config = lib.readConfig(root);
+  const config = lib.readConfig(root, options.config);
   const ledger = lib.readLedger(root);
   const intent = lib.findIntent(ledger, intentId);
   const base = resolveBase(config, intent, root);
@@ -217,7 +268,7 @@ function unclaim(intentId, options) {
 
 function worktree(intentId, options) {
   const root = lib.primaryRoot(options.cwd);
-  const config = lib.readConfig(root);
+  const config = lib.readConfig(root, options.config);
   const ledger = lib.readLedger(root);
   const intent = lib.findIntent(ledger, intentId);
 
@@ -256,104 +307,6 @@ function worktree(intentId, options) {
     return { exit: 2, payload: { created: true, path: target, branch, dirty }, out };
   }
   return { exit: 0, payload: { created: true, path: target, branch }, out };
-}
-
-// ---------------------------------------------------------------------------
-// frontier
-// ---------------------------------------------------------------------------
-
-function tierOf(item) {
-  return item.complexity === 'low' || CHEAP_KINDS.has(item.kind) ? 'cheap' : 'strong';
-}
-
-function loadItems(tree, intent) {
-  return intent.items
-    .filter((item) => !isComplete(item.status))
-    .map((item) => {
-      const spec = lib.readItemSpec(tree, intent.id, item.id);
-      const manifest = spec.manifest || {};
-      return {
-        id: item.id,
-        kind: item.kind || String(spec.frontmatter.kind || '').toLowerCase(),
-        complexity: item.complexity || String(spec.frontmatter.complexity || '').toLowerCase(),
-        depends_on: item.depends_on,
-        context: manifest.context || {},
-        ownership: manifest.ownership || {},
-        file: spec.file,
-      };
-    });
-}
-
-/** The contract check, plus the one team-scheduler cannot make: the paths have to exist. */
-function contractErrors(tree, items) {
-  const errors = [];
-  for (const item of items) {
-    errors.push(...scheduler.validateWorkItem(item).errors);
-    for (const entry of item.context.required || []) {
-      const target = entry && entry.path;
-      if (target && !fs.existsSync(path.join(tree, target))) {
-        errors.push(`${item.id}: context.required path does not exist: ${target}`);
-      }
-    }
-  }
-  return errors;
-}
-
-function frontier(intentId, options) {
-  const tree = options.tree || lib.repoRoot(options.cwd);
-  const ledger = lib.readLedger(tree);
-  const intent = lib.findIntent(ledger, intentId);
-  const items = loadItems(tree, intent);
-
-  const errors = contractErrors(tree, items);
-  if (errors.length > 0) {
-    return { exit: 2, payload: { ok: false, errors }, out: errors.map((error) => `INVALID ${error}`) };
-  }
-
-  const completedIds = new Set(intent.items.filter((item) => isComplete(item.status)).map((item) => item.id));
-  const ready = items.filter((item) => item.depends_on.every((id) => completedIds.has(id)));
-  const waiting = items.filter((item) => !ready.includes(item));
-  const owns = (item) => item.ownership.editable || [];
-
-  const serialize = [];
-  for (let i = 0; i < ready.length; i += 1) {
-    for (let j = i + 1; j < ready.length; j += 1) {
-      const shared = owns(ready[i]).filter((entry) => owns(ready[j]).includes(entry));
-      if (shared.length > 0) serialize.push({ items: [ready[i].id, ready[j].id], shared });
-    }
-  }
-
-  const dispatch = scheduler
-    .selectDispatchableItems(ready, { completedIds })
-    .map((item) => item.id);
-
-  // A batch is only a saving when the items could not have run in parallel anyway: same
-  // tier, low complexity, and ownership nothing else in the frontier touches.
-  const alone = (item) =>
-    owns(item).every((entry) => !ready.some((other) => other !== item && owns(other).includes(entry)));
-  const batch = [];
-  let group = [];
-  for (const item of ready) {
-    const eligible = item.complexity === 'low' && alone(item);
-    if (eligible && (group.length === 0 || tierOf(group[0]) === tierOf(item))) group.push(item);
-    else {
-      if (group.length > 1) batch.push(group.map((entry) => entry.id));
-      group = eligible ? [item] : [];
-    }
-  }
-  if (group.length > 1) batch.push(group.map((entry) => entry.id));
-
-  const shape = (item) => ({ id: item.id, complexity: item.complexity, kind: item.kind, tier: tierOf(item) });
-  const out = ready.map((item) => `ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${tierOf(item)}`);
-  for (const item of waiting) out.push(`waiting ${item.id} on ${item.depends_on.join(', ')}`);
-  for (const pair of serialize) out.push(`serialize ${pair.items.join(' + ')} (shares ${pair.shared.join(', ')})`);
-  for (const group2 of batch) out.push(`batch ${group2.join(',')}`);
-  if (out.length === 0) out.push('no item left in this intent');
-  return {
-    exit: 0,
-    payload: { ready: ready.map(shape), waiting: waiting.map(shape), serialize, dispatch, batch },
-    out,
-  };
 }
 
 // ---------------------------------------------------------------------------

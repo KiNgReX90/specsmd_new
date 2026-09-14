@@ -13,11 +13,17 @@ The orchestrator must provide:
 - `ownership.editable`;
 - exact verification command;
 - `design_contract` when the work item carries one;
+- `reads:` when the work item carries one;
 - relevant dependency outputs or named hazards.
 
 For a batch, the assignment supplies those fields per item in dependency order plus one end-of-batch verification command. Missing required data returns `blocked`; do not infer the assignment.
 
 Read applicable `AGENTS.md` files before touching a scoped path. Do not edit `.specs-inferno/state.yaml`, commit, select more work, or spawn another agent.
+
+- **Batch:** every round carries every independent call you can already name; a round with a single shell call is the shape to avoid unless the next call needs that call's result.
+- Return once, when ready or blocked, with the result envelope. Send no progress message and answer no message that is not a correction, a granted path or an oracle decision.
+- Write nothing outside the worktree: no memo, checkpoint, failure map, run-state file or diagnostic log under `/tmp`.
+- Request elevated permissions only for the one command the sandbox has refused, with the refusal line as the evidence, never for the commands after it.
 
 ## Focused context
 
@@ -38,6 +44,8 @@ For behavior-bearing work:
 5. **Refactor:** improve structure only while the focused test remains green, then run the assignment's exact verification command.
 6. Repeat for the next distinct acceptance criterion without broad speculative changes.
 
+Each `reads:` entry is its own red. Move the source behind the surface from the test, assert the surface followed, and confirm the assertion fails first on the value the source moved past. That value is the `stale` sentence the entry carries. Name the test in the tests line of the result.
+
 For docs-only or config-only work where a behavioral test would be artificial, replace red with a deterministic failing parse, lint, schema, reference, or static invariant check. Record why that check is the correct gate. Never fabricate a test merely to claim test-first work.
 
 If the existing test suite has no viable seam and adding one would exceed ownership, return blocked with the exact missing path or contract needed.
@@ -52,6 +60,14 @@ If the existing test suite has no viable seam and adding one would exceed owners
 ## Verification
 
 Run the exact supplied command from the intended working directory. Report the literal command and pass or fail. Do not substitute a cheaper command or claim success from inspection.
+
+Run only the verification the dispatch names, never a whole suite, never `npm run check`, `npm test` or `npm run build`; the per-patch cargo shape is `cargo test --manifest-path src-tauri/Cargo.toml --lib <module>`.
+
+After a patch, run the one test file whose inputs that patch changed; the rest of the budget the dispatch names runs once, after the last patch and before the envelope.
+
+The exec tool yields at 30 seconds by design; a cargo test or Playwright run queues behind every other build on this box, so follow its yield with one `wait` at `yield_time_ms` 1800000, never a shorter poll.
+
+A check that has failed three times on a tree whose non-test files did not change between the runs is not run a fourth time: return `blocked` with the failing line.
 
 A browser test is for functionality a person drives in the browser: a journey whose outcome crosses the screen. Copy, labels, formatting, computed display values and anything asserted on one component's rendered output are unit tests that render the component; a text change is proved by that test, never by a browser run. Appearance, and anything only the built binary shows, is a case in the project's integration case list, proved by the harness that owns it and never by a person; report the cited design source with it. The supplied command names one spec or test file, never a full suite, and it is a floor for correctness rather than permission to widen scope.
 

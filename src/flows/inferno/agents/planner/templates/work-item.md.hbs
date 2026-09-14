@@ -40,11 +40,39 @@ context:
     - path: {{this.path}}
       reason: {{this.reason}}
 {{/each}}
+# The test files this change reaches are listed here beside the source files.
+# They come from the blast-radius grep: git grep -n for every symbol, component,
+# catalogue, count, definition file and document the item changes, over
+# src/**/*.test.ts, e2e/**, scripts/**/*.test.mjs, the tests directories and
+# #[cfg(test)] modules under src-tauri/**, integration/**, and the goldens under
+# src-tauri/tests/golden/. Each listed test carries its own acceptance criterion.
 ownership:
   editable:
 {{#each ownership.editable}}
     - {{this}}
 {{/each}}
+{{#if reads}}
+reads:
+{{#each reads}}
+    - path: {{this.path}}
+      source: {{this.source}}
+      when: {{this.when}}
+      stale: {{this.stale}}
+{{/each}}
+{{/if}}
+{{#if probes}}
+probes:
+{{#each probes}}
+    - run: {{this.run}}
+      shows: {{this.shows}}
+{{/each}}
+{{/if}}
+{{#if diagnosis}}
+diagnosis:
+  claim: {{diagnosis.claim}}
+  probe: {{diagnosis.probe}}
+  shows: {{diagnosis.shows}}
+{{/if}}
 {{#if design_contract}}
 design_contract:
 {{#each design_contract}}

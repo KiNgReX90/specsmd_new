@@ -9,6 +9,10 @@
  * HEAD:base from the worktree) advances origin while the local base never moves. Every
  * precondition is its own refusal, and nothing after the merge is skipped silently: a
  * failure there prints exactly what is left to do.
+ *
+ * `run.cjs teardown` is ship's last step on its own, for the host that merges by hand and
+ * for a worktree an interrupted ship left standing. It removes nothing the base branch
+ * does not already hold.
  */
 
 const fs = require('fs');
@@ -16,6 +20,7 @@ const path = require('path');
 
 const lib = require('./run-lib.cjs');
 const { resolveBase } = require('./run-intents.cjs');
+const { intentOf, worktreeEntries } = require('./run-worktrees.cjs');
 const { green } = require('./run-gate.cjs');
 
 const { RunError } = lib;
@@ -59,7 +64,7 @@ function ship(intentId, options) {
   if (!options.tree) throw new RunError('ship requires --tree <worktree path>', 'BAD_ARGS', 1);
   const tree = path.resolve(options.tree);
   const primary = lib.primaryRoot(options.cwd);
-  const config = lib.readConfig(primary);
+  const config = lib.readConfig(options.config ? tree : primary, options.config);
   const closed = closedInTree(tree, intentId);
   const base = options.base || resolveBase(config, closed, primary);
   const branch = lib.git(tree, ['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -91,7 +96,7 @@ function ship(intentId, options) {
   }
 
   // (2) The folded tree has to be the tree that passed the gate.
-  const proof = green({ tree });
+  const proof = green({ tree, config: options.config });
   if (proof.exit !== 0) {
     out.push(`${branch} is not green after folding ${base} in`, 'run gate first');
     return { exit: 3, payload: { ok: false, step: 'green', hash: proof.payload.hash }, out };
@@ -118,13 +123,7 @@ function ship(intentId, options) {
     out.push(`${base} verified against ${target}`);
 
     // (6) Teardown, safe because step 5 proved the work is reachable from the base branch.
-    left.push(`git -C ${primary} worktree remove ${tree}`, `git -C ${primary} branch -d ${branch}`);
-    const killed = killProcessesIn(tree);
-    if (killed.length > 0) out.push(`stopped ${killed.length} process(es) in the worktree`);
-    lib.git(primary, ['worktree', 'remove', tree]);
-    left.shift();
-    lib.git(primary, ['branch', '-d', branch]);
-    left.shift();
+    removeWorktree(primary, tree, branch, out, left);
   } catch (error) {
     out.push(`${error.message}`, `left to do: ${left.join('; ')}`);
     return { exit: 2, payload: { ok: false, step: 'after-merge', sha, left }, out };
@@ -134,4 +133,63 @@ function ship(intentId, options) {
   return { exit: 0, payload: { ok: true, intent: intentId, branch, base, sha, tip }, out };
 }
 
-module.exports = { ship };
+/** Stop the worktree's processes, remove it, delete its branch. `left` names what a failure leaves owed. */
+function removeWorktree(primary, tree, branch, out, left) {
+  left.push(`git -C ${primary} worktree remove ${tree}`, `git -C ${primary} branch -d ${branch}`);
+  const killed = killProcessesIn(tree);
+  if (killed.length > 0) out.push(`stopped ${killed.length} process(es) in the worktree`);
+  lib.git(primary, ['worktree', 'remove', tree]);
+  left.shift();
+  lib.git(primary, ['branch', '-d', branch]);
+  left.shift();
+}
+
+/**
+ * `run.cjs teardown --tree <dir>`: remove an intent worktree whose work the base branch
+ * already holds. Refuses the primary checkout, a tree that is not a linked worktree, a dirty
+ * tree, a branch with commits the base does not reach, and the worktree of an intent the
+ * ledger still has in progress, since that tree is a run or a recovery.
+ */
+function teardown(options) {
+  if (!options.tree) throw new RunError('teardown requires --tree <worktree path>', 'BAD_ARGS', 1);
+  const tree = path.resolve(options.tree);
+  const primary = path.resolve(lib.primaryRoot(options.cwd));
+  if (tree === primary) throw new RunError('refusing to tear down the primary checkout', 'PRIMARY');
+  const entry = worktreeEntries(primary).find((candidate) => path.resolve(candidate.path) === tree);
+  if (!entry || !entry.branch) throw new RunError(`${tree} is not a linked worktree of ${primary} on a branch`, 'NOT_A_WORKTREE');
+  const branch = entry.branch;
+
+  const intentId = intentOf(branch);
+  if (intentId) {
+    const intent = lib.readLedger(primary).intents.find((candidate) => candidate.id === intentId);
+    if (intent && intent.status === 'in_progress') {
+      throw new RunError(`refusing to tear down ${tree}: ${intentId} is in progress in the ledger`, 'LIVE_RUN');
+    }
+  }
+  const dirty = lib.dirtyPaths(tree);
+  if (dirty.length > 0) {
+    throw new RunError(`refusing to tear down ${tree}: it carries ${dirty.slice(0, 5).join(', ')}`, 'DIRTY');
+  }
+
+  const base = options.base || resolveBase(lib.readConfig(primary, options.config), null, primary);
+  const remote = lib.git(primary, ['remote'], { tolerate: true });
+  if (remote) lib.git(primary, ['fetch', '--quiet', 'origin', base], { tolerate: true });
+  const target = remote ? `origin/${base}` : base;
+  const tip = lib.git(tree, ['rev-parse', 'HEAD']);
+  if (lib.git(primary, ['merge-base', '--is-ancestor', tip, target], { tolerate: true }) === null) {
+    throw new RunError(`refusing to tear down ${tree}: ${branch} carries commits ${target} does not hold. Ship it first.`, 'NOT_MERGED');
+  }
+
+  const out = [];
+  const left = [];
+  try {
+    removeWorktree(primary, tree, branch, out, left);
+  } catch (error) {
+    out.push(`${error.message}`, `left to do: ${left.join('; ')}`);
+    return { exit: 2, payload: { ok: false, tree, branch, left }, out };
+  }
+  out.push(`removed ${tree}`, `deleted ${branch}`);
+  return { exit: 0, payload: { ok: true, tree, branch, base, tip }, out };
+}
+
+module.exports = { ship, teardown };

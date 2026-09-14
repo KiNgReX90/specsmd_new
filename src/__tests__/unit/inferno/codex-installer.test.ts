@@ -21,11 +21,16 @@ const SKILLS = [
   'specsmd-inferno-planner',
   'specsmd-inferno-builder',
   'specsmd-inferno-config',
+  'specsmd-inferno-intents',
 ];
+// The intents skill is a one-screen listing, so its whole body is the SKILL.md
+// and it ships no procedure reference.
+const PROCEDURE_SKILLS = SKILLS.filter((skill) => skill !== 'specsmd-inferno-intents');
+// The orchestrator is the session's main thread and has no custom agent of its own.
 const AGENTS: Record<string, [string, string]> = {
-  specsmd_inferno_orchestrator: ['gpt-5.6-sol', 'xhigh'],
   specsmd_inferno_planner: ['gpt-5.6-sol', 'xhigh'],
   specsmd_inferno_builder_strong: ['gpt-5.6-sol', 'xhigh'],
+  specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
 };
@@ -66,9 +71,12 @@ describe.sequential('CodexInstaller native bundle', () => {
     await installer.installCommands(INFERNO, {});
 
     for (const skill of SKILLS) {
-      for (const relative of ['SKILL.md', 'references/procedure.md', 'agents/openai.yaml']) {
+      for (const relative of ['SKILL.md', 'agents/openai.yaml']) {
         expect(existsSync(path.join('.agents/skills', skill, relative))).toBe(true);
       }
+    }
+    for (const skill of PROCEDURE_SKILLS) {
+      expect(existsSync(path.join('.agents/skills', skill, 'references/procedure.md'))).toBe(true);
     }
     expect(readdirSync('.agents/skills').sort()).toEqual([...SKILLS, 'user-skill'].sort());
 
@@ -164,7 +172,7 @@ describe.sequential('CodexInstaller native bundle', () => {
     expect(existsSync('.specsmd/inferno/README.codex.md')).toBe(true);
     expect(existsSync('.specsmd/inferno/README.md')).toBe(true);
     expect(existsSync('.agents/skills/specsmd-inferno/SKILL.md')).toBe(true);
-    expect(existsSync('.codex/agents/specsmd_inferno_orchestrator.toml')).toBe(true);
+    expect(existsSync('.codex/agents/specsmd_inferno_builder_strong.toml')).toBe(true);
 
     await rollback('inferno', ['codex']);
     expect(existsSync('.specsmd')).toBe(false);

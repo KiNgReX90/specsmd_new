@@ -7,6 +7,8 @@ description: Review and update the Codex-specific INFERNO execution configuratio
 
 Configure Codex execution without changing any other host's settings.
 
+The config helper is a `spawn_agent` subagent of this session, with `fork_turns: "none"`, never a separate Codex process and never an Orca terminal, worktree or dispatch. A subagent inherits this session's approval policy and sandbox, runs every command inside that sandbox as given, and requests elevated permissions only for a command the sandbox has refused. The `agent_type` parameter selects the role and takes the `name` from the matching file in `.codex/agents/`.
+
 ## Required workflow
 
 1. Read `references/procedure.md` completely before acting.

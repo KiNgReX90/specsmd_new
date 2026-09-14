@@ -16,127 +16,10 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const writer = require('./state-transition.cjs');
+const { listValues } = require('./state-lists.cjs');
 
-class RunError extends Error {
-  constructor(message, code, exit) {
-    super(message);
-    this.name = 'RunError';
-    this.code = code || 'INFERNO_RUN_ERROR';
-    this.exit = exit || 2;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// A YAML subset: maps, block and inline lists, quoted scalars, block scalars.
-// Enough for .specs-inferno/config.yaml and a work item's execution manifest.
-// ---------------------------------------------------------------------------
-
-function stripComment(value) {
-  let single = false;
-  let double = false;
-  for (let i = 0; i < value.length; i += 1) {
-    const char = value[i];
-    if (char === "'" && !double) single = !single;
-    else if (char === '"' && !single) double = !double;
-    else if (char === '#' && !single && !double && (i === 0 || /\s/.test(value[i - 1]))) {
-      return value.slice(0, i);
-    }
-  }
-  return value;
-}
-
-function unquote(value) {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    const last = trimmed[trimmed.length - 1];
-    if ((first === '"' && last === '"') || (first === "'" && last === "'")) return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function scalar(raw) {
-  const value = unquote(stripComment(raw).trim());
-  if (value.startsWith('[') && value.endsWith(']')) {
-    return value
-      .slice(1, -1)
-      .split(',')
-      .map((entry) => unquote(entry.trim()))
-      .filter((entry) => entry.length > 0);
-  }
-  return value;
-}
-
-function rowsOf(text) {
-  return text
-    .split('\n')
-    .map((line) => ({ indent: /^( *)/.exec(line)[1].length, text: line.trim(), raw: line }))
-    .filter((row) => row.text.length > 0 && !row.text.startsWith('#'));
-}
-
-function parseBlockScalar(rows, index, indent) {
-  const body = [];
-  let i = index;
-  while (i < rows.length && rows[i].indent > indent) {
-    body.push(rows[i].text);
-    i += 1;
-  }
-  return [body.join('\n'), i];
-}
-
-function parseNode(rows, index, indent) {
-  if (rows[index].text.startsWith('- ')) return parseList(rows, index, indent);
-  return parseMap(rows, index, indent);
-}
-
-function parseList(rows, index, indent) {
-  const out = [];
-  let i = index;
-  while (i < rows.length && rows[i].indent === indent && rows[i].text.startsWith('- ')) {
-    const rest = rows[i].text.slice(2);
-    if (/^(?:"[^"]*"|'[^']*'|[^:]+):(?: |$)/.test(rest)) {
-      rows[i] = { indent: indent + 2, text: rest, raw: rest };
-      const [value, next] = parseMap(rows, i, indent + 2);
-      out.push(value);
-      i = next;
-    } else {
-      out.push(scalar(rest));
-      i += 1;
-    }
-  }
-  return [out, i];
-}
-
-function parseMap(rows, index, indent) {
-  const out = {};
-  let i = index;
-  while (i < rows.length && rows[i].indent === indent && !rows[i].text.startsWith('- ')) {
-    const match = /^("[^"]*"|'[^']*'|[^:]+):\s*(.*)$/.exec(rows[i].text);
-    if (!match) break;
-    const key = unquote(match[1]);
-    const rest = match[2];
-    i += 1;
-    if (rest === '|' || rest === '>' || rest === '|-') {
-      const [body, next] = parseBlockScalar(rows, i, indent);
-      out[key] = body;
-      i = next;
-    } else if (rest.trim() === '' && i < rows.length && rows[i].indent > indent) {
-      const [value, next] = parseNode(rows, i, rows[i].indent);
-      out[key] = value;
-      i = next;
-    } else {
-      out[key] = scalar(rest);
-    }
-  }
-  return [out, i];
-}
-
-/** Parse the YAML subset above. Anything richer belongs in a real parser, not here. */
-function parseYaml(text) {
-  const rows = rowsOf(text);
-  if (rows.length === 0) return {};
-  return parseNode(rows, 0, rows[0].indent)[0];
-}
+const { RunError } = require('./run-error.cjs');
+const { parseYaml, stripQuotes } = require('./run-yaml.cjs');
 
 // ---------------------------------------------------------------------------
 // git
@@ -189,7 +72,7 @@ function statusPaths(root) {
   return (result.stdout || '').split('\n').filter((line) => line.length > 3).map((line) => {
     const body = line.slice(3);
     const arrow = body.indexOf(' -> ');
-    return unquote(arrow === -1 ? body : body.slice(arrow + 4));
+    return stripQuotes(arrow === -1 ? body : body.slice(arrow + 4));
   });
 }
 
@@ -210,26 +93,67 @@ function statePath(root) {
   return path.join(root, SPECS_DIR, 'state.yaml');
 }
 
-function readConfig(root) {
-  const file = path.join(root, SPECS_DIR, 'config.yaml');
-  if (!fs.existsSync(file)) return {};
-  return parseYaml(fs.readFileSync(file, 'utf8'));
+function commandList(value) {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string' && entry.trim().length > 0);
+}
+
+/**
+ * The verification block decides what runs before anything merges, so a shape this parser
+ * cannot use is refused with its reason rather than read as a project that configured less.
+ */
+function validateVerification(config, file) {
+  const verification = config.verification;
+  if (verification === undefined) return;
+  if (typeof verification !== 'object' || Array.isArray(verification)) {
+    throw new RunError(
+      `verification in ${file} must be a map holding finalize, integrate and their scopes. ` +
+        'A key with a comment and no value reads as empty, so write the comment on its own line.',
+      'BAD_CONFIG'
+    );
+  }
+  for (const key of ['finalize', 'integrate']) {
+    if (verification[key] !== undefined && !commandList(verification[key])) {
+      throw new RunError(
+        `verification.${key} in ${file} must be a list of shell commands, one per line under a dash.`,
+        'BAD_CONFIG'
+      );
+    }
+  }
+  for (const key of ['finalize_scopes', 'integrate_e2e']) {
+    const value = verification[key];
+    if (value !== undefined && (typeof value !== 'object' || Array.isArray(value))) {
+      throw new RunError(`verification.${key} in ${file} must be a map.`, 'BAD_CONFIG');
+    }
+  }
+}
+
+function readConfig(root, selected) {
+  const defaultFile = path.resolve(root, SPECS_DIR, 'config.yaml');
+  const file = path.resolve(root, selected || defaultFile);
+  if (!fs.existsSync(file)) {
+    if (selected) throw new RunError(`config file not found: ${file}`, 'BAD_CONFIG');
+    return {};
+  }
+  const config = parseYaml(fs.readFileSync(file, 'utf8'));
+  if (selected && file !== defaultFile && fs.existsSync(defaultFile)) {
+    const defaults = parseYaml(fs.readFileSync(defaultFile, 'utf8'));
+    for (const section of ['worktree', 'recovery', 'halt']) {
+      if (
+        !Object.prototype.hasOwnProperty.call(config, section) &&
+        Object.prototype.hasOwnProperty.call(defaults, section)
+      ) {
+        config[section] = defaults[section];
+      }
+    }
+  }
+  validateVerification(config, file);
+  return config;
 }
 
 function field(lines, entry, key) {
   const idx = writer.findKeyLine(lines, entry.start, entry.end, entry.keyIndent, key);
   if (idx === -1) return null;
   return writer.unquote(lines[idx].slice(entry.keyIndent + key.length + 1));
-}
-
-function inlineList(lines, entry, key) {
-  const value = field(lines, entry, key);
-  if (!value || !value.startsWith('[')) return [];
-  return value
-    .slice(1, -1)
-    .split(',')
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0);
 }
 
 /** The live ledger as plain data. Reading only; every write goes through the writer. */
@@ -242,9 +166,11 @@ function readLedger(root) {
     status: writer.statusOf(lines, entry),
     claimed_by: field(lines, entry, 'claimed_by'),
     claimed_at: field(lines, entry, 'claimed_at'),
+    // What a blocked intent waits on, written by state-transition.cjs block-intent.
+    blocked_reason: field(lines, entry, 'blocked_reason'),
     base_branch: field(lines, entry, 'base_branch'),
-    depends_on_intents: inlineList(lines, entry, 'depends_on_intents'),
-    tester_cases: inlineList(lines, entry, 'tester_cases'),
+    depends_on_intents: listValues(lines, entry, 'depends_on_intents'),
+    tester_cases: listValues(lines, entry, 'tester_cases'),
     comment: lines.slice(entry.start, entry.end).join('\n'),
     items: writer.locateWorkItems(lines, entry).map((item) => ({
       id: item.id,
@@ -252,7 +178,12 @@ function readLedger(root) {
       status: writer.statusOf(lines, item),
       kind: (field(lines, item, 'kind') || '').toLowerCase(),
       complexity: (field(lines, item, 'complexity') || 'medium').toLowerCase(),
-      depends_on: inlineList(lines, item, 'depends_on'),
+      // The sha `integrate` ran the checks on. A completed item without one was marked by
+      // something other than an integration, so nothing verified it. `completed_at` says
+      // whether that item predates the rule.
+      integrated_sha: field(lines, item, 'integrated_sha'),
+      completed_at: field(lines, item, 'completed_at'),
+      depends_on: listValues(lines, item, 'depends_on'),
     })),
   }));
   return { file, lines, intents };
@@ -288,9 +219,13 @@ function readItemSpec(root, intentId, itemId) {
   const frontmatter = /^---\n([\s\S]*?)\n---/.exec(content);
   const section = /\n## Execution Manifest\s*\n([\s\S]*?)(?=\n## |\n?$)/.exec(content);
   const body = section ? section[1].replace(/^\s*```(?:yaml)?\s*$/gm, '') : '';
+  // What the item says it is for, which is where a corrective item announces itself.
+  const described = /\n## Description\s*\n([\s\S]*?)(?=\n## |\n?$)/.exec(content);
+  const opening = /^# Work Item:[^\n]*\n([\s\S]*?)(?=\n## |\n?$)/m.exec(content);
   return {
     file,
     frontmatter: frontmatter ? parseYaml(frontmatter[1]) : {},
+    description: ((described && described[1]) || (opening && opening[1]) || '').trim(),
     manifest: parseYaml(body),
   };
 }
@@ -321,16 +256,20 @@ function globToRegExp(pattern) {
     else if (char === '?') out += '[^/]';
     else out += char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }
-  return new RegExp(anchored ? `^${out}$` : `(^|/)${out}$`);
+  return new RegExp(anchored ? `^${out}$` : `(^|/)${out}$`, 's');
 }
 
 function matchesAny(file, patterns) {
   return (patterns || []).some((pattern) => globToRegExp(pattern).test(file));
 }
 
-/** Heavy work the machine's build wrapper should queue when one is installed. */
+/**
+ * Heavy work the machine's build wrapper should queue when one is installed. The shell
+ * builtins `test -f ...` and `[ ... ]` are probes, so they are stripped before the match.
+ */
 function isHeavy(command) {
-  return /\b(build|test|tests|cargo|playwright|vitest)\b/i.test(command);
+  const probesRemoved = command.replace(/(^|[;&|(]\s*)test\s+(!\s+)?-[a-zA-Z]\b[^;&|)]*/g, '$1');
+  return /\b(build|test|tests|cargo|playwright|vitest|verify[:\-]integration)\b/i.test(probesRemoved);
 }
 
 function onPath(binary) {

@@ -4,17 +4,13 @@ Configure only `.specs-inferno/config.codex.yaml`. The parent conversation owns 
 
 ## Schema
 
-All keys are optional except that a created file should include the fixed Codex role matrix.
+All keys are optional except that a created file should include the fixed Codex role matrix. The orchestrator has no role entry: it is the session's main thread and runs on the session's own model and effort.
 
 ```yaml
 autonomy:
   level: review
 
 roles:
-  orchestrator:
-    agent: specsmd_inferno_orchestrator
-    model: gpt-5.6-sol
-    reasoning_effort: xhigh
   planner:
     agent: specsmd_inferno_planner
     model: gpt-5.6-sol

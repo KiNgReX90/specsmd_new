@@ -103,11 +103,11 @@ describe('inferno flow', () => {
     ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
-    ['commands/inferno-oracle.md', 'claude-fable-5-1', 'max'],
+    ['commands/inferno-oracle.md', 'claude-fable-5-1', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
-    ['agents/oracle/agent.md', 'claude-fable-5-1', 'max'],
+    ['agents/oracle/agent.md', 'claude-fable-5-1', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
@@ -164,16 +164,26 @@ describe('inferno flow', () => {
     expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);
   });
 
-  it.each([
-    'agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs',
-    'agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs',
-    'agents/orchestrator/skills/orchestrate/scripts/run.test.cjs',
-    'agents/planner/scripts/team-work-item-contract.test.cjs',
-    // The runner suite builds throwaway git repos, so it needs more than the default 5s.
-  ])('flow script suite %s passes', (rel) => {
+  // Discover bundled suites so newly added safety regressions run in normal validation.
+  const scriptSuites = (readdirSync(path.join(INFERNO, 'agents'), {
+    recursive: true,
+    encoding: 'utf8',
+  }) as string[])
+    .filter((file) => file.endsWith('.test.cjs'))
+    .map((file) => path.join('agents', file))
+    .sort();
+
+  it('ships executable flow regression suites', () => {
+    expect(scriptSuites.length).toBeGreaterThan(0);
+  });
+
+  it.each(scriptSuites)('flow script suite %s passes', (rel) => {
     // throws (and fails the test) on non-zero exit
-    execFileSync(process.execPath, [path.join(INFERNO, rel)], { stdio: 'pipe' });
-  }, 60_000);
+    execFileSync(process.execPath, [path.join(INFERNO, rel)], {
+      stdio: 'pipe',
+      timeout: 180_000,
+    });
+  }, 185_000);
 
   // The flow's scripts execute inside consumer projects (Rust apps, static sites) that have
   // no node_modules, so a single `require('yaml')` would make the script throw at the exact

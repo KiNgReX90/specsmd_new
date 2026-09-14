@@ -57,9 +57,16 @@ for n in inferno inferno-planner inferno-builder inferno-config; do
   req ".agents/skills/specsmd-$n/references/procedure.md"
   req ".agents/skills/specsmd-$n/agents/openai.yaml"
 done
-for n in orchestrator planner builder_strong builder_cheap config; do
+# The intents skill lists the open intents and is one screen, so its whole body
+# is the SKILL.md and it ships no procedure reference.
+req ".agents/skills/specsmd-inferno-intents/SKILL.md"
+req ".agents/skills/specsmd-inferno-intents/agents/openai.yaml"
+absent .agents/skills/specsmd-inferno-intents/references
+# The orchestrator is the session's main thread, so it has no custom agent file.
+for n in planner builder_strong builder_cheap config oracle; do
   req ".codex/agents/specsmd_inferno_$n.toml"
 done
+absent .codex/agents/specsmd_inferno_orchestrator.toml
 req AGENTS.md
 absent .codex/skills/specsmd-inferno
 
@@ -87,14 +94,20 @@ done
 # so it is pinned to the frontier tier and never tiered down.
 grep -q '^model: claude-fable-5-1$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle model"; FAIL=1; }
-grep -q '^effort: max$' ".claude/agents/specsmd-inferno-oracle.md" \
+grep -q '^effort: xhigh$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle effort"; FAIL=1; }
-for n in orchestrator planner builder_strong; do
+for n in planner builder_strong; do
   grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Sol model: $n"; FAIL=1; }
   grep -q '^model_reasoning_effort = "xhigh"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Sol effort: $n"; FAIL=1; }
 done
+# The Codex oracle answers the same judgment calls as the Claude one, so it sits
+# on that fleet's frontier tier instead of the builder tier.
+grep -q '^model = "gpt-6-astra"$' ".codex/agents/specsmd_inferno_oracle.toml" \
+  || { note "FAIL Codex oracle model"; FAIL=1; }
+grep -q '^model_reasoning_effort = "xhigh"$' ".codex/agents/specsmd_inferno_oracle.toml" \
+  || { note "FAIL Codex oracle effort"; FAIL=1; }
 for n in builder_cheap config; do
   grep -q '^model = "gpt-5.6-terra"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Terra model: $n"; FAIL=1; }
@@ -137,13 +150,17 @@ absent .claude/commands/specsmd-fire-team.md
 absent .claude/commands/specsmd-fire-team-planner.md
 absent .specsmd/fire
 
-# Flow script suites run from the installed location
-( cd "$SANDBOX" && node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/team-scheduler.test.cjs ) \
-  && note "OK   team-scheduler suite" || { note "FAIL team-scheduler suite"; FAIL=1; }
-( cd "$SANDBOX" && node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.test.cjs ) \
-  && note "OK   state-transition suite" || { note "FAIL state-transition suite"; FAIL=1; }
-( cd "$SANDBOX" && node .specsmd/inferno/agents/planner/scripts/team-work-item-contract.test.cjs ) \
-  && note "OK   work-item contract suite" || { note "FAIL work-item contract suite"; FAIL=1; }
+# Discover every installed suite, including newly added safety regressions.
+shopt -s globstar nullglob
+suites=("$SANDBOX"/.specsmd/inferno/agents/**/*.test.cjs)
+if [ "${#suites[@]}" -eq 0 ]; then
+  note "FAIL no installed flow script suites"; FAIL=1
+fi
+for suite in "${suites[@]}"; do
+  relative="${suite#"$SANDBOX"/}"
+  ( cd "$SANDBOX" && node "$relative" ) \
+    && note "OK   $relative" || { note "FAIL $relative"; FAIL=1; }
+done
 
 if [ "$FAIL" -eq 0 ]; then
   note "INSTALL EVAL: PASS (sandbox kept at $SANDBOX)"

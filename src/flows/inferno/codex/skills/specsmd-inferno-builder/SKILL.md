@@ -7,6 +7,8 @@ description: Implement and verify exactly one assigned INFERNO work item or appr
 
 Execute only the work explicitly assigned by the orchestrator.
 
+You run as a `spawn_agent` subagent of the session that dispatched you; never spawn, dispatch or message another agent.
+
 ## Required workflow
 
 1. Read `references/procedure.md` completely before acting.

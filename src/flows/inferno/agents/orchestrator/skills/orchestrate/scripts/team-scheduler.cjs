@@ -20,6 +20,42 @@ function itemId(workItem) {
 function hasEntries(value) {
   return Array.isArray(value) && value.length > 0;
 }
+/** The four keys a `reads:` entry carries, each a non-empty string. */
+const READS_KEYS = ["path", "source", "when", "stale"];
+
+function isFilledString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * `reads:` is optional and stays optional.
+ *
+ * An item whose surface draws nothing from the backend omits the field, so an
+ * absent block is never an error. A declared block is refused unless every entry
+ * says which module holds the read, what it reads, every moment it re-reads, and
+ * what the user sees when it never does. That last sentence is what the
+ * builder's first failing test asserts is not on screen.
+ */
+function readsErrors(id, reads) {
+  if (reads === undefined || reads === null) {
+    return [];
+  }
+
+  if (!hasEntries(reads)) {
+    return [`${id}: reads must list at least one entry when the item declares it`];
+  }
+
+  const errors = [];
+  reads.forEach((entry, index) => {
+    for (const key of READS_KEYS) {
+      if (!isFilledString(entry && entry[key])) {
+        errors.push(`${id}: reads[${index}].${key} must be a non-empty string`);
+      }
+    }
+  });
+  return errors;
+}
+
 
 function validateWorkItem(workItem) {
   const id = itemId(workItem);
@@ -43,6 +79,8 @@ function validateWorkItem(workItem) {
   if (!NON_TESTED_KINDS.has(kind) && !hasEntries(context.tests)) {
     errors.push(`${id}: context.tests is required unless the item is docs-only or config-only`);
   }
+  errors.push(...readsErrors(id, workItem && workItem.reads));
+
 
   return {
     valid: errors.length === 0,
@@ -99,6 +137,28 @@ function formatContextEntries(entries) {
     .map((entry) => `- ${entry.path} — ${entry.reason}`)
     .join("\n");
 }
+/**
+ * The declared reads, beside the test context, because each one is a proof the
+ * builder owes rather than a note it reads.
+ */
+function readsSection(reads) {
+  if (!hasEntries(reads)) {
+    return [];
+  }
+
+  return [
+    "",
+    "What this surface reads:",
+    "For each entry, the first failing test moves the source and asserts the surface follows.",
+    reads
+      .map(
+        (entry) =>
+          `- ${entry.path}, source ${entry.source}, when ${entry.when}, stale ${entry.stale}`,
+      )
+      .join("\n"),
+  ];
+}
+
 
 function buildBuilderPrompt(workItem) {
   const context = workItem.context || {};
@@ -118,6 +178,7 @@ function buildBuilderPrompt(workItem) {
     "",
     "Test context:",
     formatContextEntries(context.tests),
+    ...readsSection(workItem.reads),
     "",
     "Editable ownership:",
     asArray(ownership.editable)

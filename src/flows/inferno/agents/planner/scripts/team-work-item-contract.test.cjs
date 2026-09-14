@@ -8,6 +8,25 @@ const {
 } = require("../../orchestrator/skills/orchestrate/scripts/team-scheduler.cjs");
 
 const templatePath = path.resolve(__dirname, "../templates/work-item.md.hbs");
+const agentPath = path.resolve(__dirname, "../agent.md");
+
+test("work item template tells the planner to list the tests the change reaches", () => {
+  const template = fs.readFileSync(templatePath, "utf8");
+  const comment = template
+    .split("\n")
+    .filter((line) => line.startsWith("#"))
+    .join("\n");
+
+  assert.match(comment, /blast-radius grep/);
+  assert.match(comment, /git grep -n/);
+});
+
+test("planner body carries the blast radius rule and the per-surface test count", () => {
+  const agent = fs.readFileSync(agentPath, "utf8");
+
+  assert.match(agent, /\*\*Blast radius is measured\.\*\*/);
+  assert.match(agent, /one test per surface/);
+});
 
 test("work item template exposes the execution contract", () => {
   const template = fs.readFileSync(templatePath, "utf8");
