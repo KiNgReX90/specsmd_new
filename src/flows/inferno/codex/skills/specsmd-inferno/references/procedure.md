@@ -80,7 +80,7 @@ Call `wait_agent` with `timeout_ms: 1200000`, exactly. A builder returns once, s
 
 A builder is stuck when any one of these holds:
 
-- two consecutive diff stats are the same and it has no running build or test command;
+- two consecutive diff stats are the same and `/tmp/claude-build.log` shows no build for its tree: the last line naming `[<tree>]` is a `done` line, or there is none. A `DUPLICATE` line means the earlier copy still runs. `ps` sees nothing across sandboxes and proves nothing;
 - the same check failed three times on a tree whose non-test files did not change between them;
 - it wrote a file outside the worktree and the runner's log directory;
 - `wait_agent` returned an error instead of a wake, so its turn died or an approval review timed out.
