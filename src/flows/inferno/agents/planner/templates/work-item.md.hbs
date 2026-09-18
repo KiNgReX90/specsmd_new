@@ -40,12 +40,6 @@ context:
     - path: {{this.path}}
       reason: {{this.reason}}
 {{/each}}
-# The test files this change reaches are listed here beside the source files.
-# They come from the blast-radius grep: git grep -n for every symbol, component,
-# catalogue, count, definition file and document the item changes, over
-# src/**/*.test.ts, e2e/**, scripts/**/*.test.mjs, the tests directories and
-# #[cfg(test)] modules under src-tauri/**, integration/**, and the goldens under
-# src-tauri/tests/golden/. Each listed test carries its own acceptance criterion.
 ownership:
   editable:
 {{#each ownership.editable}}
@@ -81,12 +75,6 @@ design_contract:
 {{/each}}
 {{/if}}
 {{#if finalize_check}}
-
-# One-line shell invariant the ORCHESTRATOR runs at finalize (not a subagent).
-# Non-zero exit blocks close. Use for cheap mechanical checks (dangling-ref
-# sweep, key parity) instead of a standalone verify item. Scoped invariants
-# only (a parity script, a grep), never a suite: the full gate is
-# verification.finalize, run once per intent by the orchestrator.
 finalize_check: {{finalize_check}}
 {{/if}}
 

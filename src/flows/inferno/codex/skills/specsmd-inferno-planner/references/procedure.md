@@ -59,7 +59,7 @@ direct: <slug>
 
 ## Repository grounding
 
-Before decomposition, use `rg`, `rg --files`, manifests, tests and focused source reads to verify every path and pattern. Never place a guessed path in a work item.
+Before decomposition, use `rg`, `rg --files`, manifests, tests and focused source reads to verify every path and pattern. Never place a guessed path in a work item. A write the plan routes through an existing function is planned at its nearest command wrapper: grep the function's callers in the round that opens it, because the side effects the store alone skips (a sync, a recomputed index, an event) live in the wrapper.
 
 For each planned change, identify the primary implementation target and why it is required, an existing pattern for behavior, architecture, UI or API work, the relevant tests or an explicit docs-only or config-only exemption, every path the builder may edit, dependencies on earlier outputs, the narrow verification command, any `finalize_check`, and an exact design source when visual or contract values must be matched.
 
@@ -115,7 +115,7 @@ An item boundary preserves every existing invariant, so the tests, allowlists, g
 
 ### Blast radius is measured
 
-List every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` with the value it must show; `run.cjs frontier` prints what you missed as `candidate` lines.
+List every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` with the value it must show, in the item's `context.tests` beside the source files. The list comes from the blast-radius grep: one `rg -n` for every symbol, component, catalogue, count, definition file and document the item changes, over every test tree: unit, e2e, script, Rust `#[cfg(test)]`, `integration/` and golden alike. Each listed test carries its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
 
 ### Verification-item convention
 

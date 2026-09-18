@@ -10,15 +10,14 @@ const {
 const templatePath = path.resolve(__dirname, "../templates/work-item.md.hbs");
 const agentPath = path.resolve(__dirname, "../agent.md");
 
-test("work item template tells the planner to list the tests the change reaches", () => {
+test("planner body tells the planner to list the tests the change reaches", () => {
+  const agent = fs.readFileSync(agentPath, "utf8");
   const template = fs.readFileSync(templatePath, "utf8");
-  const comment = template
-    .split("\n")
-    .filter((line) => line.startsWith("#"))
-    .join("\n");
 
-  assert.match(comment, /blast-radius grep/);
-  assert.match(comment, /git grep -n/);
+  assert.match(agent, /blast-radius grep/);
+  assert.match(agent, /git grep -n/);
+  const manifest = template.split("## Execution Manifest")[1].split("## Technical Notes")[0];
+  assert.doesNotMatch(manifest, /^#/m, "the manifest carries no comment lines; the rule lives in the planner body");
 });
 
 test("planner body carries the blast radius rule and the per-surface test count", () => {
