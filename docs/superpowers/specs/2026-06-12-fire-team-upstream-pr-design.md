@@ -3,7 +3,7 @@
 # Design: Contributing the FIRE Team Flow Upstream
 
 **Date:** 2026-06-12
-**Status:** Approved by Ruben (pending spec review)
+**Status:** Approved by the maintainer (pending spec review)
 **Goal:** Add the specsmd FIRE **team flow** (this repo's core feature) to the upstream
 [fabriqaai/specs.md](https://github.com/fabriqaai/specs.md) project as a purely additive
 feature, validated end to end via a locally built npx tarball and evals **before** any PR
@@ -11,7 +11,7 @@ is opened.
 
 ## Hard gate
 
-**No PR is opened, and nothing is published, until Ruben has personally tested the fork
+**No PR is opened, and nothing is published, until the maintainer has personally tested the fork
 and given explicit go-ahead.** The automated flow ends at "evals pass + fork branch ready
 + tarball available"; opening the PR is a separate, manual, user-triggered step.
 
@@ -110,7 +110,7 @@ team flow explicitly never reads it; the flow README documents the team track in
    - verify: work items carry team fields (`depends_on`, `context.required`,
      `ownership.editable`); intent worktree created; builders dispatched; `state.yaml`
      reaches done; merge to default branch happened; worktree torn down.
-4. **Handoff**: eval results + tarball + fork branch presented to Ruben for personal testing.
+4. **Handoff**: eval results + tarball + fork branch presented to the maintainer for personal testing.
    **Stop here** (see hard gate).
 
 ## 4. Error handling & risks
@@ -133,4 +133,4 @@ team flow explicitly never reads it; the flow README documents the team track in
 4. `npm run validate:all` green in fork.
 5. Build tarball; run deterministic install evals.
 6. Run E2E smoke; iterate until green.
-7. Hand everything to Ruben for personal testing. **PR only on his explicit go.**
+7. Hand everything to the maintainer for personal testing. **PR only on his explicit go.**

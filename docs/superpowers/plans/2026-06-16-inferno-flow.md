@@ -4,7 +4,7 @@
 
 **Goal:** Ship the autonomous/parallel "team" capability as a standalone specsmd flow named **INFERNO**, selected at install time *instead of* FIRE, with its own `.specs-inferno/` namespace, no policy hook, and config-driven planning autonomy.
 
-**Architecture:** Two repos. Source of truth = the upstream clone `/home/ruben/dev/specsmd-upstream` (a clone of `fabriqaai/specs.md`), where a new `src/flows/inferno/` tree is created on a fresh `feat/inferno-flow` branch off `main`, registered in the `FLOWS` registry, and guarded by a drift test. The INFERNO tree is derived mechanically from the existing `feat/fire-team` team trees (`agents/team{,-builder,-planner}/`), renamed to `agents/{orchestrator,builder,planner}/`, with the "team" qualifier dropped and two behavioral gates changed (auto-decompose; config-driven build hand-off). This repo (`/home/ruben/dev/specsmd_new`) holds the evals, the built tarball artifact, and the project docs/cleanup.
+**Architecture:** Two repos. Source of truth = the upstream clone `~/dev/specsmd-upstream` (a clone of `fabriqaai/specs.md`), where a new `src/flows/inferno/` tree is created on a fresh `feat/inferno-flow` branch off `main`, registered in the `FLOWS` registry, and guarded by a drift test. The INFERNO tree is derived mechanically from the existing `feat/fire-team` team trees (`agents/team{,-builder,-planner}/`), renamed to `agents/{orchestrator,builder,planner}/`, with the "team" qualifier dropped and two behavioral gates changed (auto-decompose; config-driven build hand-off). This repo (`~/dev/specsmd_new`) holds the evals, the built tarball artifact, and the project docs/cleanup.
 
 **Tech Stack:** Node.js (CJS flow scripts + `node:test` suites), TypeScript + vitest (upstream unit tests), markdownlint, bash eval harnesses driving the installer through a PTY (`script -qec`).
 
@@ -55,7 +55,7 @@
 - [ ] **Step 1: Create the branch off `main`**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git fetch -q
 git checkout main
 git checkout -b feat/inferno-flow
@@ -72,7 +72,7 @@ Expected: exactly `builder`, `orchestrator`, `planner` (no `team*`).
 - [ ] **Step 3: Install deps and verify the baseline is green BEFORE adding anything**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm install
 npm run validate:all
 ```
@@ -88,7 +88,7 @@ Expected: vitest + markdownlint + webview-bundle check all pass. If red here, st
 - [ ] **Step 1: Pull the team trees out of `feat/fire-team` into the working tree**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git checkout feat/fire-team -- \
   src/flows/fire/agents/team \
   src/flows/fire/agents/team-builder \
@@ -204,7 +204,7 @@ echo "transform applied to ${#FILES[@]} files"
 - [ ] **Step 2: Run it**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 bash flows/inferno/transform.sh
 ```
 Expected: `transform applied to 16 files`.
@@ -235,7 +235,7 @@ with:
 
 Run:
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 grep -rniE 'fire|\bteam\b|team-|FIRE' flows/inferno/agents \
   | grep -vE 'team-scheduler|team-work-item-contract'
 ```
@@ -549,7 +549,7 @@ Activate now. Read your agent definition and start planning.
 The body after the frontmatter MUST be byte-identical to `src/flows/inferno/agents/builder/agent.md`'s body (everything after that file's own frontmatter). The Task 10 drift test enforces this. Build it programmatically so the bodies cannot drift:
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 {
   cat <<'FM'
 ---
@@ -621,7 +621,7 @@ Activate now. Read the template, then start the questions.
 
 Run:
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 grep -rniE 'fire|\bteam\b|sync-claude-agent' flows/inferno/commands || echo "OK: commands clean"
 ```
 Expected: `OK: commands clean`.
@@ -669,7 +669,7 @@ Optional `.specs-inferno/config.yaml` carries worker model tiers, the finalize v
 - [ ] **Step 2: Lint the new markdown and commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm run lint:md
 ```
 Expected: pass (no errors for `flows/inferno/**`). If markdownlint flags the README or commands, run `npm run lint:md:fix` and re-check.
@@ -729,7 +729,7 @@ And in `getFlowMarkerPath`, add an `inferno` case before `default` (its runtime 
 
 Run:
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 node -e "const {FLOWS}=require('./lib/constants'); console.log(Object.keys(FLOWS)); console.log(FLOWS.inferno)"
 node -e "const {SUPPORTED_FLOWS,getFlowMarkerPath}=require('./lib/dashboard/flow-detect'); console.log(SUPPORTED_FLOWS); console.log(getFlowMarkerPath('/tmp/x','inferno'))"
 ```
@@ -818,7 +818,7 @@ describe('inferno flow', () => {
 - [ ] **Step 2: Run the new test alone, expect PASS**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx vitest run __tests__/unit/inferno/inferno-flow.test.ts
 ```
 Expected: 4 tests pass (1 builder-body + 2 script-suite + 1 namespace + 1 FLOWS = the `it.each` counts as 2, so 5 assertions / "tests" reported; all green).
@@ -834,7 +834,7 @@ Expected: both print their suite output and `OK ...`.
 - [ ] **Step 4: Full upstream validation**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm run validate:all
 ```
 Expected: vitest (incl. the new inferno test and the untouched fire team test) + markdownlint + webview-bundle check all pass.
@@ -861,7 +861,7 @@ In `src/package.json`, change `"version": "0.1.74"` to `"version": "0.1.75"` (so
 - [ ] **Step 2: Re-validate after the bump, then pack**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm run validate:all
 npm pack
 ls -1 specsmd-0.1.75.tgz
@@ -877,8 +877,8 @@ git add -A && git commit -m "inferno: bump version to 0.1.75 for the inferno-bea
 - [ ] **Step 4: Move the tarball into this repo's eval dist and drop the old one**
 
 ```bash
-mv /home/ruben/dev/specsmd-upstream/src/specsmd-0.1.75.tgz /home/ruben/dev/specsmd_new/evals/dist/
-cd /home/ruben/dev/specsmd_new
+mv ~/dev/specsmd-upstream/src/specsmd-0.1.75.tgz ~/dev/specsmd_new/evals/dist/
+cd ~/dev/specsmd_new
 git rm evals/dist/specsmd-0.1.74.tgz
 git add evals/dist/specsmd-0.1.75.tgz
 ```
@@ -973,7 +973,7 @@ absent .specsmd/fire
 - [ ] **Step 5: Run the install eval against the new tarball**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 bash evals/install-eval.sh evals/dist/specsmd-0.1.75.tgz
 ```
 Expected: `INSTALL EVAL: PASS`. If the flow selector lands on the wrong flow (a `req` for an inferno path reports `MISS` while `.specsmd/fire` exists), the down-arrow count or timing is off — inspect `install.log` in the printed sandbox, confirm INFERNO is the 5th entry, and adjust the `\033[B` count/sleeps. Keep the sandbox path the script prints for debugging.
@@ -1036,7 +1036,7 @@ Expected: `OK assert clean`.
 - `state.yaml`: `description: Toy project for the FIRE team E2E smoke` → `... for the INFERNO E2E smoke`; rename the metadata key `fire_version: "0.1.8"` → `inferno_version: "0.1.8"` (non-functional project metadata; no assertion reads it).
 - `brief.md`: replace any "FIRE"/"team" prose with "INFERNO"/neutral wording (the earlier scan found no `fire`/`FIRE` tokens in `brief.md`, so this is likely a no-op — confirm with `grep -ni 'fire\|team' evals/e2e/fixtures/brief.md`).
 
-- [ ] **Step 5: Commit (do NOT run `run-e2e.sh` here — it costs real tokens and is Ruben's to run)**
+- [ ] **Step 5: Commit (do NOT run `run-e2e.sh` here, it costs real tokens and is the maintainer's to run)**
 
 ```bash
 git add -A
@@ -1055,7 +1055,7 @@ git commit -m "evals: port e2e smoke harness to INFERNO namespace + command"
 - [ ] **Step 1: Delete the unwired hook and the obsolete INSTALL.md**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 git rm .claude/hooks/specsmd-skill-policy.py INSTALL.md
 ```
 (There is no `.claude/settings.json` wiring to remove — verified absent.)
@@ -1064,7 +1064,7 @@ git rm .claude/hooks/specsmd-skill-policy.py INSTALL.md
 
 Replace the entire file with INFERNO-centric guidance. The new content must:
 - Describe INFERNO as the project's flow (lifecycle: intent → auto-decomposed work items → worktree → parallel autopilot build → orchestrator-verified merge), with its own `.specs-inferno/` namespace.
-- State source-of-truth: the upstream clone `/home/ruben/dev/specsmd-upstream`, branch `feat/inferno-flow`; flow sources under `src/flows/inferno/`; build/eval workflow (transform → `validate:all` → `npm pack` → install eval → e2e smoke).
+- State source-of-truth: the upstream clone `~/dev/specsmd-upstream`, branch `feat/inferno-flow`; flow sources under `src/flows/inferno/`; build/eval workflow (transform → `validate:all` → `npm pack` → install eval → e2e smoke).
 - Keep the **close-your-own-intent** sequence, adapted to `.specs-inferno/` (commit close artifacts on your branch → merge your intent worktree → kill only THIS worktree's processes and tear it down → push). Keep the "never touch another session's worktree" scoping.
 - Keep the **per-project config** note pointing at `.specs-inferno/config.yaml` (model tiers, finalize verification, `autonomy.level`, optional halt / knowledge keys) and `agents/orchestrator/config.example.yaml`.
 - Keep the **budget-cap halt** note (paths under `.specs-inferno/halt-notes/`).
@@ -1115,7 +1115,7 @@ git commit -m "cleanup: drop skill-policy hook + INSTALL.md; CLAUDE.md/README fo
 - [ ] **Step 1: Re-run the install eval end-to-end against the shipped tarball**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 bash evals/install-eval.sh evals/dist/specsmd-0.1.75.tgz
 ```
 Expected: `INSTALL EVAL: PASS` with every `req` an `OK`, every `absent`/no-leak check `OK`, and both bundled suites `OK`.
@@ -1123,22 +1123,22 @@ Expected: `INSTALL EVAL: PASS` with every `req` an `OK`, every `absent`/no-leak 
 - [ ] **Step 2: Confirm the upstream tree is fully green and committed**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src && npm run validate:all
-cd /home/ruben/dev/specsmd-upstream && git status --short && git log --oneline -8
+cd ~/dev/specsmd-upstream/src && npm run validate:all
+cd ~/dev/specsmd-upstream && git status --short && git log --oneline -8
 ```
 Expected: validation green; working tree clean; the inferno commits present on `feat/inferno-flow`.
 
 - [ ] **Step 3: Confirm this repo's working tree is clean and committed**
 
 ```bash
-cd /home/ruben/dev/specsmd_new && git status --short && git log --oneline -6
+cd ~/dev/specsmd_new && git status --short && git log --oneline -6
 ```
 Expected: clean tree; the eval + cleanup commits present.
 
-- [ ] **Step 4: STOP — hand off to Ruben for personal testing**
+- [ ] **Step 4: STOP, hand off to the maintainer for personal testing**
 
-**HARD GATE (from `pr-only-after-user-tested.md` and the design spec):** Do **not** open a PR, push to any shared remote, publish the package, or merge to `main` in either repo. Report what was built and the exact commands Ruben can run himself:
-- Install into a scratch repo: `npx -y --package=/home/ruben/dev/specsmd_new/evals/dist/specsmd-0.1.75.tgz specsmd install` (select INFERNO) and try `/specsmd-inferno-planner` (confirm capture auto-decomposes) and `/specsmd-inferno` (confirm a real parallel build to verified merge).
+**HARD GATE (from `pr-only-after-user-tested.md` and the design spec):** Do **not** open a PR, push to any shared remote, publish the package, or merge to `main` in either repo. Report what was built and the exact commands the maintainer can run himself:
+- Install into a scratch repo: `npx -y --package=~/dev/specsmd_new/evals/dist/specsmd-0.1.75.tgz specsmd install` (select INFERNO) and try `/specsmd-inferno-planner` (confirm capture auto-decomposes) and `/specsmd-inferno` (confirm a real parallel build to verified merge).
 - The e2e smoke (costs tokens): `WORK=$(bash evals/e2e/setup-sandbox.sh evals/dist/specsmd-0.1.75.tgz) && bash evals/e2e/run-e2e.sh "$WORK" && bash evals/e2e/assert-e2e.sh "$WORK"`.
 
 Wait for his explicit go-ahead before any publish/PR step.

@@ -2,7 +2,6 @@
 # caps their memory in buildcap.slice and gives them sccache and sockets. Inside the
 # Codex sandbox none of that exists, so the wrapper runs on the host.
 prefix_rule(pattern=["claude-build"], decision="allow")
-prefix_rule(pattern=["/home/ruben/.local/bin/claude-build"], decision="allow")
 # The ship step pushes the base branch from inside the runner, and a push needs the network
 # the sandbox does not have, so the runner's ship command runs on the host as well.
 prefix_rule(pattern=["node", ".specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs", "ship"], decision="allow")

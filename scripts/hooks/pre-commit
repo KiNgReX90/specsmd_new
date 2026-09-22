@@ -7,15 +7,15 @@
 # in a GitHub pull-request ref that cannot be deleted at all. Prevention is the
 # only real fix.
 #
-# Canonical copy: Skoft_Administration/scripts/hooks/pre-commit
-# Keep the copies in Skoft_Files and skoft-website identical.
+# This file is copied verbatim into every repo that needs it; keep the copies
+# identical so a fix lands everywhere.
 #
 # Usage:
 #   installed as a hook   -> checks every staged text file before each commit
 #   ./scripts/hooks/pre-commit --scan-tree  -> checks every tracked file
 #
 # Escape hatches, in order of preference:
-#   1. move the value off-repo (~/.skoft-administratie/config.yaml) and reference it
+#   1. move the value off-repo (see SECRETS_CONFIG below) and reference it
 #   2. add a known-fake literal to scripts/hooks/allowed-strings.txt
 #   3. git commit --no-verify   (last resort, you are on your own)
 
@@ -23,7 +23,9 @@ set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 ALLOW_FILE="$ROOT/scripts/hooks/allowed-strings.txt"
-CONFIG="${SKOFT_CONFIG:-$HOME/.skoft-administratie/config.yaml}"
+# Path to a local, never-committed YAML file holding the exact sensitive values
+# this machine owns. Set SECRETS_CONFIG in your shell to point at yours.
+CONFIG="${SECRETS_CONFIG:-$HOME/.config/secret-values.yaml}"
 MODE="${1:-staged}"
 
 # ---------------------------------------------------------------- rules (regex)
@@ -46,9 +48,9 @@ add_rule "Google API key"     '\bAIza[A-Za-z0-9_-]{30,}'
 add_rule "Private key block"  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 # ------------------------------------------------- literals from the off-repo config
-# Every sensitive value Ruben actually holds (IBAN, BSN, OB-nummer, API GUIDs,
-# tokens) lives in ~/.skoft-administratie/config.yaml. Grep for those verbatim so
-# new values are covered the day they are added, without ever listing them here.
+# Every sensitive value this machine actually holds (IBAN, BSN, OB-nummer, API
+# GUIDs, tokens) lives in that off-repo config. Grep for those verbatim so new
+# values are covered the day they are added, without ever listing them here.
 declare -a LITERALS=()
 if [ -r "$CONFIG" ]; then
   while IFS= read -r v; do
@@ -113,7 +115,7 @@ for f in "${FILES[@]}"; do
   [ -n "$LIT_FILE" ] || continue
   while IFS=: read -r n line; do
     [ -z "${n:-}" ] && continue
-    report "$f" "$n" "value from ~/.skoft-administratie/config.yaml" "$line"
+    report "$f" "$n" "value from the off-repo secrets config" "$line"
   done < <(content "$f" | grep -InFf "$LIT_FILE" 2>/dev/null)
 done
 
@@ -126,7 +128,7 @@ COMMIT BLOCKED: personal or secret material found (see above).
   private or not. Neither do live API keys or tokens.
 
   Fix it:
-    - keep the value in ~/.skoft-administratie/config.yaml and read it at runtime
+    - keep the value in the off-repo secrets config and read it at runtime
     - in docs, write [IBAN-REDACTED] / [OB-NUMMER-REDACTED] instead
     - fake fixtures: add the literal to scripts/hooks/allowed-strings.txt
     - KVK and BTW-ID are fine, they are on every outgoing invoice
@@ -156,10 +158,11 @@ fi
 # word ceiling per role and carries no incident narrative, checked by one machine-level
 # script so every repo on the box shares one implementation; skipped where the script
 # is absent. Staged content only, and it exits at once when no flow file is staged.
+FLOW_BUDGET="${INFERNO_FLOW_BUDGET:-${XDG_DATA_HOME:-$HOME/.local/share}/specsmd-inferno/flow-text-budget.py}"
 if [ "$MODE" != "--scan-tree" ] &&
-   [ -f "$HOME/.local/share/skoft-agent-hooks/flow-text-budget.py" ] &&
+   [ -f "$FLOW_BUDGET" ] &&
    command -v python3 >/dev/null 2>&1; then
-  python3 "$HOME/.local/share/skoft-agent-hooks/flow-text-budget.py" --staged --repo "$ROOT" || exit 1
+  python3 "$FLOW_BUDGET" --staged --repo "$ROOT" || exit 1
 fi
 
 exit 0

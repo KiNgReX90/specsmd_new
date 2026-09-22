@@ -192,8 +192,9 @@ function stageAndCommit(root, intentId, message) {
  * text only stops growing where a run refuses to start under it. One machine-level script
  * holds the ceilings for every repo on the box; a box without it claims as before.
  */
-const FLOW_BUDGET = process.env.SKOFT_FLOW_BUDGET ||
-  path.join(os.homedir(), '.local', 'share', 'skoft-agent-hooks', 'flow-text-budget.py');
+const FLOW_BUDGET = process.env.INFERNO_FLOW_BUDGET ||
+  path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
+    'specsmd-inferno', 'flow-text-budget.py');
 
 function refuseOverBudget(root) {
   if (!fs.existsSync(FLOW_BUDGET)) return;

@@ -179,7 +179,7 @@ function run(fixture, args, options = {}) {
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: options.cwd || fixture.root,
     encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, ...(options.env || {}) },
   });
   return { code: result.status, out: result.stdout || "", err: result.stderr || "" };
 }
@@ -396,7 +396,18 @@ test("claim commits the claim and prints the sha", () => {
 test("claim refuses while the flow text a builder loads is over its budget", () => {
   const fixture = repo();
   write(fixture.root, ".agents/skills/specsmd-inferno-builder/references/procedure.md", "step ".repeat(4100) + "\n");
-  const result = run(fixture, ["claim", "alpha"]);
+  // The budget script itself is a machine-local tool named by INFERNO_FLOW_BUDGET; what the
+  // claim owns is calling it and refusing on a non-zero exit, so the stub stands in for it.
+  const budget = path.join(fixture.root, "budget.py");
+  fs.writeFileSync(budget, [
+    "import pathlib, sys",
+    "p = pathlib.Path('.agents/skills/specsmd-inferno-builder/references/procedure.md')",
+    "words = len(p.read_text().split()) if p.exists() else 0",
+    "if words > 4000:",
+    "    print(f'OVER codex builder: {words} words')",
+    "    sys.exit(1)",
+  ].join("\n") + "\n");
+  const result = run(fixture, ["claim", "alpha"], { env: { INFERNO_FLOW_BUDGET: budget } });
   assert.notEqual(result.code, 0, result.out + result.err);
   assert.match(result.out + result.err, /FLOW_TEXT_OVER_BUDGET/);
   assert.match(result.out + result.err, /OVER codex builder/);

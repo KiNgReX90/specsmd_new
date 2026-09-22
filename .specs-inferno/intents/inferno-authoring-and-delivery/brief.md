@@ -25,7 +25,7 @@ separate step, not part of this intent.
 
 - Developers running the INFERNO flow on a real project (the end users of the
   planner/orchestrator).
-- The flow maintainer (Ruben), who wants planning to scale to many work items
+- The flow maintainer, who wants planning to scale to many work items
   without serial write latency, and a lower-friction first run.
 
 ## Problem

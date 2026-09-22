@@ -74,7 +74,7 @@ function freeDependencies(lines, intent, ids) {
  *
  * Two shapes carry that rationale in the wild and both have to work: a `comment: |` literal
  * block, and a run of `#` lines under the entry's keys. Handling only the block form meant
- * that in a repo written the other way (Skoft_Files, every entry) a dependency vanished
+ * that in a repo written the other way (every entry carrying one) a dependency vanished
  * from the list with no trace anywhere, which is precisely the drift this note exists to
  * prevent. An entry with neither shape gets no note; freeing the dependency is the
  * load-bearing half, the sentence is the courtesy.

@@ -6,7 +6,7 @@
 > which bolted the team track *onto* the FIRE flow. INFERNO instead ships the
 > autonomous/parallel capability as its own top-level flow.
 >
-> **Hard gate:** no PR, push, or publish without Ruben's explicit go-ahead
+> **Hard gate:** no PR, push, or publish without the maintainer's explicit go-ahead
 > after he has personally tested the install and a real `/specsmd-inferno` run.
 
 ## Goal
@@ -44,7 +44,7 @@ that the additive port could never ship through the installer anyway.
 ## Background — the install machinery (verified 2026-06-16)
 
 - **Source of truth is the upstream clone.** The installable package is the
-  `fabriqaai/specs.md` repo, cloned at `/home/ruben/dev/specsmd-upstream`
+  `fabriqaai/specs.md` repo, cloned at `~/dev/specsmd-upstream`
   (currently branch `feat/fire-team`, package version `0.1.74`). Flow definitions
   live under `src/flows/<flow>/`. This repo (`specsmd_new`) holds the team flow
   only in *installed* form plus the evals and the built tarball artifact.
@@ -242,7 +242,7 @@ All INFERNO runtime artifacts live under `.specs-inferno/`:
 
 ## Build workflow
 
-1. In `/home/ruben/dev/specsmd-upstream`, branch `feat/inferno-flow` off `main`
+1. In `~/dev/specsmd-upstream`, branch `feat/inferno-flow` off `main`
    (do not build on `feat/fire-team`; the additive-into-FIRE changes are not used).
 2. Verify the upstream baseline is green (`cd src && npm install && npm run
    validate:all`) before adding anything.
@@ -250,12 +250,12 @@ All INFERNO runtime artifacts live under `.specs-inferno/`:
    apply the transforms, add the drift test, run `validate:all`.
 4. Back in this repo: update the evals, rebuild + drop the tarball, run the
    install eval and the e2e smoke, do the cleanup.
-5. **STOP** for Ruben's personal testing. No PR, push, or publish.
+5. **STOP** for the maintainer's personal testing. No PR, push, or publish.
 
 ## Out of scope / deferred
 
 - Upstreaming INFERNO to `fabriqaai/specs.md` as a public flow (maintainers may
-  resist a near-duplicate of FIRE). INFERNO is Ruben's own flow, installed from
+  resist a near-duplicate of FIRE). INFERNO is the maintainer's own flow, installed from
   his local build, until he decides otherwise.
 - Any change to the FIRE flow's behavior.
 - A per-intent "team vs solo" ask (obsolete — the choice is the flow you install).

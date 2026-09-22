@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Port the FIRE team flow from this repo into a local clone of `fabriqaai/specs.md` as a purely additive feature, build a tarball, and prove it works via install evals + one E2E smoke — then STOP for Ruben's personal testing (no PR, no push, no publish without his explicit go).
+**Goal:** Port the FIRE team flow from this repo into a local clone of `fabriqaai/specs.md` as a purely additive feature, build a tarball, and prove it works via install evals + one E2E smoke, then STOP for the maintainer's personal testing (no PR, no push, no publish without his explicit go).
 
 **Architecture:** Upstream is an npm package (`specsmd`, in the repo's `src/` folder) whose installer copies `src/flows/fire/` into user projects as `.specsmd/fire/` and generates per-tool surfaces from `src/flows/fire/commands/*.md`. The port moves this repo's team agent trees into that layout, adds four command files, replaces the sync-script mechanism with a vitest drift test, and makes team work items autopilot-only. Evals live in THIS repo under `evals/` and are never part of the PR.
 
@@ -16,7 +16,7 @@
 
 ## Context you need before starting (verified 2026-06-12)
 
-- **Repos:** This repo = `/home/ruben/dev/specsmd_new` (team flow in *installed* form). Upstream clone goes to `/home/ruben/dev/specsmd-upstream` (created in Task 1). Upstream main is at v0.1.74; this repo's baseline was v0.1.65.
+- **Repos:** This repo = `~/dev/specsmd_new` (team flow in *installed* form). Upstream clone goes to `~/dev/specsmd-upstream` (created in Task 1). Upstream main is at v0.1.74; this repo's baseline was v0.1.65.
 - **Installer mechanics** (`src/lib/installer.js`, `src/lib/installers/*.js`):
   - `installFlow` copies a fixed allow-list from `src/flows/fire/` into `.specsmd/fire/`: `agents/` (always) plus, if present, `agent-capabilities/`, `bolt-types/`, `skills/`, `templates/`, `shared/`, `scripts/`, `memory-bank.yaml`, `context-config.yaml`, `quick-start.md`, `README.md`, `constitution.md`. Anything else at flow root is NOT installed — that's why `config.example.yaml` must live inside `agents/team/`.
   - `ClaudeInstaller` copies every `src/flows/fire/commands/<name>.md` to BOTH `.claude/commands/specsmd-<name>.md` and `.claude/agents/specsmd-<name>.md` (content verbatim, filename prefixed `specsmd-`).
@@ -33,20 +33,20 @@
 ### Task 1: Clone upstream and verify the baseline is green
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/` (clone)
+- Create: `~/dev/specsmd-upstream/` (clone)
 
 - [ ] **Step 1: Clone and branch**
 
 ```bash
-git clone https://github.com/fabriqaai/specs.md.git /home/ruben/dev/specsmd-upstream
-cd /home/ruben/dev/specsmd-upstream
+git clone https://github.com/fabriqaai/specs.md.git ~/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git checkout -b feat/fire-team
 ```
 
 - [ ] **Step 2: Install dev deps and run the upstream gate BEFORE touching anything**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm install
 npm run validate:all
 ```
@@ -55,7 +55,7 @@ Expected: PASS (vitest green, markdownlint clean, webview-bundle in sync). If th
 
 - [ ] **Step 3: Record the upstream version**
 
-Run: `node -p "require('/home/ruben/dev/specsmd-upstream/src/package.json').version"`
+Run: `node -p "require('~/dev/specsmd-upstream/src/package.json').version"`
 Expected: `0.1.74` or newer. Note it; eval scripts reference the tarball by this version.
 
 ---
@@ -63,13 +63,13 @@ Expected: `0.1.74` or newer. Note it; eval scripts reference the tarball by this
 ### Task 2: Port the team orchestrator tree
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team/` (from this repo's `.specsmd/fire/agents/team/`)
+- Create: `~/dev/specsmd-upstream/src/flows/fire/agents/team/` (from this repo's `.specsmd/fire/agents/team/`)
 - Modify after copy: `agents/team/agent.md`, `agents/team/skills/orchestrate/templates/intent-selection.md.hbs`
 
 - [ ] **Step 1: Copy the tree verbatim**
 
 ```bash
-cp -r /home/ruben/dev/specsmd_new/.specsmd/fire/agents/team /home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team
+cp -r ~/dev/specsmd_new/.specsmd/fire/agents/team ~/dev/specsmd-upstream/src/flows/fire/agents/team
 ```
 
 - [ ] **Step 2: Edit `agents/team/agent.md` — dispatch step 4 (remove the sync-script/`.claude` generated-file wording)**
@@ -116,7 +116,7 @@ Delete this line (around line 20):
 - [ ] **Step 6: Lint the tree**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/agents/team/**/*.md' --config ../.markdownlint.yaml
 ```
 
@@ -125,7 +125,7 @@ Expected: no output (clean). Fix any findings in the ported files (formatting on
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/agents/team
 git commit -m "feat(fire): add team orchestrator agent tree"
 ```
@@ -135,14 +135,14 @@ git commit -m "feat(fire): add team orchestrator agent tree"
 ### Task 3: Port the team-builder tree (drop the sync script)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-builder/` (from `.specsmd/fire/agents/team-builder/`, WITHOUT `scripts/`)
+- Create: `~/dev/specsmd-upstream/src/flows/fire/agents/team-builder/` (from `.specsmd/fire/agents/team-builder/`, WITHOUT `scripts/`)
 - Modify after copy: `agents/team-builder/agent.md`, `agents/team-builder/skills/workitem-execute/SKILL.md`
 
 - [ ] **Step 1: Copy, excluding the sync script**
 
 ```bash
-cp -r /home/ruben/dev/specsmd_new/.specsmd/fire/agents/team-builder /home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-builder
-rm -rf /home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-builder/scripts
+cp -r ~/dev/specsmd_new/.specsmd/fire/agents/team-builder ~/dev/specsmd-upstream/src/flows/fire/agents/team-builder
+rm -rf ~/dev/specsmd-upstream/src/flows/fire/agents/team-builder/scripts
 ```
 
 (`scripts/` contains only `sync-claude-agent.cjs`; the installer + drift test replace it.)
@@ -178,9 +178,9 @@ The full workitem-execute procedure (assignment validation, token discipline, fo
 - [ ] **Step 4: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/agents/team-builder/**/*.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/agents/team-builder
 git commit -m "feat(fire): add team builder agent tree"
 ```
@@ -190,13 +190,13 @@ git commit -m "feat(fire): add team builder agent tree"
 ### Task 4: Port the team-planner tree (autopilot-only)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-planner/` (from `.specsmd/fire/agents/team-planner/`)
+- Create: `~/dev/specsmd-upstream/src/flows/fire/agents/team-planner/` (from `.specsmd/fire/agents/team-planner/`)
 - Modify after copy: `agents/team-planner/agent.md`, `agents/team-planner/skills/work-item-decompose/SKILL.md`, `agents/team-planner/skills/work-item-decompose/templates/work-item.md.hbs`
 
 - [ ] **Step 1: Copy the tree verbatim**
 
 ```bash
-cp -r /home/ruben/dev/specsmd_new/.specsmd/fire/agents/team-planner /home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-planner
+cp -r ~/dev/specsmd_new/.specsmd/fire/agents/team-planner ~/dev/specsmd-upstream/src/flows/fire/agents/team-planner
 ```
 
 - [ ] **Step 2: Edit `agent.md` — decomposition flow line**
@@ -284,7 +284,7 @@ New: `mode: autopilot`
 - [ ] **Step 10: Sweep for leftover checkpoint-mode language in all three ported trees**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src/flows/fire/agents
+cd ~/dev/specsmd-upstream/src/flows/fire/agents
 grep -rn "confirm\b\|validate\b\|autonomy_bias" team team-builder team-planner --include="*.md" --include="*.hbs"
 ```
 
@@ -293,9 +293,9 @@ Expected: only legitimate uses remain — e.g. "validate dependencies", "assignm
 - [ ] **Step 11: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/agents/team-planner/**/*.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/agents/team-planner
 git commit -m "feat(fire): add team planner agent tree (autopilot-only work items)"
 ```
@@ -305,7 +305,7 @@ git commit -m "feat(fire): add team planner agent tree (autopilot-only work item
 ### Task 5: Ship the config example inside the team agent tree
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team/config.example.yaml`
+- Create: `~/dev/specsmd-upstream/src/flows/fire/agents/team/config.example.yaml`
 
 - [ ] **Step 1: Write the file with this exact content** (rewritten from this repo's `.specs-fire/config.example.yaml`: sync-script references removed, paths genericized)
 
@@ -357,7 +357,7 @@ verification:
 - [ ] **Step 2: Commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/agents/team/config.example.yaml
 git commit -m "feat(fire): ship team config example in the flow tree"
 ```
@@ -367,8 +367,8 @@ git commit -m "feat(fire): ship team config example in the flow tree"
 ### Task 6: Command files — `fire-team.md` and `fire-team-planner.md`
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/commands/fire-team.md`
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/commands/fire-team-planner.md`
+- Create: `~/dev/specsmd-upstream/src/flows/fire/commands/fire-team.md`
+- Create: `~/dev/specsmd-upstream/src/flows/fire/commands/fire-team-planner.md`
 
 These are thin routers in upstream's exact house style (`description:`-only frontmatter). They install as `/specsmd-fire-team` and `/specsmd-fire-team-planner`.
 
@@ -486,9 +486,9 @@ Note vs this repo's version: the "Read Config: memory-bank.yaml" first step is d
 - [ ] **Step 3: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/commands/fire-team*.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/commands/fire-team.md src/flows/fire/commands/fire-team-planner.md
 git commit -m "feat(fire): add team orchestrator and team planner commands"
 ```
@@ -498,7 +498,7 @@ git commit -m "feat(fire): add team orchestrator and team planner commands"
 ### Task 7: Command file — `fire-team-builder.md` (full builder body)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/commands/fire-team-builder.md`
+- Create: `~/dev/specsmd-upstream/src/flows/fire/commands/fire-team-builder.md`
 
 This is the ONE command that is not a thin router: ClaudeInstaller copies it to `.claude/agents/specsmd-fire-team-builder.md`, and that file is the builder subagent's system prompt. The body must be byte-identical to `agents/team-builder/agent.md`'s body (Task 9's test enforces this).
 
@@ -514,10 +514,10 @@ tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, TodoWrite
 ---
 ```
 
-Body: everything AFTER the closing `---` of the frontmatter in `/home/ruben/dev/specsmd-upstream/src/flows/fire/agents/team-builder/agent.md` (as edited in Task 3), copied verbatim. Build it mechanically so it cannot drift:
+Body: everything AFTER the closing `---` of the frontmatter in `~/dev/specsmd-upstream/src/flows/fire/agents/team-builder/agent.md` (as edited in Task 3), copied verbatim. Build it mechanically so it cannot drift:
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src/flows/fire
+cd ~/dev/specsmd-upstream/src/flows/fire
 {
   printf -- '---\nname: specsmd-fire-team-builder\ndescription: Use when a FIRE team orchestrator assigns exactly one work item with context manifest and editable ownership.\ntools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, TodoWrite\n---\n'
   awk 'f{print} /^---$/{c++; if(c==2) f=1}' agents/team-builder/agent.md
@@ -529,9 +529,9 @@ cd /home/ruben/dev/specsmd-upstream/src/flows/fire
 - [ ] **Step 2: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/commands/fire-team-builder.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/commands/fire-team-builder.md
 git commit -m "feat(fire): add team builder command (installed agent = builder system prompt)"
 ```
@@ -541,7 +541,7 @@ git commit -m "feat(fire): add team builder command (installed agent = builder s
 ### Task 8: Command file — `fire-team-config.md` (new setup wizard)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/flows/fire/commands/fire-team-config.md`
+- Create: `~/dev/specsmd-upstream/src/flows/fire/commands/fire-team-config.md`
 
 - [ ] **Step 1: Write the file with this exact content**
 
@@ -590,9 +590,9 @@ Activate now. Read the template, then start the questions.
 - [ ] **Step 2: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/commands/fire-team-config.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/commands/fire-team-config.md
 git commit -m "feat(fire): add team config setup command"
 ```
@@ -602,7 +602,7 @@ git commit -m "feat(fire): add team config setup command"
 ### Task 9: Vitest test — builder drift guard + flow script suites
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd-upstream/src/__tests__/unit/fire/team-flow.test.ts`
+- Create: `~/dev/specsmd-upstream/src/__tests__/unit/fire/team-flow.test.ts`
 
 Before writing, open one existing test (e.g. `src/__tests__/unit/fire/complete-run.test.ts`) and mirror its path-resolution and import style if it differs from below.
 
@@ -644,7 +644,7 @@ describe('fire team flow', () => {
 - [ ] **Step 2: Run it — confirm it runs against real files and passes**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx vitest run __tests__/unit/fire/team-flow.test.ts
 ```
 
@@ -653,7 +653,7 @@ Expected: 3 passing. To prove the drift guard actually guards, temporarily appen
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/__tests__/unit/fire/team-flow.test.ts
 git commit -m "test(fire): team flow drift guard and script suites"
 ```
@@ -663,8 +663,8 @@ git commit -m "test(fire): team flow drift guard and script suites"
 ### Task 10: Flow README section + CHANGELOG entry
 
 **Files:**
-- Modify: `/home/ruben/dev/specsmd-upstream/src/flows/fire/README.md`
-- Modify: `/home/ruben/dev/specsmd-upstream/CHANGELOG.md`
+- Modify: `~/dev/specsmd-upstream/src/flows/fire/README.md`
+- Modify: `~/dev/specsmd-upstream/CHANGELOG.md`
 
 - [ ] **Step 1: Append a team-flow section to `src/flows/fire/README.md`** (read the file first; match its heading levels and tone; place after the existing agent descriptions)
 
@@ -690,9 +690,9 @@ Content to convey: *Added FIRE team track: `/specsmd-fire-team`, `/specsmd-fire-
 - [ ] **Step 3: Lint + commit**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npx markdownlint 'flows/fire/README.md' --config ../.markdownlint.yaml
-cd /home/ruben/dev/specsmd-upstream
+cd ~/dev/specsmd-upstream
 git add src/flows/fire/README.md CHANGELOG.md
 git commit -m "docs(fire): document the team track"
 ```
@@ -704,8 +704,8 @@ git commit -m "docs(fire): document the team track"
 - [ ] **Step 1: Sweep for forbidden leftovers in everything added**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream
-grep -rni "superpower\|skill-policy\|INSTALL.md\|sync-claude-agent\|Skoft" \
+cd ~/dev/specsmd-upstream
+grep -rni "superpower\|skill-policy\|INSTALL.md\|sync-claude-agent\|the private repos" \
   src/flows/fire/agents/team src/flows/fire/agents/team-builder \
   src/flows/fire/agents/team-planner src/flows/fire/commands/fire-team*.md
 ```
@@ -715,7 +715,7 @@ Expected: NO hits (the source trees were verified clean on 2026-06-12, but the p
 - [ ] **Step 2: Run the complete upstream gate**
 
 ```bash
-cd /home/ruben/dev/specsmd-upstream/src
+cd ~/dev/specsmd-upstream/src
 npm run validate:all
 ```
 
@@ -724,9 +724,9 @@ Expected: PASS (all vitest including the new team-flow test, markdownlint over e
 - [ ] **Step 3: Build the tarball**
 
 ```bash
-mkdir -p /home/ruben/dev/specsmd_new/evals/dist
-cd /home/ruben/dev/specsmd-upstream/src
-npm pack --pack-destination /home/ruben/dev/specsmd_new/evals/dist/
+mkdir -p ~/dev/specsmd_new/evals/dist
+cd ~/dev/specsmd-upstream/src
+npm pack --pack-destination ~/dev/specsmd_new/evals/dist/
 ```
 
 Expected output ends with `specsmd-<version>.tgz` (`evals/dist/` is gitignored in Task 12 — the tarball is never committed).
@@ -736,8 +736,8 @@ Expected output ends with `specsmd-<version>.tgz` (`evals/dist/` is gitignored i
 ### Task 12: Deterministic install eval (in THIS repo)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd_new/evals/install-eval.sh`
-- Modify: `/home/ruben/dev/specsmd_new/.gitignore` (add `evals/dist/`)
+- Create: `~/dev/specsmd_new/evals/install-eval.sh`
+- Modify: `~/dev/specsmd_new/.gitignore` (add `evals/dist/`)
 
 - [ ] **Step 1: Write `evals/install-eval.sh` with this exact content**
 
@@ -822,8 +822,8 @@ exit "$FAIL"
 - [ ] **Step 2: Make it executable and run it**
 
 ```bash
-chmod +x /home/ruben/dev/specsmd_new/evals/install-eval.sh
-/home/ruben/dev/specsmd_new/evals/install-eval.sh /home/ruben/dev/specsmd_new/evals/dist/specsmd-*.tgz
+chmod +x ~/dev/specsmd_new/evals/install-eval.sh
+~/dev/specsmd_new/evals/install-eval.sh ~/dev/specsmd_new/evals/dist/specsmd-*.tgz
 ```
 
 Expected: `INSTALL EVAL: PASS`. If the PTY keystroke timing misfires (installer log shows "Installation cancelled"), increase the sleeps first; if `prompts` still misbehaves, fall back to an `expect` script that waits for the literal strings `Choose tools:` and `Which SDLC flow` before sending `\r` — keep the same assertions.
@@ -831,7 +831,7 @@ Expected: `INSTALL EVAL: PASS`. If the PTY keystroke timing misfires (installer 
 - [ ] **Step 3: Commit (eval script only — never the tarball)**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 printf 'evals/dist/\n' >> .gitignore
 git add evals/install-eval.sh .gitignore
 git commit -m "Add deterministic install eval for the upstream team-flow port"
@@ -842,16 +842,16 @@ git commit -m "Add deterministic install eval for the upstream team-flow port"
 ### Task 13: E2E smoke (in THIS repo)
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/setup-sandbox.sh`
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/fixtures/state.yaml`
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/fixtures/brief.md`
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/fixtures/add-add.md`, `add-mul.md`, `add-calc.md`
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/run-e2e.sh`
-- Create: `/home/ruben/dev/specsmd_new/evals/e2e/assert-e2e.sh`
+- Create: `~/dev/specsmd_new/evals/e2e/setup-sandbox.sh`
+- Create: `~/dev/specsmd_new/evals/e2e/fixtures/state.yaml`
+- Create: `~/dev/specsmd_new/evals/e2e/fixtures/brief.md`
+- Create: `~/dev/specsmd_new/evals/e2e/fixtures/add-add.md`, `add-mul.md`, `add-calc.md`
+- Create: `~/dev/specsmd_new/evals/e2e/run-e2e.sh`
+- Create: `~/dev/specsmd_new/evals/e2e/assert-e2e.sh`
 
 Scenario: toy intent `toy-math`, 3 work items — `add-add` and `add-mul` independent (parallel frontier), `add-calc` depends on both (serialization). Orchestrator invoked with the intent NAMED, so its selection menu is skipped (required for headless). **This task spends real Claude tokens** (one orchestrator + 3 builders; haiku/sonnet tiers keep it small).
 
-**Deliberate deviation from the spec:** the spec's E2E sketch has the planner capture the intent; this plan pre-seeds the intent/work-item fixtures instead, because the planner is interactive by design (clarifying questions) and a headless run of it is flaky in a deterministic gate. The planner is exercised during Ruben's personal testing (which the hard gate requires anyway); the fixtures ARE planner-shaped output, so the orchestrator-side contract is still fully validated.
+**Deliberate deviation from the spec:** the spec's E2E sketch has the planner capture the intent; this plan pre-seeds the intent/work-item fixtures instead, because the planner is interactive by design (clarifying questions) and a headless run of it is flaky in a deterministic gate. The planner is exercised during the maintainer's personal testing (which the hard gate requires anyway); the fixtures ARE planner-shaped output, so the orchestrator-side contract is still fully validated.
 
 - [ ] **Step 1: Write `fixtures/state.yaml`**
 
@@ -1176,10 +1176,10 @@ exit "$FAIL"
 - [ ] **Step 7: Run the whole smoke**
 
 ```bash
-chmod +x /home/ruben/dev/specsmd_new/evals/e2e/*.sh
-WORK=$(/home/ruben/dev/specsmd_new/evals/e2e/setup-sandbox.sh /home/ruben/dev/specsmd_new/evals/dist/specsmd-*.tgz | tail -n1)
-/home/ruben/dev/specsmd_new/evals/e2e/run-e2e.sh "$WORK"
-/home/ruben/dev/specsmd_new/evals/e2e/assert-e2e.sh "$WORK"
+chmod +x ~/dev/specsmd_new/evals/e2e/*.sh
+WORK=$(~/dev/specsmd_new/evals/e2e/setup-sandbox.sh ~/dev/specsmd_new/evals/dist/specsmd-*.tgz | tail -n1)
+~/dev/specsmd_new/evals/e2e/run-e2e.sh "$WORK"
+~/dev/specsmd_new/evals/e2e/assert-e2e.sh "$WORK"
 ```
 
 Expected: `E2E SMOKE: PASS`. On FAIL: the transcript (`$WORK/e2e-transcript.log`) and the kept sandbox are the diagnosis material — fix the port (or the fixture) and re-run from setup. Never "fix" an assertion to make red green.
@@ -1187,7 +1187,7 @@ Expected: `E2E SMOKE: PASS`. On FAIL: the transcript (`$WORK/e2e-transcript.log`
 - [ ] **Step 8: Commit the harness**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 git add evals/e2e
 git commit -m "Add E2E smoke harness for the upstream team-flow port"
 ```
@@ -1197,30 +1197,30 @@ git commit -m "Add E2E smoke harness for the upstream team-flow port"
 ### Task 14: Results + handoff — STOP HERE
 
 **Files:**
-- Create: `/home/ruben/dev/specsmd_new/evals/RESULTS.md`
+- Create: `~/dev/specsmd_new/evals/RESULTS.md`
 
-- [ ] **Step 1: Write `evals/RESULTS.md`** — for each eval: command run, PASS/FAIL, date, tarball version, sandbox path, plus anything Ruben should eyeball (e.g. the E2E transcript). Include the exact commands he can rerun himself:
+- [ ] **Step 1: Write `evals/RESULTS.md`**, for each eval: command run, PASS/FAIL, date, tarball version, sandbox path, plus anything the maintainer should eyeball (e.g. the E2E transcript). Include the exact commands he can rerun himself:
 
 ```bash
 # rebuild tarball
-cd /home/ruben/dev/specsmd-upstream/src && npm pack --pack-destination /home/ruben/dev/specsmd_new/evals/dist/
+cd ~/dev/specsmd-upstream/src && npm pack --pack-destination ~/dev/specsmd_new/evals/dist/
 # install eval
-/home/ruben/dev/specsmd_new/evals/install-eval.sh /home/ruben/dev/specsmd_new/evals/dist/specsmd-*.tgz
+~/dev/specsmd_new/evals/install-eval.sh ~/dev/specsmd_new/evals/dist/specsmd-*.tgz
 # e2e
-WORK=$(/home/ruben/dev/specsmd_new/evals/e2e/setup-sandbox.sh /home/ruben/dev/specsmd_new/evals/dist/specsmd-*.tgz | tail -n1)
-/home/ruben/dev/specsmd_new/evals/e2e/run-e2e.sh "$WORK" && /home/ruben/dev/specsmd_new/evals/e2e/assert-e2e.sh "$WORK"
+WORK=$(~/dev/specsmd_new/evals/e2e/setup-sandbox.sh ~/dev/specsmd_new/evals/dist/specsmd-*.tgz | tail -n1)
+~/dev/specsmd_new/evals/e2e/run-e2e.sh "$WORK" && ~/dev/specsmd_new/evals/e2e/assert-e2e.sh "$WORK"
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
-cd /home/ruben/dev/specsmd_new
+cd ~/dev/specsmd_new
 git add evals/RESULTS.md
 git commit -m "Record eval results for the upstream team-flow port"
 ```
 
 - [ ] **Step 3: HARD GATE — report and stop**
 
-Report to Ruben: eval outcomes, the fork branch location (`/home/ruben/dev/specsmd-upstream`, branch `feat/fire-team`, N commits), the tarball path, and how to test it himself in a real project. Then STOP.
+Report to the maintainer: eval outcomes, the fork branch location (`~/dev/specsmd-upstream`, branch `feat/fire-team`, N commits), the tarball path, and how to test it himself in a real project. Then STOP.
 
-**Do NOT:** create a GitHub fork, push anywhere, open a PR, or publish to npm. Those happen only after Ruben has personally tested and explicitly said go (see the spec's Hard Gate and the `pr-only-after-user-tested` memory).
+**Do NOT:** create a GitHub fork, push anywhere, open a PR, or publish to npm. Those happen only after the maintainer has personally tested and explicitly said go (see the spec's Hard Gate and the `pr-only-after-user-tested` memory).

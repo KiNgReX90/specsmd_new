@@ -342,7 +342,7 @@ test("check still flags a genuinely open intent whose items are all done", () =>
 // Work is built directly and an intent is the exception, whatever its size. Every intent
 // waiting to be claimed says on an INTENT. line why one builder on the default branch could
 // not do it, and a reason that only restates size or file count says nothing: two mechanisms
-// and six files are a batched dispatch, not an intent (Ruben, 2026-09-09).
+// and six files are a batched dispatch, not an intent.
 
 const ONE_ITEM = `intents:
   - id: title-bar-ink

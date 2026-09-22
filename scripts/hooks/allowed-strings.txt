@@ -3,7 +3,7 @@
 # values here. If you are tempted to add a real IBAN, BSN or token, the answer is
 # off-repo storage instead.
 #
-# The hook script is shared across the Skoft repos; this allowlist is per-repo and
+# The hook script is shared across repos; this allowlist is per-repo and
 # is expected to differ (each repo has its own test fixtures).
 
 # Fake IBANs used as test fixtures
