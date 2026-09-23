@@ -2,8 +2,8 @@
 name: specsmd-inferno-oracle
 description: Use when a builder, the INFERNO orchestrator, a planner or a session hits a judgment call (a problem, gap or issue with more than one defensible answer) that would otherwise be postponed or handed to the user; returns one grounded decision that the builder tier implements; it never builds.
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
-model: claude-fable-5-1
-effort: xhigh
+model: claude-opus-5-5
+effort: max
 ---
 
 # INFERNO Oracle

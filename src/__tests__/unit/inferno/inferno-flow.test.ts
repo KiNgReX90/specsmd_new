@@ -103,11 +103,11 @@ describe('inferno flow', () => {
     ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
-    ['commands/inferno-oracle.md', 'claude-fable-5-1', 'xhigh'],
+    ['commands/inferno-oracle.md', 'claude-opus-5-5', 'max'],
     ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
-    ['agents/oracle/agent.md', 'claude-fable-5-1', 'xhigh'],
+    ['agents/oracle/agent.md', 'claude-opus-5-5', 'max'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));

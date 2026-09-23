@@ -2,8 +2,8 @@
 name: inferno-oracle-agent
 description: Decision specialist for INFERNO. Answers a judgment call a builder, orchestrator, planner or session would otherwise postpone, from the artifact, on the frontier tier. It never builds; the builder tier implements its decision.
 version: 1.1.0
-model: claude-fable-5-1
-effort: xhigh
+model: claude-opus-5-5
+effort: max
 ---
 
 # INFERNO Oracle
