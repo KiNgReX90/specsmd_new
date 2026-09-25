@@ -14,7 +14,7 @@ autonomy:
 # Effort is pinned in each agent definition's frontmatter, never here.
 models:
   strong: claude-opus-5-5           # builders on complexity medium and high
-  cheap: claude-sonnet-4-6        # builders on complexity low and kind test, docs-only, config-only, config
+  cheap: claude-opus-5-5          # builders on complexity low and kind test, docs-only, config-only, config
   tester: claude-opus-5-5           # the project's own tester agent, on a low or medium complexity item
   tester_high: claude-fable-5-1   # the project's own tester agent, on a high complexity item or intent
 

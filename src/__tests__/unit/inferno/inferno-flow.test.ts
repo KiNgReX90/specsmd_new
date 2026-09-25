@@ -101,13 +101,13 @@ describe('inferno flow', () => {
   it.each([
     ['commands/inferno-planner.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-builder.md', 'claude-opus-5-5', 'xhigh'],
-    ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
+    ['commands/inferno-builder-cheap.md', 'claude-opus-5-5', 'medium'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
-    ['commands/inferno-oracle.md', 'claude-opus-5-5', 'max'],
+    ['commands/inferno-oracle.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5-5', 'xhigh'],
-    ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
-    ['agents/oracle/agent.md', 'claude-opus-5-5', 'max'],
+    ['agents/builder-cheap/agent.md', 'claude-opus-5-5', 'medium'],
+    ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
@@ -156,7 +156,7 @@ describe('inferno flow', () => {
       'utf8'
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5-5\b/m);
-    expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-4-6\b/m);
+    expect(config).toMatch(/^\s*cheap:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*tester:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*tester_high:\s*claude-fable-5-1\b/m);
     // The planner writes its own work items, so the scribe tier is gone.

@@ -26,7 +26,7 @@ through every key one at a time.
 1. Read the annotated template `.specsmd/inferno/agents/orchestrator/config.example.yaml`. If `.specs-inferno/config.yaml` already exists, read it so you display the user's CURRENT values instead of the defaults.
 2. **Display the effective settings in plain language**, then ask one question: *"Use these, or adjust?"* Present them roughly like:
    - **Complex work items** (the reasoning-heavy ones) → handled by the strong model at maximum effort. *(default: `claude-opus-5-5`, xhigh)*
-   - **Simple work items** (mechanical: config, docs, small swaps) → handled by the fast model. *(default: `claude-sonnet-4-6`, high)*
+   - **Simple work items** (mechanical: config, docs, small swaps) → handled by the fast model. *(default: `claude-opus-5-5`, medium)*
    - **Testing the built app** (only when the project has its own tester agent) → the strong model, or the frontier model on a high-complexity item. *(defaults: `claude-opus-5-5` and `claude-fable-5-1`)*
    - **After planning** → the planner writes the work items and stops, with no review pause: what the specs leave open comes back as an `oracle:` block and what fits the fix-now box as a `fix-now:` block. The build is a separate step you start later with `/specsmd-inferno`; the planner never starts it.
    - **Delivery** → *autonomous* (build, merge, and close automatically) or *production* (open merge requests for review, per work item into the intent and the whole intent into your base branch). *(default: autonomous)*
