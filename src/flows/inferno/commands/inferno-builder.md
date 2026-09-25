@@ -2,7 +2,7 @@
 name: specsmd-inferno-builder
 description: Use when an INFERNO orchestrator assigns exactly one work item, or one explicitly batched chain of small serial work items, with context manifest and editable ownership.
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, TodoWrite, Skill
-model: claude-opus-5
+model: claude-opus-5-5
 effort: xhigh
 ---
 

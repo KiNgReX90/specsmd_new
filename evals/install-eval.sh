@@ -79,7 +79,7 @@ for n in inferno; do
     && { note "FAIL Claude orchestrator pins an effort: $n"; FAIL=1; }
 done
 for n in inferno-planner inferno-builder; do
-  grep -q '^model: claude-opus-5$' ".claude/agents/specsmd-$n.md" \
+  grep -q '^model: claude-opus-5-5$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude strong model: $n"; FAIL=1; }
   grep -q '^effort: xhigh$' ".claude/agents/specsmd-$n.md" \
     || { note "FAIL Claude strong effort: $n"; FAIL=1; }

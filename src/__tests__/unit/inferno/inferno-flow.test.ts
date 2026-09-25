@@ -99,13 +99,13 @@ describe('inferno flow', () => {
   });
 
   it.each([
-    ['commands/inferno-planner.md', 'claude-opus-5', 'xhigh'],
-    ['commands/inferno-builder.md', 'claude-opus-5', 'xhigh'],
+    ['commands/inferno-planner.md', 'claude-opus-5-5', 'xhigh'],
+    ['commands/inferno-builder.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
     ['commands/inferno-oracle.md', 'claude-opus-5-5', 'max'],
-    ['agents/planner/agent.md', 'claude-opus-5', 'xhigh'],
-    ['agents/builder/agent.md', 'claude-opus-5', 'xhigh'],
+    ['agents/planner/agent.md', 'claude-opus-5-5', 'xhigh'],
+    ['agents/builder/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-4-6', 'high'],
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'max'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
@@ -155,9 +155,9 @@ describe('inferno flow', () => {
       path.join(INFERNO, 'agents/orchestrator/config.example.yaml'),
       'utf8'
     );
-    expect(config).toMatch(/^\s*strong:\s*claude-opus-5\b/m);
+    expect(config).toMatch(/^\s*strong:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-4-6\b/m);
-    expect(config).toMatch(/^\s*tester:\s*claude-opus-5\b/m);
+    expect(config).toMatch(/^\s*tester:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*tester_high:\s*claude-fable-5-1\b/m);
     // The planner writes its own work items, so the scribe tier is gone.
     expect(config).not.toMatch(/^\s*writer:/m);

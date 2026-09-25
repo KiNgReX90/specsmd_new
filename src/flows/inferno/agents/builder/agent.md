@@ -2,7 +2,7 @@
 name: inferno-builder-agent
 description: Single-work-item implementation specialist for INFERNO orchestration.
 version: 2.7.0
-model: claude-opus-5
+model: claude-opus-5-5
 effort: xhigh
 ---
 
