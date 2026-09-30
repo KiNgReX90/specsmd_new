@@ -17,7 +17,7 @@ roles:
     reasoning_effort: xhigh
   builder_strong:
     agent: specsmd_inferno_builder_strong
-    model: gpt-5.6-sol
+    model: gpt-6.1-sol
     reasoning_effort: xhigh
   config:
     agent: specsmd_inferno_config

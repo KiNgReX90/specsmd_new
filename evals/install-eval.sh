@@ -98,9 +98,11 @@ grep -q '^model: claude-opus-5-5$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle model"; FAIL=1; }
 grep -q '^effort: xhigh$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle effort"; FAIL=1; }
+grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_planner.toml" \
+  || { note "FAIL Codex Sol model: planner"; FAIL=1; }
+grep -q '^model = "gpt-6.1-sol"$' ".codex/agents/specsmd_inferno_builder_strong.toml" \
+  || { note "FAIL Codex Sol model: builder_strong"; FAIL=1; }
 for n in planner builder_strong; do
-  grep -q '^model = "gpt-5.6-sol"$' ".codex/agents/specsmd_inferno_$n.toml" \
-    || { note "FAIL Codex Sol model: $n"; FAIL=1; }
   grep -q '^model_reasoning_effort = "xhigh"$' ".codex/agents/specsmd_inferno_$n.toml" \
     || { note "FAIL Codex Sol effort: $n"; FAIL=1; }
 done

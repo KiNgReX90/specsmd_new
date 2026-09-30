@@ -61,7 +61,7 @@ Repeat until all items are completed or the run blocks or halts.
 4. Batch a few consecutive low or medium items only when a serial dependency chain or a shared compile tree prevents parallelism, keeping combined required context near six files. Never batch high-complexity work, different worker tiers, or across a point where disjoint work can run in parallel.
 5. Choose the custom builder deterministically:
    - `kind: config-only`, `kind: docs-only`, `kind: test`, or `complexity: low` uses `specsmd_inferno_builder_cheap` on `gpt-5.6-terra` with `high` reasoning;
-   - other `complexity: medium` or `high` work uses `specsmd_inferno_builder_strong` on `gpt-5.6-sol` with `xhigh` reasoning.
+   - other `complexity: medium` or `high` work uses `specsmd_inferno_builder_strong` on `gpt-6.1-sol` with `xhigh` reasoning.
    Kind-based cheap routing takes precedence; never down-tier medium or high work by intuition. A cheap build that fails integration review once is re-dispatched to the strong role with the findings, never corrected twice on the cheap role.
 6. Use `spawn_agent` with `fork_turns: "none"` and the role's `agent_type` for the items or approved batches in the frontier, in one dispatch round. The prompt contains only:
    - intent and work-item ids, worktree and work-item spec paths, the spec to be read first;

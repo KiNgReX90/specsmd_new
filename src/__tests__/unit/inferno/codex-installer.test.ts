@@ -29,7 +29,7 @@ const PROCEDURE_SKILLS = SKILLS.filter((skill) => skill !== 'specsmd-inferno-int
 // The orchestrator is the session's main thread and has no custom agent of its own.
 const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_planner: ['gpt-5.6-sol', 'xhigh'],
-  specsmd_inferno_builder_strong: ['gpt-5.6-sol', 'xhigh'],
+  specsmd_inferno_builder_strong: ['gpt-6.1-sol', 'xhigh'],
   specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],

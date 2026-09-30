@@ -65,7 +65,7 @@ Proofs from different config files remain separate.
 |---|---|---|
 | Orchestrator | `gpt-5.6-sol` | `xhigh` |
 | Planner | `gpt-5.6-sol` | `xhigh` |
-| Strong builder | `gpt-5.6-sol` | `xhigh` |
+| Strong builder | `gpt-6.1-sol` | `xhigh` |
 | Config helper | `gpt-5.6-terra` | `high` |
 | Cheap builder | `gpt-5.6-terra` | `high` |
 
