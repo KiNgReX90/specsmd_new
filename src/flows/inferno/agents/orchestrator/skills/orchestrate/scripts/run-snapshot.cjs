@@ -21,8 +21,12 @@ const { RunError } = lib;
 /** How long a snapshot waits for the tree's sequence: a full batched round of snapshots. */
 const SEQUENCE_WAIT_MS = 5 * 60 * 1000;
 
-/** A file whose times were this young when it was read is never taken from the stat index. */
-const RACY_MS = 1000;
+/**
+ * A file whose times were this young when it was read is never kept in the stat index. FAT keeps
+ * file times in two-second steps, so a file is kept only once its times are older than the
+ * coarsest common filesystem clock.
+ */
+const RACY_MS = 2000;
 
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);

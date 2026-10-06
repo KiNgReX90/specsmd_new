@@ -177,7 +177,8 @@ test('a dispatch snapshot waits while another of the same tree holds the sequenc
 
 test('a warm snapshot takes an unchanged file from the tree\'s index and reads a changed one again', (t) => {
   const f = fixture(t); const proof = require('./run-dispatch.cjs');
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+  const now = Date.now;
+  t.mock.method(Date, 'now', () => now() + 5000);
   proof.sequencedSnapshot(f.tree);
   const index = path.join(proof.dispatchDirectory(f.tree), 'index.json');
   const stored = JSON.parse(fs.readFileSync(index, 'utf8'));
@@ -186,4 +187,36 @@ test('a warm snapshot takes an unchanged file from the tree\'s index and reads a
   assert.equal(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');
   f.write('src/a.ts', 'changed');
   assert.notEqual(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');
+});
+
+test('a same-size rewrite whose mtime is put back is still read again', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  const target = path.join(f.tree, 'src/b.ts');
+  fs.utimesSync(target, 1700000000, 1700000000);
+  const now = Date.now;
+  t.mock.method(Date, 'now', () => now() + 5000);
+  begin(f, 'a', ['src/a.ts']);
+  assert.ok(JSON.parse(fs.readFileSync(path.join(proof.dispatchDirectory(f.tree), 'index.json'), 'utf8'))['src/b.ts']);
+  f.write('src/b.ts', 'B');
+  fs.utimesSync(target, 1700000000, 1700000000);
+  f.write('src/a.ts', 'new a');
+  const record = accept(f, 'a', ['src/a.ts']);
+  assert.deepEqual(verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['src/b.ts']);
+});
+
+test('a file under two seconds old is never kept in the index, and is kept once older', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  f.write('src/young.ts', 'young');
+  const target = path.join(f.tree, 'src/young.ts');
+  fs.utimesSync(target, 1700000000, 1700000000);
+  const { ctimeMs } = fs.statSync(target);
+  const index = path.join(proof.dispatchDirectory(f.tree), 'index.json');
+  const keptAt = (age) => {
+    t.mock.restoreAll();
+    t.mock.method(Date, 'now', () => ctimeMs + age);
+    proof.captureSnapshot(f.tree);
+    return JSON.parse(fs.readFileSync(index, 'utf8'))['src/young.ts'];
+  };
+  assert.equal(keptAt(1500), undefined);
+  assert.ok(keptAt(5000));
 });
