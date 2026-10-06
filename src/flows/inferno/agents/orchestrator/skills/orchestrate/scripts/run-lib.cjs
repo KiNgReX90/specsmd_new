@@ -344,6 +344,7 @@ function runShell(command, cwd, logFile, options = {}) {
   return {
     command,
     code: result.status === null ? 1 : result.status,
+    signal: result.signal || null,
     seconds: Math.round((performance.now() - started) / 1000),
     log: logFile,
     wrapped,

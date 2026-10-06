@@ -148,6 +148,38 @@ function reviewed(runner, fixture, tree, ids, files = ['src/a.ts'], intent = 'al
   }
 }
 
+/** The worktree name whose branch run.cjs reads as an intent branch of alpha. */
+const INTENT_TREE = 'alpha-00000000T000000Z';
+
+/**
+ * Record an intent review for the tree as it stands, the way `run.cjs review` records one:
+ * the reviewer's body plus the tree hash and commit, committed through a pathspec.
+ */
+function intentReviewed(tree, intent = 'alpha', body = 'verdict: clean\n') {
+  const proofs = require('./run-proofs.cjs');
+  const { intentReviewPath } = require('./run-intent-owed.cjs');
+  const rel = intentReviewPath(tree, intent);
+  write(tree, rel, `${body}tree: ${proofs.scopeHash(tree)}\ncommit: ${git(tree, ['rev-parse', 'HEAD'])}\n`);
+  git(tree, ['add', '--', rel]);
+  git(tree, ['commit', '-qm', `intent review ${intent}`, '--', rel]);
+}
+
+/**
+ * For a test about something else: before a gate or green call, record a clean intent
+ * review when the clean tree has none for its content. The refusals themselves are proved in
+ * run-gate-review.test.cjs, which never calls this.
+ */
+function reviewBefore(args, cwd) {
+  if (!['gate', 'green'].includes(args[0]) || args.includes('--wait')) return;
+  const at = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null);
+  const tree = path.resolve(cwd, at('--tree') || '.');
+  const { intentOf } = require('./run-worktrees.cjs');
+  const intent = at('--intent') || intentOf(git(tree, ['rev-parse', '--abbrev-ref', 'HEAD']));
+  if (!intent || git(tree, ['status', '--porcelain']) !== '') return;
+  const { intentReviewState } = require('./run-intent-owed.cjs');
+  if (intentReviewState(tree, {}, intent).owed.length > 0) intentReviewed(tree, intent);
+}
+
 /** Mark items reviewed clean straight through the writer, for a ledger a test completes by hand. */
 function markReviewed(state, ids, intent = 'alpha') {
   for (const id of ids) {
@@ -156,4 +188,7 @@ function markReviewed(state, ids, intent = 'alpha') {
   }
 }
 
-module.exports = { CONFIG, LOCK_PATH, STATE, git, hostLock, markReviewed, repo, reviewed, run, worktree, write };
+module.exports = {
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, hostLock, intentReviewed, markReviewed, repo, reviewBefore, reviewed, run,
+  worktree, write,
+};

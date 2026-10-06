@@ -36,7 +36,7 @@ models:
 #   script: ~/tools/flow-text-budget.py                 # the flow text budget script; else INFERNO_FLOW_BUDGET, else $XDG_DATA_HOME/specsmd-inferno/flow-text-budget.py
 
 review:
-  model: claude-opus-5-5          # the cold reviewer run.cjs review --item dispatches after every item
+  model: claude-opus-5-5          # the cold reviewer run.cjs review dispatches after every item and before the gate
 
 verification:
   finalize:                       # ordered shell commands forming the authoritative gate, run once per intent

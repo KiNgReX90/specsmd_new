@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
+const { reviewBefore } = require('./review-fixture.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const WRITER = path.join(__dirname, 'state-transition.cjs');
@@ -82,6 +83,7 @@ function fixture(t) {
   git(root, ['push', '-qu', 'origin', 'main']);
   const env = { ...process.env, XDG_CACHE_HOME: path.join(dir, 'cache'), INFERNO_FLOW_BUDGET: path.join(dir, 'no-budget') };
   const run = (args, node = []) => {
+    reviewBefore(args, root);
     const result = spawnSync(process.execPath, [...node, RUN, ...args], { cwd: root, encoding: 'utf8', env });
     return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
   };

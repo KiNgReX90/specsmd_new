@@ -22,6 +22,11 @@ const CLAUDE_ROLE_FILES: Record<string, string[]> = {
     '.specsmd/inferno/agents/oracle/agent.md',
   ],
   planner: ['.claude/agents/specsmd-inferno-planner.md', '.specsmd/inferno/agents/planner/agent.md'],
+  reviewer: [
+    '.claude/commands/specsmd-inferno-reviewer.md',
+    '.claude/agents/specsmd-inferno-reviewer.md',
+    '.specsmd/inferno/agents/reviewer/agent.md',
+  ],
 };
 
 function pins(rel: string) {
@@ -55,6 +60,7 @@ describe.sequential('role pins from host config', () => {
       config: ['claude-sonnet-5-5', 'high'],
       oracle: ['claude-opus-5-5', 'xhigh'],
       planner: ['claude-opus-5-5', 'xhigh'],
+      reviewer: ['claude-opus-5-5', 'xhigh'],
     };
     for (const [role, files] of Object.entries(CLAUDE_ROLE_FILES)) {
       for (const rel of files) expect(pins(rel), rel).toEqual(expected[role]);

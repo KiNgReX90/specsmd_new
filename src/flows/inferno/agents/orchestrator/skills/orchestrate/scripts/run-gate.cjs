@@ -10,6 +10,7 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const processes = require('./run-processes.cjs');
+const intentReview = require('./run-intent-owed.cjs');
 
 const { RunError } = lib;
 
@@ -214,8 +215,12 @@ function gateNow(options) {
   refuseDirty(tree);
   const initial = gateCommands(tree, options.config);
   const base = options.base || resolveBase(initial.config, null, tree);
+  const intent = intentReview.intentFor(tree, options);
+  const before = lib.git(tree, ['rev-parse', 'HEAD']);
   const folded = foldBase(tree, base);
   const { config, commands } = gateCommands(tree, options.config);
+  const unreviewed = intentReview.gateRefusal(tree, config, intent, options, before, folded);
+  if (unreviewed) return unreviewed;
   // Reject a verdict if the inputs change while the gate runs.
   const codeHash = lib.codeTreeHash(tree);
   const head = lib.git(tree, ['rev-parse', 'HEAD']);
@@ -330,10 +335,16 @@ function gateDetach(options) {
     );
   }
 
+  const intent = intentReview.intentFor(tree, options);
+  const before = lib.git(tree, ['rev-parse', 'HEAD']);
   const folded = foldBase(tree, options.base || resolveBase(config, null, tree));
+  // Refused here too, or the child dies refusing and --wait reports a gate with no result.
+  const unreviewed = intentReview.gateRefusal(tree, gateCommands(tree, options.config).config, intent, options, before, folded);
+  if (unreviewed) return unreviewed;
   fs.mkdirSync(path.dirname(paths.job), { recursive: true });
   const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
+  if (options.intent) args.push('--intent', options.intent);
   if (options.config) args.push('--config', options.config);
   const out = fs.openSync(paths.result, 'w');
   const err = fs.openSync(paths.log, 'w');
@@ -412,9 +423,10 @@ function green(options) {
   const { config, commands } = gateCommands(tree, options.config);
   const hash = lib.codeTreeHash(tree);
   const missing = commands.filter((command) => !proofs.readProof(proofs.commandProof(tree, config, options.config, command)));
-  return missing.length === 0
-    ? { exit: 0, payload: { green: true, hash }, out: [`green ${hash}`] }
-    : { exit: 3, payload: { green: false, hash, missing }, out: [`no green marker for ${hash}`, 'run gate first'] };
+  const { owed, out } = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options));
+  if (missing.length === 0 && owed.length === 0) return { exit: 0, payload: { green: true, hash }, out: [`green ${hash}`] };
+  if (missing.length > 0) out.push(`no green marker for ${hash}`, 'run gate first');
+  return { exit: 3, payload: { green: false, hash, missing, owed }, out };
 }
 
 module.exports = {

@@ -1,0 +1,127 @@
+const assert = require("node:assert/strict");
+const test = require("node:test");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { execFileSync, spawn, spawnSync } = require("node:child_process");
+
+// `run.cjs mutate` breaks one line, runs the test that should notice, and always puts the
+// line back: after a pass, a failure, a signal, and after a run killed outright.
+
+const RUN = path.join(__dirname, "run.cjs");
+const FILE = "src/m.js";
+const ORIGINAL = "module.exports = 1;\n";
+const CHECK = "node -e \"process.exit(require('./src/m.js') === 1 ? 0 : 1)\"";
+
+function git(cwd, ...args) {
+  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+function fixture(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-mutate-"));
+  t.after(() => {
+    spawnSync("chmod", ["-R", "u+w", dir]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const tree = path.join(dir, "app");
+  fs.mkdirSync(path.join(tree, "src"), { recursive: true });
+  git(tree, "init", "-q", "-b", "main");
+  git(tree, "config", "user.email", "test@example.com");
+  git(tree, "config", "user.name", "Test");
+  fs.writeFileSync(path.join(tree, FILE), ORIGINAL);
+  git(tree, "add", "-A");
+  git(tree, "commit", "-qm", "init");
+  return { tree, cache: path.join(dir, "cache"), dir };
+}
+
+const args = (f, test, extra = []) =>
+  [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "1", "--replace", "module.exports = 2;", "--test", test, ...extra];
+const env = (f) => ({ ...process.env, XDG_CACHE_HOME: f.cache });
+
+function mutate(f, test) {
+  const result = spawnSync(process.execPath, args(f, test), { cwd: f.tree, encoding: "utf8", env: env(f) });
+  return { code: result.status, out: result.stdout, err: result.stderr };
+}
+
+const content = (f) => fs.readFileSync(path.join(f.tree, FILE), "utf8");
+
+test("a test that notices the broken line reads caught yes, and the line is restored", (t) => {
+  const f = fixture(t);
+  const result = mutate(f, CHECK);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /^caught yes$/m);
+  assert.equal(content(f), ORIGINAL);
+  assert.equal(git(f.tree, "status", "--porcelain"), "");
+});
+
+test("a test that misses it reads caught no and exits 0", (t) => {
+  const f = fixture(t);
+  const result = mutate(f, "true");
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /^caught no$/m);
+  assert.equal(content(f), ORIGINAL);
+});
+
+test("mutate refuses a dirty tree and touches nothing", (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.tree, "src/other.js"), "x\n");
+  const result = mutate(f, CHECK);
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.err, /dirty|uncommitted/);
+  assert.equal(content(f), ORIGINAL);
+});
+
+test("mutate refuses a line that does not change, a line past the end and an untracked file", (t) => {
+  const f = fixture(t);
+  const same = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "1",
+    "--replace", "module.exports = 1;", "--test", "true"], { encoding: "utf8", env: env(f) });
+  assert.equal(same.status, 2, same.stderr);
+  const past = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "9",
+    "--replace", "x", "--test", "true"], { encoding: "utf8", env: env(f) });
+  assert.equal(past.status, 2, past.stderr);
+  const outside = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", "src/none.js", "--line", "1",
+    "--replace", "x", "--test", "true"], { encoding: "utf8", env: env(f) });
+  assert.equal(outside.status, 2, outside.stderr);
+});
+
+/** Start a mutate whose test holds until `release` exists; resolves once the mutant is in place. */
+async function held(f) {
+  const release = path.join(f.dir, "release");
+  const child = spawn(process.execPath, args(f, `until [ -f ${release} ]; do sleep 0.05; done; true`),
+    { cwd: f.tree, env: env(f), stdio: "ignore" });
+  const done = new Promise((resolve) => child.on("close", (code, signal) => resolve({ code, signal })));
+  for (let i = 0; i < 200 && content(f) === ORIGINAL; i += 1) await new Promise((r) => setTimeout(r, 25));
+  assert.notEqual(content(f), ORIGINAL, "the mutant never landed");
+  return { child, done, release: () => fs.writeFileSync(release, "") };
+}
+
+test("a signal during the test still restores the line", async (t) => {
+  const f = fixture(t);
+  const run = await held(f);
+  run.child.kill("SIGTERM");
+  run.release();
+  await run.done;
+  assert.equal(content(f), ORIGINAL);
+  assert.equal(git(f.tree, "status", "--porcelain"), "");
+});
+
+test("a run killed outright is restored by the next mutate before it starts", async (t) => {
+  const f = fixture(t);
+  const run = await held(f);
+  run.child.kill("SIGKILL");
+  await run.done;
+  run.release();
+  assert.notEqual(content(f), ORIGINAL);
+  const next = mutate(f, CHECK);
+  assert.equal(next.code, 0, next.out + next.err);
+  assert.match(next.out, /restored src\/m\.js/);
+  assert.match(next.out, /^caught yes$/m);
+  assert.equal(content(f), ORIGINAL);
+});
+
+test("a restore that fails exits 2 and names the file", (t) => {
+  const f = fixture(t);
+  const result = mutate(f, "chmod a-w src/m.js src");
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.out + result.err, /restore.*src\/m\.js|src\/m\.js.*restore/);
+});

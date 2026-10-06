@@ -40,14 +40,19 @@ function listOf(rel, doc, key) {
   return value;
 }
 
-/** Every entry of a findings or mutants list holds exactly `keys`, each with a value. */
-function entries(rel, doc, key, keys) {
+/**
+ * Every entry of a list holds `keys`, each with a value, plus at most the `optional` ones,
+ * which carry a value when present.
+ */
+function entries(rel, doc, key, keys, optional = []) {
+  const known = [...keys, ...optional];
   return listOf(rel, doc, key).map((entry, index) => {
-    if (!isMap(entry)) throw bad(rel, `${key} entry ${index + 1} must be a map of ${keys.join(', ')}`);
+    if (!isMap(entry)) throw bad(rel, `${key} entry ${index + 1} must be a map of ${known.join(', ')}`);
     for (const name of Object.keys(entry)) {
-      if (!keys.includes(name)) throw bad(rel, `unknown key ${name} in ${key} entry ${index + 1}: it holds ${keys.join(', ')} only`);
+      if (!known.includes(name)) throw bad(rel, `unknown key ${name} in ${key} entry ${index + 1}: it holds ${known.join(', ')} only`);
     }
-    for (const name of keys) {
+    for (const name of known) {
+      if (!keys.includes(name) && entry[name] === undefined) continue;
       if (typeof entry[name] !== 'string' || entry[name].trim() === '') {
         throw bad(rel, `${key} entry ${index + 1} has no ${name}`);
       }
@@ -56,16 +61,22 @@ function entries(rel, doc, key, keys) {
   });
 }
 
+/** A path a review names: relative, inside the tree. */
+function relativePath(rel, file, what) {
+  const normal = path.posix.normalize(file);
+  if (path.isAbsolute(file) || normal.startsWith('../') || normal === '..') {
+    throw bad(rel, `${what} names ${file}, a path outside the tree; name paths relative to the tree`);
+  }
+  return normal;
+}
+
 /** The files a review binds: paths inside the tree, outside the ledger, present on disk. */
 function boundFiles(tree, rel, doc) {
   const files = listOf(rel, doc, 'files');
   if (files.length === 0) throw bad(rel, 'files must list every file the review read for this item');
   for (const file of files) {
     if (typeof file !== 'string' || file.trim() === '') throw bad(rel, 'files holds paths only');
-    const normal = path.posix.normalize(file);
-    if (path.isAbsolute(file) || normal.startsWith('../') || normal === '..') {
-      throw bad(rel, `files lists ${file}, a path outside the tree; list paths relative to the tree`);
-    }
+    const normal = relativePath(rel, file, 'files');
     if (normal === lib.SPECS_DIR || normal.startsWith(`${lib.SPECS_DIR}/`)) {
       throw bad(rel, `files lists ${file}; the ledger is never part of the code a review binds`);
     }
@@ -74,18 +85,22 @@ function boundFiles(tree, rel, doc) {
   return [...new Set(files.map((file) => path.posix.normalize(file)))];
 }
 
+/** A review file as data; a YAML error goes back to the reviewer like any other. */
+function readDoc(tree, rel) {
+  try {
+    return lib.parseYaml(fs.readFileSync(path.join(tree, rel), 'utf8'));
+  } catch (error) {
+    if (error instanceof RunError) throw bad(rel, error.message.replace(/\.$/, ''));
+    throw error;
+  }
+}
+
 /**
  * Read and validate one item review. `recorded` is true for a file run.cjs already recorded,
  * which carries the tree and commit it added; a fresh file may not carry them.
  */
 function parseItemReview(tree, rel, itemId, { recorded }) {
-  let doc;
-  try {
-    doc = lib.parseYaml(fs.readFileSync(path.join(tree, rel), 'utf8'));
-  } catch (error) {
-    if (error instanceof RunError) throw bad(rel, error.message.replace(/\.$/, ''));
-    throw error;
-  }
+  const doc = readDoc(tree, rel);
   if (!isMap(doc)) throw bad(rel, 'an item review is a map of item, verdict, files, findings and mutants');
   for (const key of Object.keys(doc)) {
     if (ITEM_KEYS.includes(key) || (recorded && RECORDED_KEYS.includes(key))) continue;
@@ -96,7 +111,16 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
   if (doc.verdict !== 'clean' && doc.verdict !== 'fix') throw bad(rel, 'verdict must be clean or fix');
 
   const files = boundFiles(tree, rel, doc);
-  const findings = entries(rel, doc, 'findings', FINDING_KEYS);
+  const { findings, mutants, survivors } = verdictParts(rel, doc, FINDING_KEYS);
+  return { item: itemId, verdict: doc.verdict, files, findings, mutants, survivors };
+}
+
+/**
+ * The findings and mutants of an item or intent review, held to its verdict. A surviving
+ * mutant is a finding too: a test that misses a broken criterion proves nothing.
+ */
+function verdictParts(rel, doc, findingKeys) {
+  const findings = entries(rel, doc, 'findings', findingKeys);
   for (const finding of findings) {
     if (!/^\d+$/.test(finding.line)) throw bad(rel, `finding line must be a line number, not ${finding.line}`);
   }
@@ -105,8 +129,6 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
     if (mutant.caught !== 'yes' && mutant.caught !== 'no') throw bad(rel, 'mutant caught must be yes or no');
   }
   const survivors = mutants.filter((mutant) => mutant.caught === 'no');
-
-  // A surviving mutant is a finding too: a test that misses a broken criterion proves nothing.
   if (doc.verdict === 'clean' && findings.length > 0) {
     throw bad(rel, `verdict clean with ${findings.length} finding(s); a review with a finding says fix`);
   }
@@ -116,7 +138,9 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
   if (doc.verdict === 'fix' && findings.length === 0 && survivors.length === 0) {
     throw bad(rel, 'verdict fix with no finding and no surviving mutant; name what to fix or say clean');
   }
-  return { item: itemId, verdict: doc.verdict, files, findings, mutants, survivors };
+  return { findings, mutants, survivors };
 }
 
-module.exports = { parseItemReview, reviewPath };
+module.exports = {
+  FINDING_KEYS, ITEM_KEYS, MUTANT_KEYS, RECORDED_KEYS, bad, entries, isMap, parseItemReview, readDoc, relativePath, reviewPath, verdictParts,
+};

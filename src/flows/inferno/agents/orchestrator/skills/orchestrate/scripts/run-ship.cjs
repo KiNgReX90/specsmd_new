@@ -86,10 +86,10 @@ function ship(intentId, options) {
   }
 
   // (2) The folded tree has to be the tree that passed the gate.
-  const proof = green({ tree, config: options.config });
+  const proof = green({ tree, config: options.config, intent: intentId });
   if (proof.exit !== 0) {
-    out.push(`${branch} is not green after folding ${base} in`, 'run gate first');
-    return { exit: 3, payload: { ok: false, step: 'green', hash: proof.payload.hash }, out };
+    out.push(`${branch} is not green after folding ${base} in`, ...proof.out);
+    return { exit: 3, payload: { ok: false, step: 'green', hash: proof.payload.hash, owed: proof.payload.owed }, out };
   }
 
   // (3) Merge, from the primary checkout.
