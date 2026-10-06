@@ -3,12 +3,16 @@
 /**
  * The intent worktrees of a repository, read from `git worktree list`: which one an intent
  * owns, which branches it left, which intent a branch belongs to, and which trees a finished
- * run left standing.
+ * run left standing. Also the bootstrap phases a worktree has completed, so a resume runs only
+ * the phases still owed.
  */
 
+const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 
 const lib = require('./run-lib.cjs');
+const { atomicWrite } = require('./state-store.cjs');
 
 function worktreeEntries(root) {
   const out = [];
@@ -55,4 +59,73 @@ function leftoverWorktrees(root, ledger, base) {
   return out;
 }
 
-module.exports = { branchesFor, intentOf, leftoverWorktrees, worktreeEntries, worktreeFor };
+// ---------------------------------------------------------------------------
+// bootstrap phases
+// ---------------------------------------------------------------------------
+
+/**
+ * Each bootstrap command is a phase, recorded in the worktree's own git dir once it passes.
+ * An interrupted or failed bootstrap used to leave the tree standing, and the next `worktree`
+ * call saw the tree and reported a resume with the dependencies absent or half installed. Now
+ * a resume runs the phases that never completed and skips the ones that did, unless the
+ * commands or the dependency files they read changed since, which reruns from that phase on.
+ */
+const BOOTSTRAP = 'inferno-bootstrap.json';
+const DEPENDENCY_FILE = /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|Cargo\.toml|Cargo\.lock|pyproject\.toml|uv\.lock|go\.mod|go\.sum)$/;
+
+function bootstrapPath(tree) {
+  return path.resolve(tree, lib.git(tree, ['rev-parse', '--git-path', BOOTSTRAP]));
+}
+
+/** A fingerprint of the commands up to a phase and of the dependency files they install from. */
+function bootstrapInput(tree, commands) {
+  const files = lib.gitLines(tree, ['ls-files'])
+    .filter((file) => DEPENDENCY_FILE.test(file) || commands.some((command) => command.includes(file)));
+  const hash = crypto.createHash('sha256').update(JSON.stringify(commands));
+  for (const file of files.sort()) {
+    const abs = path.join(tree, file);
+    hash.update(file);
+    hash.update(fs.existsSync(abs) && fs.statSync(abs).isFile() ? fs.readFileSync(abs) : 'missing');
+  }
+  return hash.digest('hex');
+}
+
+function readBootstrap(file) {
+  try {
+    const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return record && Array.isArray(record.phases) ? record : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/** Run the bootstrap phases still owed. Edits already in the tree are never counted as its mess. */
+function bootstrap(tree, intentId, commands, options) {
+  const file = bootstrapPath(tree);
+  const record = readBootstrap(file) || { version: 1, intent: intentId, phases: [] };
+  const save = () => atomicWrite(file, `${JSON.stringify(record, null, 2)}\n`);
+  const prior = lib.dirtyPaths(tree);
+  const results = [];
+  record.complete = false;
+  save();
+  for (const [index, command] of commands.entries()) {
+    const input = bootstrapInput(tree, commands.slice(0, index + 1));
+    const done = record.phases[index];
+    if (done && done.complete && done.input === input) continue;
+    record.phases = record.phases.slice(0, index);
+    const log = path.join(lib.cacheDir(options.root), 'bootstrap', `${intentId}-${index}.log`);
+    const result = (options.runShell || lib.runShell)(command, tree, log, { wrap: false });
+    record.phases[index] = { command, input, complete: result.code === 0, code: result.code, log };
+    results.push(result);
+    save();
+    if (result.code !== 0) return { ok: false, results, log };
+  }
+  record.phases = record.phases.slice(0, commands.length);
+  const dirty = lib.dirtyPaths(tree).filter((file) => !prior.includes(file));
+  if (dirty.length > 0) return { ok: false, results, dirty };
+  record.complete = true;
+  save();
+  return { ok: true, results };
+}
+
+module.exports = { bootstrap, bootstrapPath, branchesFor, intentOf, leftoverWorktrees, worktreeEntries, worktreeFor };

@@ -27,6 +27,7 @@ const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
 const { TransitionError } = require('./state-transition.cjs');
+const processes = require('./run-processes.cjs');
 
 const { RunError } = lib;
 
@@ -49,6 +50,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
   node run.cjs ship <intent-id> --tree <dir> [--config <file>] fold, merge, push, verify, tear down
   node run.cjs teardown --tree <dir> [--base <branch>] [--config <file>] remove a worktree and branch the base already holds
+  node run.cjs register-process <pid> --tree <dir> --run-id <id> let teardown stop a process the run launched in the tree
   node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>
 
 Options
@@ -69,6 +71,16 @@ function required(value, usage) {
   return value;
 }
 
+const REGISTER = 'register-process <pid> --tree <dir> --run-id <id>';
+
+/** Only a process registered here, by its full identity, can receive teardown's signal. */
+function registerProcess(pid, tree, runId) {
+  if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER}`, 'BAD_ARGS', 1);
+  processes.linkedTree(lib.primaryRoot(tree), tree);
+  const record = processes.registerProcess(tree, Number(pid), runId);
+  return { exit: 0, payload: { registered: Number(pid), tree: record.tree, run_id: runId }, out: [`registered ${pid} in ${record.tree}`] };
+}
+
 const COMMANDS = {
   select: (args, options) => intents.select(options),
   claim: (args, options) => intents.claim(required(args[0], 'claim <intent-id>'), options),
@@ -83,6 +95,8 @@ const COMMANDS = {
   green: (args, options) => gate.green(options),
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),
   teardown: (args, options) => teardown(options),
+  'register-process': (args, options) =>
+    registerProcess(required(args[0], REGISTER), required(options.tree, REGISTER), required(options.run_id, REGISTER)),
   'dispatch-log': (args, options) =>
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
 };

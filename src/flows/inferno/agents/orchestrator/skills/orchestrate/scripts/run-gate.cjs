@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const { resolveBase } = require('./run-intents.cjs');
+const processes = require('./run-processes.cjs');
 
 const { RunError } = lib;
 
@@ -295,6 +296,10 @@ function gateDetach(options) {
   fs.closeSync(out);
   fs.closeSync(err);
   child.unref();
+  // The gate is a process the run launched in its worktree, so teardown may stop it.
+  const owner = processes.loadOwnership(tree);
+  const identity = processes.processIdentity(child.pid);
+  if (owner && identity) processes.registerProcess(tree, child.pid, owner.run_id, { inspect: () => identity });
 
   const job = { pid: child.pid, config: options.config || `${lib.SPECS_DIR}/config.yaml`, started: new Date().toISOString(), tree, branch: lib.currentBranch(tree), ...paths };
   fs.writeFileSync(paths.job, `${JSON.stringify(job)}\n`, 'utf8');

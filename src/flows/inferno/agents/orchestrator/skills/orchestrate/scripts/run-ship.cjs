@@ -22,6 +22,7 @@ const lib = require('./run-lib.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { intentOf, worktreeEntries } = require('./run-worktrees.cjs');
 const { green } = require('./run-gate.cjs');
+const { linkedTree, loadOwnership, stopOwnedProcesses } = require('./run-processes.cjs');
 
 const { RunError } = lib;
 const TERMINAL = new Set(['completed', 'done']);
@@ -47,23 +48,12 @@ function closedInTree(tree, intentId) {
   );
 }
 
-/** Kill only what this worktree spawned: processes whose cwd sits inside it. */
-function killProcessesIn(tree) {
-  const pids = (lib.processesIn(tree) || []).filter((pid) => pid !== process.pid && pid !== process.ppid);
-  for (const pid of pids) {
-    try {
-      process.kill(pid, 'SIGTERM');
-    } catch (error) {
-      // Already gone between the scan and the signal: nothing to do.
-    }
-  }
-  return pids;
-}
-
 function ship(intentId, options) {
   if (!options.tree) throw new RunError('ship requires --tree <worktree path>', 'BAD_ARGS', 1);
   const tree = path.resolve(options.tree);
   const primary = lib.primaryRoot(options.cwd);
+  // Before anything merges, pushes or signals: the tree is this intent's linked worktree.
+  linkedTree(primary, tree, intentId);
   const config = lib.readConfig(options.config ? tree : primary, options.config);
   const closed = closedInTree(tree, intentId);
   const base = options.base || resolveBase(config, closed, primary);
@@ -123,7 +113,7 @@ function ship(intentId, options) {
     out.push(`${base} verified against ${target}`);
 
     // (6) Teardown, safe because step 5 proved the work is reachable from the base branch.
-    removeWorktree(primary, tree, branch, out, left);
+    removeWorktree(primary, tree, branch, out, left, options);
   } catch (error) {
     out.push(`${error.message}`, `left to do: ${left.join('; ')}`);
     return { exit: 2, payload: { ok: false, step: 'after-merge', sha, left }, out };
@@ -133,10 +123,14 @@ function ship(intentId, options) {
   return { exit: 0, payload: { ok: true, intent: intentId, branch, base, sha, tip }, out };
 }
 
-/** Stop the worktree's processes, remove it, delete its branch. `left` names what a failure leaves owed. */
-function removeWorktree(primary, tree, branch, out, left) {
+/**
+ * Stop the processes the run registered in the worktree, remove it, delete its branch. A
+ * process that merely sits in the tree is never signalled; see run-processes.cjs. `left` names
+ * what a failure leaves owed.
+ */
+function removeWorktree(primary, tree, branch, out, left, options) {
   left.push(`git -C ${primary} worktree remove ${tree}`, `git -C ${primary} branch -d ${branch}`);
-  const killed = killProcessesIn(tree);
+  const killed = stopOwnedProcesses(loadOwnership(tree), options.processTransport);
   if (killed.length > 0) out.push(`stopped ${killed.length} process(es) in the worktree`);
   lib.git(primary, ['worktree', 'remove', tree]);
   left.shift();
@@ -183,7 +177,7 @@ function teardown(options) {
   const out = [];
   const left = [];
   try {
-    removeWorktree(primary, tree, branch, out, left);
+    removeWorktree(primary, tree, branch, out, left, options);
   } catch (error) {
     out.push(`${error.message}`, `left to do: ${left.join('; ')}`);
     return { exit: 2, payload: { ok: false, tree, branch, left }, out };
