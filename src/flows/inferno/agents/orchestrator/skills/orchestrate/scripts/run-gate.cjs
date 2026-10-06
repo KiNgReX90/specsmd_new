@@ -11,7 +11,7 @@ const proofs = require('./run-proofs.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const processes = require('./run-processes.cjs');
 const intentReview = require('./run-intent-owed.cjs');
-const { recoverInterrupted } = require('./run-mutate.cjs');
+const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
 
@@ -24,10 +24,9 @@ function refuseDirty(tree) {
   const restored = recoverInterrupted(tree);
   const dirty = lib.dirtyPaths(tree);
   if (dirty.length > 0) {
-    throw new RunError(
-      `refusing to verify a dirty tree: ${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? ` and ${dirty.length - 5} more` : ''}. Commit or discard first.`,
-      'DIRTY'
-    );
+    throw new RunError(afterRecovery(restored,
+      `refusing to verify a dirty tree: ${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? ` and ${dirty.length - 5} more` : ''}. Commit or discard first.`),
+    'DIRTY');
   }
   return restored;
 }

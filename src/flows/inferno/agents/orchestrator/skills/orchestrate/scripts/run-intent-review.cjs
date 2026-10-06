@@ -18,7 +18,7 @@ const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
-const { recoverInterrupted } = require('./run-mutate.cjs');
+const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
 
@@ -131,11 +131,9 @@ function reviewIntent(options) {
     const restored = recoverInterrupted(tree);
     const dirty = lib.dirtyPaths(tree).filter((file) => file !== rel);
     if (dirty.length > 0) {
-      throw new RunError(
+      throw new RunError(afterRecovery(restored,
         `refusing to record the intent review over uncommitted work in ${dirty.slice(0, 5).join(', ')}: ` +
-          'commit or discard it, then run this command again.',
-        'DIRTY'
-      );
+          'commit or discard it, then run this command again.'), 'DIRTY');
     }
     if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, restored);
     const sent = readDispatch(tree, intent);

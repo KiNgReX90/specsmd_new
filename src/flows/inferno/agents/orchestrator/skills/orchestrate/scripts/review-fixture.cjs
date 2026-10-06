@@ -181,10 +181,11 @@ function reviewBefore(args, cwd) {
 }
 
 /**
- * Leave behind what a mutate killed outright leaves: its mutant in line 1 of `file` and its
- * journal. The mutate's test waits for a release file that is written only after the kill.
+ * Start a mutate whose test waits for a release file, and resolve once its mutant sits in line 1
+ * of `file`. `release` lets it finish and restore; `kill` ends it outright, so the mutant and
+ * its journal stay behind.
  */
-async function killedMutate(fixture, tree, file = 'src/a.ts', replace = 'export const a = 99;') {
+async function heldMutate(fixture, tree, file = 'src/a.ts', replace = 'export const a = 99;') {
   const abs = path.join(tree, file);
   const before = fs.readFileSync(abs, 'utf8');
   const release = path.join(path.dirname(fixture.root), `release-${process.hrtime.bigint()}`);
@@ -193,10 +194,25 @@ async function killedMutate(fixture, tree, file = 'src/a.ts', replace = 'export 
   { cwd: tree, env: { ...process.env, XDG_CACHE_HOME: fixture.cache }, stdio: 'ignore' });
   const done = new Promise((resolve) => child.on('close', resolve));
   for (let i = 0; i < 200 && fs.readFileSync(abs, 'utf8') === before; i += 1) await new Promise((r) => setTimeout(r, 25));
-  child.kill('SIGKILL');
-  await done;
-  fs.writeFileSync(release, '');
-  assert.notEqual(fs.readFileSync(abs, 'utf8'), before, 'the mutant never landed');
+  const landed = fs.readFileSync(abs, 'utf8') !== before;
+  if (!landed) child.kill('SIGKILL');
+  assert.ok(landed, 'the mutant never landed');
+  return {
+    release: async () => {
+      fs.writeFileSync(release, '');
+      await done;
+    },
+    kill: async () => {
+      child.kill('SIGKILL');
+      await done;
+      fs.writeFileSync(release, '');
+    },
+  };
+}
+
+/** Leave behind what a mutate killed outright leaves: its mutant in line 1 of `file` and its journal. */
+async function killedMutate(fixture, tree, file, replace) {
+  await (await heldMutate(fixture, tree, file, replace)).kill();
 }
 
 /** Mark items reviewed clean straight through the writer, for a ledger a test completes by hand. */
@@ -208,6 +224,6 @@ function markReviewed(state, ids, intent = 'alpha') {
 }
 
 module.exports = {
-  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, hostLock, intentReviewed, killedMutate, markReviewed, repo, reviewBefore,
-  reviewed, run, worktree, write,
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed, repo,
+  reviewBefore, reviewed, run, worktree, write,
 };

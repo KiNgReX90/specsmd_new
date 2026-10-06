@@ -149,6 +149,12 @@ test("a second mutate refuses while a live run holds its mutant, and the live ru
   assert.equal(content(f), ORIGINAL);
 });
 
+/** The journal a run writes under the fixture's cache, or null. */
+function journalOf(f) {
+  const rel = fs.existsSync(f.cache) && fs.readdirSync(f.cache, { recursive: true }).find((p) => p.endsWith("mutate-journal.json"));
+  return rel ? path.join(f.cache, rel) : null;
+}
+
 /** Fields 3 (state) and 22 (start time) of /proc/<pid>/stat; the name in field 2 may hold spaces. */
 function procStat(pid) {
   const text = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
@@ -180,7 +186,7 @@ for (const [name, owner] of [
     run.child.kill("SIGKILL");
     await run.done;
     run.release();
-    const journal = path.join(f.cache, fs.readdirSync(f.cache, { recursive: true }).find((p) => p.endsWith("mutate-journal.json")));
+    const journal = journalOf(f);
     fs.writeFileSync(journal, JSON.stringify({ ...JSON.parse(fs.readFileSync(journal, "utf8")), ...(await owner(t)) }));
     assert.notEqual(content(f), ORIGINAL);
     const next = mutate(f, CHECK);
@@ -188,5 +194,30 @@ for (const [name, owner] of [
     assert.match(next.out, /restored src\/m\.js/);
     assert.match(next.out, /^caught yes$/m);
     assert.equal(content(f), ORIGINAL);
+  });
+}
+
+// A file edited after its mutate was killed: the mutant line is found again by its text, never
+// guessed at, and the journal goes only with a line that says what happened to it.
+for (const [name, edit, after, said, kept] of [
+  ["a line added above it", (text) => `// first\n${text}`, "// first\nmodule.exports = 1;\n",
+    /restored line 2 of src\/m\.js from an interrupted mutate/, false],
+  ["the mutant line edited away", () => "module.exports = 7;\n", "module.exports = 7;\n",
+    /src\/m\.js changed after an interrupted mutate and no longer holds its mutant "module\.exports = 2;"/, false],
+  ["the mutant line twice", (text) => `${text}${text}`, "module.exports = 2;\nmodule.exports = 2;\n",
+    /src\/m\.js .*lines 1, 2.*"module\.exports = 1;".*mutate-journal\.json/, true],
+]) {
+  test(`a leftover mutant under a later edit, ${name}, is handled out loud`, async (t) => {
+    const f = fixture(t);
+    const run = await held(f);
+    run.child.kill("SIGKILL");
+    await run.done;
+    run.release();
+    fs.writeFileSync(path.join(f.tree, FILE), edit(content(f)));
+    const next = mutate(f, CHECK);
+    assert.equal(next.code, 2, next.out + next.err);
+    assert.match(next.err, said);
+    assert.equal(content(f), after);
+    assert.equal(journalOf(f) !== null, kept);
   });
 }

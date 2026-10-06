@@ -20,7 +20,7 @@ const path = require('path');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
-const { recoverInterrupted } = require('./run-mutate.cjs');
+const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 
@@ -201,17 +201,17 @@ function review(options) {
   const pending = exists && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   const current = exists && !pending ? parseItemReview(tree, rel, item.id, { recorded: true }) : null;
 
-  // A mutant a killed mutate left behind goes back first, so it never reads as this item's work.
-  const restored = recoverInterrupted(tree);
-  // Only this item's work has to be committed: another builder may be editing beside it.
+  // Only this item's work has to be committed: another builder may be editing beside it, and
+  // another item's reviewer may be running a mutant beside it. A dead run's mutant goes back
+  // first, so it never reads as this item's work.
   const listed = current ? current.files : [];
-  const dirty = lib.dirtyPaths(tree).filter((file) => lib.ownedBy(file, editable) || listed.includes(file));
+  const mine = (file) => lib.ownedBy(file, editable) || listed.includes(file);
+  const restored = recoverInterrupted(tree, { keepLive: (file) => !mine(file) });
+  const dirty = lib.dirtyPaths(tree).filter(mine);
   if (dirty.length > 0) {
-    throw new RunError(
+    throw new RunError(afterRecovery(restored,
       `refusing to review ${item.id} over uncommitted work in ${dirty.slice(0, 5).join(', ')}: ` +
-        'commit the item first, then run this command again.',
-      'DIRTY'
-    );
+        'commit the item first, then run this command again.'), 'DIRTY');
   }
 
   const result = step(tree, context, { ledger, editable, exists, pending, current });
