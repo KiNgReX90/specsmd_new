@@ -100,13 +100,13 @@ describe('inferno flow', () => {
 
   it.each([
     ['commands/inferno-planner.md', 'claude-opus-5-5', 'xhigh'],
-    ['commands/inferno-builder.md', 'claude-opus-5-5', 'xhigh'],
-    ['commands/inferno-builder-cheap.md', 'claude-opus-5-5', 'medium'],
-    ['commands/inferno-config.md', 'claude-sonnet-4-6', 'high'],
+    ['commands/inferno-builder.md', 'claude-opus-5-5', 'high'],
+    ['commands/inferno-builder-cheap.md', 'claude-sonnet-5-5', 'high'],
+    ['commands/inferno-config.md', 'claude-sonnet-5-5', 'high'],
     ['commands/inferno-oracle.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5-5', 'xhigh'],
-    ['agents/builder/agent.md', 'claude-opus-5-5', 'xhigh'],
-    ['agents/builder-cheap/agent.md', 'claude-opus-5-5', 'medium'],
+    ['agents/builder/agent.md', 'claude-opus-5-5', 'high'],
+    ['agents/builder-cheap/agent.md', 'claude-sonnet-5-5', 'high'],
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
@@ -116,7 +116,7 @@ describe('inferno flow', () => {
 
   // The orchestrator is the main thread: it inherits the session's model and
   // effort, so pinning either one here would override the user's own session.
-  it.each(['commands/inferno.md', 'agents/orchestrator/agent.md'])(
+  it.each(['commands/inferno.md', 'agents/orchestrator/agent.md', 'claude/commands/inferno-planner.md'])(
     '%s pins neither model nor effort',
     (rel) => {
       const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
@@ -156,12 +156,74 @@ describe('inferno flow', () => {
       'utf8'
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5-5\b/m);
-    expect(config).toMatch(/^\s*cheap:\s*claude-opus-5-5\b/m);
+    expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-5-5\b/m);
     // No run dispatches a tester, so the example offers no tester tier.
     expect(config).not.toMatch(/^\s*tester(?:_high)?:/m);
     // The planner writes its own work items, so the scribe tier is gone.
     expect(config).not.toMatch(/^\s*writer:/m);
     expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);
+  });
+
+  // Which test trees a project has is host knowledge, so the planner reads them from config.
+  it.each([
+    'agents/planner/agent.md',
+    'commands/inferno-planner.md',
+    'codex/skills/specsmd-inferno-planner/references/procedure.md',
+  ])('%s takes its blast-radius test trees from planner.test_trees', (rel) => {
+    const text = readFileSync(path.join(INFERNO, rel), 'utf8');
+    expect(text).toMatch(/`planner\.test_trees`/);
+    expect(text).not.toMatch(/#\[cfg\(test\)\]/);
+  });
+
+  // The launcher acts on the planner's handoff by its labels, so a label renamed on either
+  // side is a launcher that no longer finds what it builds.
+  it('every label the planner launcher acts on is one the planner agent writes', () => {
+    const launcher = readFileSync(path.join(INFERNO, 'claude/commands/inferno-planner.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/planner/agent.md'), 'utf8');
+    const labels = ['Triage:', 'Intent PLANNED', 'reserve: TC-<n> <title> for <intent-id>/<item-id>', 'direct:', 'oracle:'];
+    for (const label of labels) {
+      expect(launcher, label).toContain(label);
+      expect(agent, label).toContain(label);
+    }
+    for (const field of ['change', 'files', 'test', 'proof', 'grade', 'hard', 'measured']) {
+      expect(launcher, field).toContain(`\`${field}\``);
+      expect(agent, field).toMatch(new RegExp(`^  ${field}: `, 'm'));
+    }
+  });
+
+  it('the intents command names every line prefix the selector prints', () => {
+    const command = readFileSync(path.join(INFERNO, 'claude/commands/inferno-intents.md'), 'utf8');
+    const selector = readFileSync(
+      path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts/run-intents.cjs'),
+      'utf8'
+    );
+    for (const prefix of ['claimable', 'no claimable intent', 'blocked', 'parked', 'running', 'recover', 'leftover']) {
+      expect(selector, prefix).toMatch(new RegExp(`out\\.push\\([\\s\\S]{0,80}?[\`']${prefix}\\b`));
+      expect(command, prefix).toContain(`\`${prefix}\``);
+    }
+  });
+
+  it('the config command is dash-free', () => {
+    const text = readFileSync(path.join(INFERNO, 'commands/inferno-config.md'), 'utf8');
+    expect(text).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  // The flow text states rules; the incident that produced a rule stays out of it.
+  it('no flow md file carries a date, a counted duration or a tally', () => {
+    const spelled = 'one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|' +
+      'fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred';
+    const narrative = [
+      /\b20\d\d-\d\d-\d\d\b/,
+      /\b\d{2,}\s+(?:minutes?|hours?|runs?|replies|reviews|rounds|calls|polls|times)\b/i,
+      new RegExp(`\\b(?:${spelled})(?:[ -](?:${spelled}))?\\s+(?:minutes?|hours?|replies|reviews)\\b`, 'i'),
+    ];
+    const offenders = (readdirSync(INFERNO, { recursive: true, encoding: 'utf8' }) as string[])
+      .filter((file) => file.endsWith('.md'))
+      .flatMap((file) => readFileSync(path.join(INFERNO, file), 'utf8').split('\n')
+        .map((line, at) => [file, at + 1, line] as const)
+        .filter(([, , line]) => narrative.some((pattern) => pattern.test(line)))
+        .map(([name, at]) => `${name}:${at}`));
+    expect(offenders).toEqual([]);
   });
 
   // Discover bundled suites so newly added safety regressions run in normal validation.

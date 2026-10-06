@@ -53,6 +53,7 @@ Proofs from different config files remain separate.
   add the INFERNO activation appendix without replacing project guidance.
 - `.agents/skills/specsmd-inferno*/`: Codex-native workflow adapters.
 - `.codex/agents/*.toml`: exact custom-agent model and reasoning settings.
+- `.codex/rules/*.rules`: the flow's execpolicy rules, relative paths only; machine-specific rules such as absolute paths go in a rules file of the host's own there, which the installer never writes.
 - `.specs-inferno/config.codex.yaml`: Codex autonomy, role routing,
   verification, and delivery settings, created through the first-run config
   skill.
@@ -72,3 +73,6 @@ Proofs from different config files remain separate.
 Custom agents inherit the parent session's sandbox and approval policy. Model
 and reasoning values in `.codex/agents/*.toml` take precedence for their
 spawned roles.
+The installer renders `model` and `reasoning_effort` of each `roles:` entry in
+`.specs-inferno/config.codex.yaml` into the toml its `agent` names, so a host
+changes a pin there and never in an installed toml.

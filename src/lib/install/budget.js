@@ -1,27 +1,33 @@
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const yaml = require('js-yaml');
 const { spawnSync } = require('child_process');
 
-/** The machine-level flow text budget script, or null when this machine has none. */
-function findBudgetScript(env = process.env) {
-    const script = env.INFERNO_FLOW_BUDGET ||
-        path.join(env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
-            'specsmd-inferno', 'flow-text-budget.py');
-    return fs.existsSync(script) ? script : null;
+// The claim owns the lookup, so the installer and a run never look in different places.
+const { resolveBudget } = require('../../flows/inferno/agents/orchestrator/skills/orchestrate/scripts/run-budget.cjs');
+
+function hostConfig(root, flowKey) {
+    const abs = path.join(root, `.specs-${flowKey}`, 'config.yaml');
+    if (!fs.existsSync(abs)) return {};
+    return yaml.load(fs.readFileSync(abs, 'utf8')) || {};
 }
 
 /**
  * Runs the budget script on the host root. Returns null when the text is within budget or
- * no script exists, and the script's output when it refuses.
+ * the lookup found no script, which it logs, and { code, message } when it refuses.
  */
-function checkBudget(root, env = process.env) {
-    const script = findBudgetScript(env);
-    if (!script) return null;
-    const result = spawnSync('python3', [script, '--repo', root, '--quiet'], { encoding: 'utf8', env });
-    if (result.error) return `the budget script ${script} could not run: ${result.error.message}`;
+function checkBudget(root, { flowKey = 'inferno', env = process.env, log = () => {} } = {}) {
+    const found = resolveBudget(hostConfig(root, flowKey), root, env);
+    if (found.missing) return { code: 'BUDGET_MISSING', message: found.missing };
+    if (found.skip) {
+        log(`  ${found.skip}`);
+        return null;
+    }
+    const result = spawnSync('python3', [found.script, '--repo', root, '--quiet'], { encoding: 'utf8', env });
+    if (result.error) return { code: 'OVER_BUDGET', message: `the budget script ${found.script} could not run: ${result.error.message}` };
     if (result.status === 0) return null;
-    return `${result.stdout || ''}${result.stderr || ''}`.trim() || `the budget script exited ${result.status}`;
+    const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+    return { code: 'OVER_BUDGET', message: output || `the budget script exited ${result.status}` };
 }
 
-module.exports = { findBudgetScript, checkBudget };
+module.exports = { checkBudget };

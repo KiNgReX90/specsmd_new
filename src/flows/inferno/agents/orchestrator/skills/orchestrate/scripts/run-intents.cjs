@@ -9,7 +9,6 @@
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -20,6 +19,7 @@ const { archivePaths, archivedIds } = require('./state-archive.cjs');
 const { PARKED_VALUES } = require('./state-ledger.cjs');
 const { branchesFor, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
 const { ownership } = require('./run-owner.cjs');
+const { resolveBudget } = require('./run-budget.cjs');
 
 /** An in_progress intent counts as abandoned after this long with no process, edit or commit in its worktree. */
 const DEFAULT_IDLE_MINUTES = 60;
@@ -199,16 +199,21 @@ function stageAndCommit(root, intentId, message) {
 /**
  * The standing instruction a worker loads is paid on every round of every builder, and the
  * text only stops growing where a run refuses to start under it. One machine-level script
- * holds the ceilings for every repo on the box; a box without it claims as before.
+ * holds the ceilings; run-budget.cjs finds it, and a lookup that finds none says so.
  */
-const FLOW_BUDGET = process.env.INFERNO_FLOW_BUDGET ||
-  path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
-    'specsmd-inferno', 'flow-text-budget.py');
-
-function refuseOverBudget(root) {
-  if (!fs.existsSync(FLOW_BUDGET)) return;
-  const result = spawnSync('python3', [FLOW_BUDGET, '--repo', root, '--quiet'], { encoding: 'utf8' });
-  if (result.error || result.status === null || result.status === 0) return;
+function refuseOverBudget(root, config) {
+  const found = resolveBudget(config, root);
+  if (found.missing) throw new RunError(`the flow text budget cannot run: ${found.missing}.`, 'FLOW_BUDGET_MISSING');
+  if (found.skip) {
+    process.stderr.write(`${found.skip}\n`);
+    return;
+  }
+  const result = spawnSync('python3', [found.script, '--repo', root, '--quiet'], { encoding: 'utf8' });
+  if (result.error || result.status === null) {
+    const cause = result.error ? result.error.message : `killed by ${result.signal}`;
+    throw new RunError(`the budget script ${found.script} could not run: ${cause}`, 'FLOW_BUDGET_FAILED');
+  }
+  if (result.status === 0) return;
   throw new RunError(
     `the flow text a worker loads is over its budget; a run cannot start under it.\n${result.stdout || ''}${result.stderr || ''}`.trim(),
     'FLOW_TEXT_OVER_BUDGET',
@@ -218,7 +223,7 @@ function refuseOverBudget(root) {
 function claim(intentId, options) {
   const root = lib.primaryRoot(options.cwd);
   const config = lib.readConfig(root, options.config);
-  refuseOverBudget(root);
+  refuseOverBudget(root, config);
   const ledger = lib.readLedger(root);
   const intent = lib.findIntent(ledger, intentId);
   const base = resolveBase(config, intent, root);

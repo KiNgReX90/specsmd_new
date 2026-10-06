@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const InstallerFactory = require('../InstallerFactory');
 const { blockText } = require('./lock');
+const { renderRoles } = require('./roles');
 
 // Flow resources copied under .specsmd/<flow>/ when the flow ships them.
 const FLOW_DIRS = ['agents', 'agent-capabilities', 'bolt-types', 'skills', 'templates', 'shared', 'scripts'];
@@ -44,6 +45,7 @@ async function walk(dir, rel = '', out = { files: [], links: [], dirs: [] }) {
  * Runs every tool installer and the flow copy inside an empty staging directory, so the
  * whole install is known as data before a single host file changes. The tool installers
  * write relative to the working directory, so staging moves into it for the duration.
+ * The host's role pins are rendered into the staged files before anything is hashed.
  * Returns { files: Map(rel -> { content, mode, block? }), links: Map(rel -> target), dirs }.
  */
 async function stageFlow(flowPath, flowKey, toolKeys, root) {
@@ -82,6 +84,7 @@ async function stageFlow(flowPath, flowKey, toolKeys, root) {
                 files.set(rel, { content, mode });
             }
         }
+        renderRoles(files, flowKey, root);
         const links = new Map();
         for (const rel of found.links) {
             links.set(rel, await fs.readlink(path.join(stageDir, rel)));

@@ -96,6 +96,17 @@ describe.sequential('install lifecycle', () => {
     expect(snapshot(box.root)).toEqual(before);
   });
 
+  // Machine-specific execpolicy rules (absolute paths) live in a rules file of the host's own.
+  it('never records, rewrites or removes a host-only Codex rules file', async () => {
+    await installFlow('inferno', ['codex']);
+    write('.codex/rules/host.rules', 'prefix_rule(pattern=["/abs/claude-build"], decision="allow")\n');
+    await installFlow('inferno', ['codex']);
+    await installFlow('inferno', ['claude']);
+
+    expect(Object.keys(readLock().files)).not.toContain('.codex/rules/host.rules');
+    expect(readFileSync('.codex/rules/host.rules', 'utf8')).toContain('/abs/claude-build');
+  }, 30_000);
+
   it('runs the budget script from INFERNO_FLOW_BUDGET on the host root', async () => {
     const script = budgetStub(path.join(box.base, 'budget.py'), 0, 'within budget');
     process.env.INFERNO_FLOW_BUDGET = script;
