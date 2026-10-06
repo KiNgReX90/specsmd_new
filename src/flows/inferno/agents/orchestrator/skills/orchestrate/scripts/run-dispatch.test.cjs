@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
+const { verifyDispatch } = require('./run-attribute.cjs');
+
 function git(tree, ...args) {
   return execFileSync('git', args, { cwd: tree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
@@ -40,11 +42,11 @@ test('sequential disjoint dispatches attribute their own patches', (t) => {
   const f = fixture(t); const proof = require('./run-dispatch.cjs');
   begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'item a');
   const a = accept(f, 'a', ['src/a.ts']);
-  assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts']).outside, []); f.commit();
+  assert.deepEqual(verifyDispatch(f.tree, a, ['src/a.ts']).outside, []); f.commit();
   begin(f, 'b', ['src/b.ts']); f.write('src/b.ts', 'item b');
   const b = accept(f, 'b', ['src/b.ts']); f.commit();
-  assert.deepEqual(proof.verifyDispatch(f.tree, b, ['src/b.ts']).outside, []);
-  assert.deepEqual(proof.verifyDispatch(f.tree, b, ['src/a.ts']).outside, ['src/b.ts']);
+  assert.deepEqual(verifyDispatch(f.tree, b, ['src/b.ts']).outside, []);
+  assert.deepEqual(verifyDispatch(f.tree, b, ['src/a.ts']).outside, ['src/b.ts']);
 });
 
 test('concurrent uncommitted patches require accepted peers and reject escaped edits', (t) => {
@@ -52,13 +54,13 @@ test('concurrent uncommitted patches require accepted peers and reject escaped e
   begin(f, 'a', ['src/a.ts']); begin(f, 'b', ['src/b.ts']);
   f.write('src/a.ts', 'item a'); f.write('src/b.ts', 'item b');
   const a = accept(f, 'a', ['src/a.ts']); const b = accept(f, 'b', ['src/b.ts']);
-  assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [b] }).outside, []);
-  assert.deepEqual(proof.verifyDispatch(f.tree, b, ['src/b.ts'], { peers: [a] }).outside, []);
-  assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [] }).outside, ['src/b.ts']);
+  assert.deepEqual(verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [b] }).outside, []);
+  assert.deepEqual(verifyDispatch(f.tree, b, ['src/b.ts'], { peers: [a] }).outside, []);
+  assert.deepEqual(verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [] }).outside, ['src/b.ts']);
   begin(f, 'escaped', ['src/a.ts']); f.write('src/a.ts', 'another a'); f.write('src/escaped.ts', 'outside');
   const escaped = accept(f, 'escaped', ['src/a.ts']);
-  assert.deepEqual(proof.verifyDispatch(f.tree, escaped, ['src/a.ts']).outside, ['src/escaped.ts']);
-  assert.throws(() => proof.verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [{ ...b, phase: 'failed' }] }), /signature|accepted/i);
+  assert.deepEqual(verifyDispatch(f.tree, escaped, ['src/a.ts']).outside, ['src/escaped.ts']);
+  assert.throws(() => verifyDispatch(f.tree, a, ['src/a.ts'], { peers: [{ ...b, phase: 'failed' }] }), /signature|accepted/i);
 });
 
 test('changed baseline bytes and forged accepted flag are refused', (t) => {
@@ -66,17 +68,17 @@ test('changed baseline bytes and forged accepted flag are refused', (t) => {
   begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'accepted change');
   const record = accept(f, 'a', ['src/a.ts']);
   record.beforeSnapshot.files['src/a.ts'].hash = 'tampered';
-  assert.throws(() => proof.verifyDispatch(f.tree, record, ['src/a.ts']), /snapshot|baseline/i);
-  assert.throws(() => proof.verifyDispatch(f.tree, { accepted: true }, ['src/a.ts']), /snapshot/i);
+  assert.throws(() => verifyDispatch(f.tree, record, ['src/a.ts']), /snapshot|baseline/i);
+  assert.throws(() => verifyDispatch(f.tree, { accepted: true }, ['src/a.ts']), /snapshot/i);
 });
 
 test('edits after acceptance cannot borrow the accepted snapshot', (t) => {
   const f = fixture(t); const proof = require('./run-dispatch.cjs');
   begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'accepted'); const a = accept(f, 'a', ['src/a.ts']);
   f.write('src/escaped.ts', 'late edit');
-  assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts']).outside, ['src/escaped.ts']);
+  assert.deepEqual(verifyDispatch(f.tree, a, ['src/a.ts']).outside, ['src/escaped.ts']);
   f.write('src/a.ts', 'late owned edit');
-  assert.throws(() => proof.verifyDispatch(f.tree, a, ['src/a.ts']), /accepted|changed/i);
+  assert.throws(() => verifyDispatch(f.tree, a, ['src/a.ts']), /accepted|changed/i);
 });
 
 test('corrected native dispatch supersedes its earlier accepted attempt', (t) => {
@@ -85,8 +87,8 @@ test('corrected native dispatch supersedes its earlier accepted attempt', (t) =>
   f.write('src/a.ts', 'first'); const first = accept(f, 'first', ['src/a.ts']);
   proof.recordDispatch(f.tree, { intent: 'alpha', item: 'a', dispatch_id: 'correction', editable: ['src/a.ts'] });
   f.write('src/a.ts', 'corrected'); const correction = accept(f, 'correction', ['src/a.ts']);
-  assert.deepEqual(proof.verifyDispatch(f.tree, correction, ['src/a.ts']).outside, []);
-  assert.throws(() => proof.verifyDispatch(f.tree, first, ['src/a.ts']), /superseded|current/i);
+  assert.deepEqual(verifyDispatch(f.tree, correction, ['src/a.ts']).outside, []);
+  assert.throws(() => verifyDispatch(f.tree, first, ['src/a.ts']), /superseded|current/i);
 });
 
 test('prior baseline peer cannot explain a later rollback', (t) => {
@@ -96,7 +98,7 @@ test('prior baseline peer cannot explain a later rollback', (t) => {
   f.write('src/b.ts', 'b'); f.write('src/other.ts', 'moves head'); f.commit();
   begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'new a'); f.write('src/b.ts', 'old accepted b');
   const a = accept(f, 'a', ['src/a.ts']);
-  assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts']).outside, ['src/b.ts']);
+  assert.deepEqual(verifyDispatch(f.tree, a, ['src/a.ts']).outside, ['src/b.ts']);
 });
 
 test('dispatch-log records the baseline and accept-dispatch checks the result against it', (t) => {
@@ -112,7 +114,7 @@ test('dispatch-log records the baseline and accept-dispatch checks the result ag
   assert.equal(accepted.payload.phase, 'accepted');
   const proof = require('./run-dispatch.cjs');
   const record = proof.loadDispatch(f.tree, { intent: 'demo', item: 'a' });
-  assert.deepEqual(proof.verifyDispatch(f.tree, record, ['src/**']).outside, []);
+  assert.deepEqual(verifyDispatch(f.tree, record, ['src/**']).outside, []);
 });
 
 test('a record rewritten without the key is refused by its signature', (t) => {
@@ -121,7 +123,7 @@ test('a record rewritten without the key is refused by its signature', (t) => {
   const record = accept(f, 'a', ['src/a.ts']);
   record.beforeSnapshot.files['src/b.ts'] = record.acceptedSnapshot.files['src/b.ts'];
   record.beforeSnapshot.digest = proof.hash(record.beforeSnapshot.files);
-  assert.throws(() => proof.verifyDispatch(f.tree, record, ['src/a.ts']), /signature/);
+  assert.throws(() => verifyDispatch(f.tree, record, ['src/a.ts']), /signature/);
 });
 
 test('a record copied into another tree of the same repository is refused by its tree identity', (t) => {
@@ -146,5 +148,5 @@ test('a baseline records a submodule by its commit', (t) => {
   begin(f, 'a', ['src/a.ts']);
   write(path.join(f.tree, 'vendor/lib'), 'x', 'moved'); git(path.join(f.tree, 'vendor/lib'), 'commit', '-qam', 'moved');
   const record = accept(f, 'a', []);
-  assert.deepEqual(proof.verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['vendor/lib']);
+  assert.deepEqual(verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['vendor/lib']);
 });

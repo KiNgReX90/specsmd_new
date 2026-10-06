@@ -1,11 +1,11 @@
 'use strict';
 
 /**
- * Dispatch attribution. `dispatch-log` records a snapshot of the tree immediately before a
- * builder starts, `accept-dispatch` freezes the result the orchestrator accepted, and
- * verify-item attributes every changed path to the dispatch that owns it. Without it a
- * parallel round showed every sibling's uncommitted edit as outside the item under review,
- * and nothing tied a builder's reported files to what it actually changed.
+ * Dispatch records. `dispatch-log` records a snapshot of the tree immediately before a builder
+ * starts, and `accept-dispatch` freezes the result the orchestrator accepted. verify-item
+ * attributes every changed path against them (run-attribute.cjs, run-peers.cjs). Without them a
+ * parallel round showed every sibling's uncommitted edit as outside the item under review, and
+ * nothing tied a builder's reported files to what it actually changed.
  *
  * One record may cover a serial chain (`--items a,b`): one builder builds the chain in order,
  * so files its items share are no overlap. A correction or a re-dispatch gets its own record that
@@ -100,22 +100,41 @@ function entryOf(target) {
   throw refuse(`cannot snapshot ${target}: not a file, a link or a submodule`);
 }
 
+/** `info/exclude` as git names it: shared by every worktree of the repository. */
 const excludeFile = (tree) => lib.git(tree, ['rev-parse', '--git-path', 'info/exclude']);
 
 /**
+ * The untracked paths `info/exclude` hides, by identity, a folder it hides whole as `folder/`.
+ * git also lists a folder whose only contents are hidden files, beside those files: that folder
+ * entry is dropped.
+ */
+function hiddenPaths(tree) {
+  const exclude = path.resolve(tree, excludeFile(tree));
+  const hidden = {};
+  if (!fs.existsSync(exclude)) return hidden;
+  const listed = gitNames(tree, ['ls-files', '--others', '--ignored', '--directory', `--exclude-from=${exclude}`]);
+  for (const file of listed) {
+    if (!file.endsWith('/')) hidden[file] = entryOf(path.join(tree, file));
+    else if (!listed.some((other) => other !== file && other.startsWith(file))) hidden[file] = { kind: 'folder' };
+  }
+  return hidden;
+}
+
+/**
  * Every tracked and untracked path by identity, so uncommitted builder output is captured too,
- * plus the identity of `info/exclude`, which decides what counts as untracked.
+ * and apart from them the paths `info/exclude` hides, so a line added there hides nothing.
  */
 function captureSnapshot(tree) {
   const files = {};
   for (const file of [...new Set(gitNames(tree, ['ls-files', '--cached', '--others', '--exclude-standard']))].sort()) {
     files[file] = entryOf(path.join(tree, file));
   }
-  const exclude = hash(entryOf(path.resolve(tree, excludeFile(tree))));
-  return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files), exclude };
+  return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files), hidden: hiddenPaths(tree) };
 }
 
-const same = (left, right, file) => hash(left.files[file] || null) === hash(right.files[file] || null);
+/** A path's identity in a snapshot, read from the hidden paths when `info/exclude` hid it. */
+const entryIn = (snapshot, file) => snapshot.files[file] || (snapshot.hidden || {})[file] || null;
+const same = (left, right, file) => hash(entryIn(left, file)) === hash(entryIn(right, file));
 
 function snapshotDelta(before, after) {
   for (const snapshot of [before, after]) {
@@ -305,140 +324,22 @@ function currentRecords(tree) {
   return [...records.values()].filter((record) => isCurrent(tree, record));
 }
 
-/** Whether a baseline at `head` started at or after one at `ancestor`: the same commit or a later one. */
-function startsFrom(tree, ancestor, head) {
-  return ancestor === head || lib.git(tree, ['merge-base', '--is-ancestor', ancestor, head], { tolerate: true }) !== null;
-}
-
-/** Dispatches started at or after this item's first baseline whose results were never accepted. */
-function openDispatches(tree, record) {
-  const own = effective(tree, record);
-  return currentRecords(tree)
-    .filter((entry) => entry.phase !== 'accepted' && !own.ids.has(entry.dispatchId))
-    .filter((entry) => startsFrom(tree, own.before.head_sha, effective(tree, entry).before.head_sha))
-    .map((entry) => ({ dispatch_id: entry.dispatchId, items: itemsOf(entry) }));
-}
-
-/**
- * Paths the fold of `base` brought in since the baseline at `head` and nothing changed since:
- * what the base changed after the last base commit the baseline held, merged or fast-forwarded.
- * On the base branch itself nothing is a fold.
- */
-function foldedSince(tree, head, base) {
-  if (!base || lib.currentBranch(tree) === base) return new Set();
-  const dirty = new Set([...gitNames(tree, ['diff', '--name-only', '--no-renames', 'HEAD']), ...gitNames(tree, ['ls-files', '--others', '--exclude-standard'])]);
-  const folded = new Set();
-  for (const ref of [base, `origin/${base}`]) {
-    const tip = lib.git(tree, ['merge-base', 'HEAD', ref], { tolerate: true });
-    const held = tip && lib.git(tree, ['merge-base', head, tip], { tolerate: true });
-    if (!held || held === tip) continue;
-    for (const file of gitNames(tree, ['diff', '--name-only', '--no-renames', held, tip])) if (!dirty.has(file)) folded.add(file);
-  }
-  return folded;
-}
-
-/**
- * The changed paths that peers' accepted patches explain. Walking back from what a path holds
- * now, each step is a peer that claimed it and left exactly those bytes, until the bytes are this
- * item's baseline. Only a peer that started at or after that baseline counts, so a patch an older
- * round made, which a commit since rolled back, never explains the same bytes coming back.
- */
-function explainedByPeers(tree, own, editable, peers, current) {
-  const views = [];
-  for (const peer of peers) {
-    validateDispatch(tree, peer);
-    if (own.ids.has(peer.dispatchId)) continue;
-    const view = effective(tree, peer);
-    if (!startsFrom(tree, own.before.head_sha, view.before.head_sha)) continue;
-    const patch = snapshotDelta(view.before, peer.acceptedSnapshot);
-    const files = view.claimed.filter((file) => patch.includes(file) && current.changed.includes(file));
-    for (const file of files) {
-      if (!lib.ownedBy(file, peer.assignment.ownership.editable, tree)) throw refuse('peer dispatch claims an unowned path');
-      if (!same(peer.acceptedSnapshot, own.before, file) && (own.claimed.includes(file) || lib.ownedBy(file, editable, tree))) {
-        throw refuse(`dispatch ownership overlaps at ${file} with dispatch ${peer.dispatchId}: ` +
-          'a serial chain one builder builds takes one dispatch-log --items a,b');
-      }
-    }
-    views.push({ peer, before: view.before, files });
-  }
-  const explained = new Set();
-  for (const file of current.changed) {
-    const left = views.filter((view) => view.files.includes(file));
-    let state = current.snapshot;
-    for (;;) {
-      const index = left.findIndex((view) => same(view.peer.acceptedSnapshot, state, file));
-      if (index === -1) break;
-      state = left.splice(index, 1)[0].before;
-      if (same(state, own.before, file)) {
-        explained.add(file);
-        break;
-      }
-    }
-  }
-  return explained;
-}
-
-/**
- * Every path changed since the item's first baseline, sorted into the item's own, `unreported`
- * (owned by the spec and the record, changed, but missing from changed_files) and `outside`. A
- * path the fold of `options.base` brought in is the base's. Any other commit since the baseline,
- * a sibling's landing or a builder's own, is attributed like an uncommitted change.
- */
-function verifyDispatch(tree, record, editable, options = {}) {
-  validateDispatch(tree, record);
-  const own = effective(tree, record);
-  for (const entry of own.members.filter((member) => member.phase === 'accepted')) {
-    const patch = snapshotDelta(entry.beforeSnapshot, entry.acceptedSnapshot);
-    const missing = claimedPaths(entry).filter((file) => !patch.includes(file));
-    if (missing.length > 0) throw refuse(`accepted paths have no dispatch patch: ${missing.join(', ')}`);
-  }
-  const snapshot = captureSnapshot(tree);
-  if (snapshot.exclude !== own.before.exclude) {
-    throw refuse(`${excludeFile(tree)} changed since the dispatch baseline, so a file it now hides would escape this check: ` +
-      'restore it, then verify again');
-  }
-  for (const file of own.claimed) {
-    if (!same(snapshot, record.acceptedSnapshot, file)) {
-      throw refuse(`accepted dispatch bytes changed at ${file}: run dispatch-log before a correction resumes the builder, ` +
-        'then accept-dispatch its result');
-    }
-  }
-  const folded = foldedSince(tree, own.before.head_sha, options.base);
-  const changed = [...new Set([...snapshotDelta(own.before, record.acceptedSnapshot), ...snapshotDelta(own.before, snapshot)])]
-    .filter((file) => own.claimed.includes(file) || !folded.has(file))
-    .sort();
-  const current = { snapshot, changed };
-  const explained = explainedByPeers(tree, own, editable, options.peers || currentRecords(tree).filter((entry) => entry.phase === 'accepted'), current);
-  const owned = (file) => lib.ownedBy(file, editable, tree) && lib.ownedBy(file, record.assignment.ownership.editable, tree);
-  const outside = [];
-  const unreported = [];
-  for (const file of changed) {
-    if (own.claimed.includes(file)) {
-      if (!owned(file)) outside.push(file);
-    } else if (!explained.has(file)) {
-      (owned(file) ? unreported : outside).push(file);
-    }
-  }
-  return {
-    since: own.before.head_sha,
-    head_sha: record.acceptedSnapshot.head_sha,
-    dispatch_id: record.dispatchId,
-    changed: own.claimed,
-    outside,
-    unreported,
-  };
-}
-
 module.exports = {
   acceptDispatch,
   captureSnapshot,
+  claimedPaths,
+  currentRecords,
+  effective,
+  entryIn,
+  excludeFile,
   hash,
   itemsOf,
+  lineage,
   loadDispatch,
-  openDispatches,
   recordDispatch,
   recordFile,
+  refuse,
+  same,
   snapshotDelta,
   validateDispatch,
-  verifyDispatch,
 };

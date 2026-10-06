@@ -149,7 +149,8 @@ function verifyItem(itemId, options) {
     out.push(`ownership clean since ${since}`);
   }
   if (unreported.length > 0) {
-    out.push(`owned but not in changed_files: ${unreported.slice(0, 10).join(', ')}`);
+    out.push(`owned but not in changed_files: ${unreported.slice(0, 10).join(', ')}. If this item wrote them, run dispatch-log ` +
+      'for it again and accept-dispatch its full list, or each sibling\'s review names them outside');
   }
 
   return {
