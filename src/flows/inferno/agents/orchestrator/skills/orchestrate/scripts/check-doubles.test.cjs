@@ -204,6 +204,18 @@ test("doubles that origin removed do not hide a double the branch adds", () => {
   assert.match(result.out, /e2e\/branch-added\.spec\.ts/);
 });
 
+test("a double on the local base that origin has not seen is not credited to the branch", () => {
+  const config = `${BRIDGE}verification:\n  integrate:\n    - echo integrate ran\n`;
+  const fixture = repo(config, {}, { origin: true });
+  git(fixture.root, ["checkout", "-q", "main"]);
+  land(fixture, { "e2e/local-only.spec.ts": BRIDGED });
+  git(fixture.root, ["checkout", "-q", "feature"]);
+  land(fixture, { "src/app.ts": "export const app = 6;\n" });
+  const result = run(fixture, RUN, ["integrate", "--tree", fixture.root]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /PASS doubles 1 \(base 1\)/);
+});
+
 test("a long list of new files never pushes the rule out of the output", () => {
   const fixture = repo(BRIDGE, {});
   const files = {};
