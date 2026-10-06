@@ -64,6 +64,8 @@ describe('inferno flow', () => {
     ['commands/inferno-builder-cheap.md', 'specsmd-inferno-builder-cheap'],
     ['commands/inferno-builder-escalate.md', 'specsmd-inferno-builder-escalate'],
     ['commands/inferno-oracle.md', 'specsmd-inferno-oracle'],
+    ['commands/inferno-reviewer.md', 'specsmd-inferno-reviewer'],
+    ['agents/reviewer/agent.md', 'inferno-reviewer-agent'],
     ['agents/planner/agent.md', 'inferno-planner-agent'],
     ['agents/builder/agent.md', 'inferno-builder-agent'],
     ['agents/builder-cheap/agent.md', 'inferno-builder-cheap-agent'],
@@ -78,6 +80,39 @@ describe('inferno flow', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-oracle.md'), 'utf8');
     const agent = readFileSync(path.join(INFERNO, 'agents/oracle/agent.md'), 'utf8');
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  it('inferno-reviewer command body is identical to the canonical reviewer agent body', () => {
+    const command = readFileSync(path.join(INFERNO, 'commands/inferno-reviewer.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/reviewer/agent.md'), 'utf8');
+    expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  // The reviewer judges and records nothing itself: it may write its review file, and run.cjs
+  // commits it. The two file shapes it is taught are exactly the keys the scripts accept.
+  it('the reviewer carries the tools of a judge and teaches exactly the review schemas', () => {
+    const reviewer = readFileSync(path.join(INFERNO, 'commands/inferno-reviewer.md'), 'utf8');
+    const tools = (frontmatter(reviewer).match(/^tools:\s*(.*)$/m)?.[1] ?? '').split(/,\s*/);
+    expect(tools.sort()).toEqual(['Bash', 'Glob', 'Grep', 'Read', 'Write']);
+    expect(reviewer).toMatch(/never commit/);
+    const scripts = path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts');
+    const item = require(path.join(scripts, 'run-review-file.cjs'));
+    const intent = require(path.join(scripts, 'run-intent-review-file.cjs'));
+    const blocks = [...reviewer.matchAll(/```yaml\n([\s\S]*?)```/g)].map((match) => match[1]);
+    expect(blocks).toHaveLength(2);
+    const top = (block: string) => [...block.matchAll(/^([a-z_]+):/gm)].map((match) => match[1]);
+    const nested = (block: string, key: string) => {
+      const section = block.split(new RegExp(`^${key}:`, 'm'))[1].split(/^[a-z_]+:/m)[0];
+      return [...section.matchAll(/^\s+-?\s*([a-z_]+):/gm)].map((match) => match[1]);
+    };
+    expect(top(blocks[0])).toEqual(item.ITEM_KEYS);
+    expect(nested(blocks[0], 'findings')).toEqual(item.FINDING_KEYS);
+    expect(nested(blocks[0], 'mutants')).toEqual(item.MUTANT_KEYS);
+    expect(top(blocks[1])).toEqual(intent.INTENT_KEYS);
+    expect(nested(blocks[1], 'criteria')).toEqual([...intent.CRITERION_KEYS, 'evidence']);
+    expect(nested(blocks[1], 'findings')).toEqual([...item.FINDING_KEYS, 'owner']);
+    expect(nested(blocks[1], 'scanner')).toEqual(intent.SCANNER_KEYS);
+    expect(nested(blocks[1], 'mutants')).toEqual(item.MUTANT_KEYS);
   });
 
   // The oracle exists to end postponement: it returns one decision, never a menu,
@@ -112,6 +147,8 @@ describe('inferno flow', () => {
     ['agents/builder-cheap/agent.md', 'claude-sonnet-5-5', 'high'],
     ['agents/builder-escalate/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
+    ['commands/inferno-reviewer.md', 'claude-opus-5-5', 'xhigh'],
+    ['agents/reviewer/agent.md', 'claude-opus-5-5', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));

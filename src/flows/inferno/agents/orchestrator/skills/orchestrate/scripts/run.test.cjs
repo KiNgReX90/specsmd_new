@@ -7,7 +7,7 @@ const { execFileSync, spawn, spawnSync } = require("node:child_process");
 
 const RUN = path.join(__dirname, "run.cjs");
 const WRITER = path.join(__dirname, "state-transition.cjs");
-const { LOCK_PATH, hostLock, markReviewed, reviewed } = require("./review-fixture.cjs");
+const { LOCK_PATH, hostLock, markReviewed, reviewBefore, reviewed } = require("./review-fixture.cjs");
 
 const STATE = `project:
   name: demo
@@ -178,6 +178,7 @@ function repo(options = {}) {
 
 /** Drive the CLI the way the orchestrator does: a process, an exit code, stdout. */
 function run(fixture, args, options = {}) {
+  reviewBefore(args, options.cwd || fixture.root);
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: options.cwd || fixture.root,
     encoding: "utf8",
@@ -833,24 +834,9 @@ test("teardown removes a merged worktree and its branch", () => {
 test("teardown resolves its base from the selected host config", () => {
   const fixture = repo();
   const { tree } = mergedByHand(fixture);
-  write(
-    fixture.root,
-    ".specs-inferno/config.yaml",
-    CONFIG.replace("base_branch: main", "base_branch: missing-base"),
-  );
-  write(
-    fixture.root,
-    ".specs-inferno/config.codex.yaml",
-    "delivery:\n  base_branch: main\n",
-  );
-
-  const result = run(fixture, [
-    "teardown",
-    "--tree",
-    tree,
-    "--config",
-    ".specs-inferno/config.codex.yaml",
-  ]);
+  write(fixture.root, ".specs-inferno/config.yaml", CONFIG.replace("base_branch: main", "base_branch: missing-base"));
+  write(fixture.root, ".specs-inferno/config.codex.yaml", "delivery:\n  base_branch: main\n");
+  const result = run(fixture, ["teardown", "--tree", tree, "--config", ".specs-inferno/config.codex.yaml"]);
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(fs.existsSync(tree), false);
 });
@@ -920,10 +906,12 @@ test("gate folds the base branch in first, so the tree it proves is the tree tha
   const { tree, branch } = closed(fixture);
   baseMoved(fixture);
 
+  // The fold moved the tree the intent review read, so the gate owes that review first.
   const gate = run(fixture, ["gate", "--tree", tree]);
-  assert.equal(gate.code, 0, gate.out + gate.err);
+  assert.equal(gate.code, 3, gate.out + gate.err);
   assert.match(gate.out, new RegExp(`folded main into ${branch}`));
   assert.ok(fs.existsSync(path.join(tree, "docs/moved.md")));
+  assert.equal(run(fixture, ["gate", "--tree", tree]).code, 0);
   const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
   assert.equal(ship.code, 0, ship.out + ship.err);
 });
@@ -948,9 +936,9 @@ test("gate folds commits that reached origin but not the local base branch", () 
   git(other, ["commit", "-qm", "pushed from elsewhere"]);
   git(other, ["push", "-q", "origin", "main"]);
 
-  const gate = run(fixture, ["gate", "--tree", tree]);
-  assert.equal(gate.code, 0, gate.out + gate.err);
+  assert.equal(run(fixture, ["gate", "--tree", tree]).code, 3, "the fold moved the reviewed tree");
   assert.ok(fs.existsSync(path.join(tree, "docs/remote.md")));
+  assert.equal(run(fixture, ["gate", "--tree", tree]).code, 0);
   const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
   assert.equal(ship.code, 0, ship.out + ship.err);
 });
@@ -971,10 +959,11 @@ test("gate --detach folds the base in before the gate process starts", () => {
   const { tree, branch } = closed(fixture);
   baseMoved(fixture);
 
-  const started = run(fixture, ["gate", "--tree", tree, "--detach"]);
-  assert.equal(started.code, 0, started.out + started.err);
-  assert.match(started.out, new RegExp(`folded main into ${branch}`));
+  const refused = run(fixture, ["gate", "--tree", tree, "--detach"]);
+  assert.equal(refused.code, 3, refused.out + refused.err);
+  assert.match(refused.out, new RegExp(`folded main into ${branch}`));
   assert.ok(fs.existsSync(path.join(tree, "docs/moved.md")));
+  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
   assert.equal(run(fixture, ["gate", "--tree", tree, "--wait"]).code, 0);
   const ship = run(fixture, ["ship", "alpha", "--tree", tree]);
   assert.equal(ship.code, 0, ship.out + ship.err);

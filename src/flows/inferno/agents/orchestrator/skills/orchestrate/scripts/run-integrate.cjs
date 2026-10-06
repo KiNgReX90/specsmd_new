@@ -26,6 +26,7 @@ const impact = require('./run-e2e-impact.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { checkDoubles } = require('./check-doubles.cjs');
 const { owedReviews } = require('./run-review.cjs');
+const { afterRecovery } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
 
@@ -110,10 +111,23 @@ function e2eSelection(tree, config, ids, options, anchor) {
   return impact.select({ changed, manifests, config });
 }
 
-/** Integrate runs the selected checks and retains each successful command's proof. */
+/**
+ * Integrate runs the selected checks and retains each successful command's proof. A leftover
+ * of a killed mutate is put back first, and every way out says so, a refusal included.
+ */
 function integrate(options) {
   const tree = gate.treeOf(options);
-  gate.refuseDirty(tree);
+  const restored = gate.refuseDirty(tree);
+  try {
+    const result = checkAndLand(tree, options);
+    return { ...result, out: [...restored, ...result.out] };
+  } catch (error) {
+    if (error instanceof RunError) error.message = afterRecovery(restored, error.message);
+    throw error;
+  }
+}
+
+function checkAndLand(tree, options) {
   const initial = lib.readConfig(tree, options.config);
   const base = options.base || resolveBase(initial, null, tree);
   const ids = itemIds(options);

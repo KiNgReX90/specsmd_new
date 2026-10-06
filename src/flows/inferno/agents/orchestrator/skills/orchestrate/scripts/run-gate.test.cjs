@@ -6,6 +6,9 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
+const { reviewBefore } = require('./review-fixture.cjs');
+// An intent branch, so gate and green know which intent review holds the tree.
+const BRANCH = 'inferno-intent/demo-00000000T000000Z';
 const DEFAULT = '.specs-inferno/config.yaml';
 const CODEX = '.specs-inferno/config.codex.yaml';
 const scoped = 'node proof.cjs scoped';
@@ -53,7 +56,7 @@ if (name === 'flaky') {
 if (name === 'flaky-rerun-red') process.exit(1);
 `);
   commit(tree);
-  git(tree, 'checkout', '-qb', 'intent');
+  git(tree, 'checkout', '-qb', BRANCH);
   return { tree, cache: path.join(dir, 'cache') };
 }
 
@@ -63,6 +66,7 @@ function commit(tree) {
 }
 
 function run(f, ...args) {
+  reviewBefore(args, f.tree);
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: f.tree, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: f.cache, ...f.env },
   });
@@ -303,7 +307,7 @@ test('gate and integrate read command lists from the config after folding the ba
     git(f.tree, 'checkout', '-q', 'main');
     write(f.tree, DEFAULT, config([added], [added]));
     commit(f.tree);
-    git(f.tree, 'checkout', '-q', 'intent');
+    git(f.tree, 'checkout', '-q', BRANCH);
     const result = run(f, step);
     passed(result);
     assert.deepEqual(ran(f), ['added']);

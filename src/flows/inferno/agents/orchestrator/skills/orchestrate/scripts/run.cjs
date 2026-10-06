@@ -25,6 +25,8 @@ const gate = require('./run-gate.cjs');
 const { integrate } = require('./run-integrate.cjs');
 const { checkDoubles } = require('./check-doubles.cjs');
 const { review } = require('./run-review.cjs');
+const { reviewIntent } = require('./run-intent-review.cjs');
+const { mutate } = require('./run-mutate.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
@@ -44,6 +46,8 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
   node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, each item against its dispatch
   node run.cjs review --item <id> --tree <dir> [--intent <id>] the item's cold review: 3 dispatch the reviewer, 0 clean, 2 fix
+  node run.cjs review --tree <dir> [--intent <id>]      the intent's cold review before the gate: 3 dispatch or owed, 0 clean, 2 fix
+  node run.cjs mutate --file <f> --line <n> --replace <text> --test <cmd> [--tree <dir>] break one line, run the test, restore: caught yes|no
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
@@ -68,11 +72,12 @@ Options
   --peers <json>    verify-item: the dispatch ids that may explain a sibling's change (default every accepted one)
   --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed
   --items <a,b>     integrate, verify-item and dispatch-log: the batched chain, treated as one unit
-  --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous
+  --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous;
+                    review, gate and green: the intent a tree on no intent branch builds
   --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
 
-Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item review, or an item completed with no integration proof or review), 4 gate still running.`;
+Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, or an item completed with no integration proof or review), 4 gate still running.`;
 
 function required(value, usage) {
   if (!value) throw new RunError(`usage: node run.cjs ${usage}`, 'BAD_ARGS', 1);
@@ -103,7 +108,8 @@ const COMMANDS = {
     gate.verifyItem(required(args[0] || options.items, 'verify-item <item-id> | verify-item --items <a,b>'), options),
   integrate: (args, options) => integrate(options),
   doubles: (args, options) => checkDoubles(options),
-  review: (args, options) => review(options),
+  review: (args, options) => (options.item ? review(options) : reviewIntent(options)),
+  mutate: (args, options) => mutate(options),
   gate: (args, options) => gate.gate(options),
   green: (args, options) => gate.green(options),
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),

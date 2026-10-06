@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Reviewer"
+  short_description: "Review one INFERNO work item or intent cold"
+  default_prompt: "Use $specsmd-inferno-reviewer to review the dispatched INFERNO work item or intent."

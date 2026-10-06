@@ -11,6 +11,8 @@ const proofs = require('./run-proofs.cjs');
 const { attribute } = require('./run-attribute.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const processes = require('./run-processes.cjs');
+const intentReview = require('./run-intent-owed.cjs');
+const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
 
@@ -18,14 +20,16 @@ function treeOf(options) {
   return options.tree || lib.repoRoot(options.cwd);
 }
 
+/** Refuse a dirty tree, after restoring a mutant a killed `mutate` left; returns that restore's lines. */
 function refuseDirty(tree) {
+  const restored = recoverInterrupted(tree);
   const dirty = lib.dirtyPaths(tree);
   if (dirty.length > 0) {
-    throw new RunError(
-      `refusing to verify a dirty tree: ${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? ` and ${dirty.length - 5} more` : ''}. Commit or discard first.`,
-      'DIRTY'
-    );
+    throw new RunError(afterRecovery(restored,
+      `refusing to verify a dirty tree: ${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? ` and ${dirty.length - 5} more` : ''}. Commit or discard first.`),
+    'DIRTY');
   }
+  return restored;
 }
 
 /** Paths changed since a ref (the branch against its base, or the tree against HEAD), and what is uncommitted on top. */
@@ -226,11 +230,16 @@ function gateCommands(tree, selected) {
 /** Run the finalize commands in this process. `gate` below dispatches between this, --detach and --wait. */
 function gateNow(options) {
   const tree = treeOf(options);
-  refuseDirty(tree);
+  const restored = refuseDirty(tree);
   const initial = gateCommands(tree, options.config);
   const base = options.base || resolveBase(initial.config, null, tree);
+  const intent = intentReview.intentFor(tree, options);
+  const before = lib.git(tree, ['rev-parse', 'HEAD']);
   const folded = foldBase(tree, base);
+  const shown = [...restored, ...folded];
   const { config, commands } = gateCommands(tree, options.config);
+  const unreviewed = intentReview.gateRefusal(tree, config, intent, options, before, shown);
+  if (unreviewed) return unreviewed;
   // Reject a verdict if the inputs change while the gate runs.
   const codeHash = lib.codeTreeHash(tree);
   const head = lib.git(tree, ['rev-parse', 'HEAD']);
@@ -261,7 +270,7 @@ function gateNow(options) {
     }
     results.push(result);
     if (result.result === 'fail') {
-      const out = [...folded, ...describe(results)];
+      const out = [...shown, ...describe(results)];
       if (result.moved) out.push('the code changed while the gate ran. Re-run the gate.');
       return { exit: 2, payload: { ok: false, tree, branch, folded: folded.length > 0, results }, out };
     }
@@ -269,14 +278,14 @@ function gateNow(options) {
 
   if (proofs.scopeHash(tree) !== started ||
       JSON.stringify(lib.readConfig(tree, options.config).verification) !== definition) {
-    const out = [...folded, ...describe(results), 'the code changed while the gate ran. Re-run the gate.'];
+    const out = [...shown, ...describe(results), 'the code changed while the gate ran. Re-run the gate.'];
     return { exit: 2, payload: { ok: false, tree, branch, folded: folded.length > 0, results, moved: true }, out };
   }
 
   return {
     exit: 0,
     payload: { ok: true, tree, branch, folded: folded.length > 0, results, hash: codeHash },
-    out: [...folded, ...describe(results), `green ${codeHash}`],
+    out: [...shown, ...describe(results), `green ${codeHash}`],
   };
 }
 
@@ -334,7 +343,7 @@ function waitCommand(tree, config) {
 
 function gateDetach(options) {
   const tree = treeOf(options);
-  refuseDirty(tree);
+  const restored = refuseDirty(tree);
   const { config } = gateCommands(tree, options.config);
   const paths = jobPaths(tree);
   const existing = readJson(paths.job);
@@ -345,10 +354,17 @@ function gateDetach(options) {
     );
   }
 
-  const folded = foldBase(tree, options.base || resolveBase(config, null, tree));
+  const intent = intentReview.intentFor(tree, options);
+  const before = lib.git(tree, ['rev-parse', 'HEAD']);
+  const foldLines = foldBase(tree, options.base || resolveBase(config, null, tree));
+  const folded = [...restored, ...foldLines];
+  // Refused here too, or the child dies refusing and --wait reports a gate with no result.
+  const unreviewed = intentReview.gateRefusal(tree, gateCommands(tree, options.config).config, intent, options, before, folded);
+  if (unreviewed) return unreviewed;
   fs.mkdirSync(path.dirname(paths.job), { recursive: true });
   const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
+  if (options.intent) args.push('--intent', options.intent);
   if (options.config) args.push('--config', options.config);
   if (options.force) args.push('--force');
   const out = fs.openSync(paths.result, 'w');
@@ -366,7 +382,7 @@ function gateDetach(options) {
   fs.writeFileSync(paths.job, `${JSON.stringify(job)}\n`, 'utf8');
   return {
     exit: 0,
-    payload: { started: true, folded: folded.length > 0, ...job },
+    payload: { started: true, folded: foldLines.length > 0, ...job },
     out: [...folded, `gate started pid ${child.pid}`, `log ${paths.log}`, `result ${paths.result}`, `wait with: ${waitCommand(tree, options.config)}`],
   };
 }
@@ -424,13 +440,16 @@ function gate(options) {
 
 function green(options) {
   const tree = treeOf(options);
-  refuseDirty(tree);
+  const restored = refuseDirty(tree);
   const { config, commands } = gateCommands(tree, options.config);
   const hash = lib.codeTreeHash(tree);
   const missing = commands.filter((command) => !proofs.readProof(proofs.commandProof(tree, config, options.config, command)));
-  return missing.length === 0
-    ? { exit: 0, payload: { green: true, hash }, out: [`green ${hash}`] }
-    : { exit: 3, payload: { green: false, hash, missing }, out: [`no green marker for ${hash}`, 'run gate first'] };
+  const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options));
+  const { owed } = merge;
+  const out = [...restored, ...merge.out];
+  if (missing.length === 0 && owed.length === 0) return { exit: 0, payload: { green: true, hash }, out: [...restored, `green ${hash}`] };
+  if (missing.length > 0) out.push(`no green marker for ${hash}`, 'run gate first');
+  return { exit: 3, payload: { green: false, hash, missing, owed }, out };
 }
 
 module.exports = {
