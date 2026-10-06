@@ -14,7 +14,11 @@ autonomy:
 # Effort is pinned in each agent definition's frontmatter, never here.
 models:
   strong: claude-opus-5-5         # builders on complexity medium and high
-  cheap: claude-opus-5-5          # builders on complexity low and kind test, docs-only, config-only, config
+  cheap: claude-opus-5-5          # builders on complexity low
+  escalate: claude-opus-5-5       # the fresh builder that takes over an item after two strong-tier rejections
+
+review:
+  model: claude-opus-5-5          # the cold reviewer run.cjs review --item dispatches after every item
 
 verification:
   finalize:                       # ordered shell commands forming the authoritative gate, run once per intent

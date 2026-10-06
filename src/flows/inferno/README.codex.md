@@ -28,8 +28,9 @@ sandbox. A separate process prompts by its own configuration instead. A
 subagent in an on-request session can still surface a fresh approval. The
 `agent_type` parameter selects the role and takes the `name` from the matching
 file in `.codex/agents/`. The `task_name` parameter never selects a role. A
-builder is dispatched with `agent_type: "specsmd_inferno_builder_strong"` or
-`agent_type: "specsmd_inferno_builder_cheap"`, each with `fork_turns: "none"`.
+builder is dispatched with `agent_type: "specsmd_inferno_builder_strong"`,
+`"specsmd_inferno_builder_cheap"` or `"specsmd_inferno_builder_escalate"`, each
+with `fork_turns: "none"`.
 The session holds four concurrent thread slots and the primary thread is one of
 them, so a dispatch round starts at most three workers and the orchestrator
 keeps the rest of the frontier for the next round. `wait_agent` wakes on any
@@ -66,6 +67,7 @@ Proofs from different config files remain separate.
 | Orchestrator | `gpt-5.6-sol` | `xhigh` |
 | Planner | `gpt-5.6-sol` | `xhigh` |
 | Strong builder | `gpt-6.1-sol` | `xhigh` |
+| Escalate builder | `gpt-6.1-sol` | `xhigh` |
 | Config helper | `gpt-5.6-terra` | `high` |
 | Cheap builder | `gpt-5.6-terra` | `high` |
 

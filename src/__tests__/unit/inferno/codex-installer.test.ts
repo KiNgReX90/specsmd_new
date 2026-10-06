@@ -30,6 +30,7 @@ const PROCEDURE_SKILLS = SKILLS.filter((skill) => skill !== 'specsmd-inferno-int
 const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_planner: ['gpt-5.6-sol', 'xhigh'],
   specsmd_inferno_builder_strong: ['gpt-6.1-sol', 'xhigh'],
+  specsmd_inferno_builder_escalate: ['gpt-6.1-sol', 'xhigh'],
   specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
@@ -93,7 +94,7 @@ describe.sequential('CodexInstaller native bundle', () => {
 
     const installedAgentFiles = readdirSync('.codex/agents')
       .filter((file) => file.startsWith('specsmd_') && file.endsWith('.toml'));
-    expect(installedAgentFiles).toHaveLength(5);
+    expect(installedAgentFiles).toHaveLength(Object.keys(AGENTS).length);
     const seen = new Set<string>();
     for (const file of installedAgentFiles) {
       const source = readFileSync(path.join('.codex/agents', file), 'utf8');

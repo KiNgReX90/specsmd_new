@@ -21,7 +21,7 @@ function fixture(t, form = 'block') {
   let state = 'intents:\n  - id: chain\n    status: pending\n';
   state += list('tester_cases', ['TC-901', 'TC-902'], 4) + '\n    work_items:\n';
   for (let n = 1; n <= 6; n++) {
-    state += `      - id: step-${n}\n        kind: config-only\n        status: pending\n`;
+    state += `      - id: step-${n}\n        kind: config-only\n        review: clean\n        status: pending\n`;
     state += list('depends_on', n === 1 ? [] : [`step-${n - 1}`], 8) + '\n';
     const spec = path.join(root, `.specs-inferno/intents/chain/work-items/step-${n}.md`);
     fs.mkdirSync(path.dirname(spec), { recursive: true });

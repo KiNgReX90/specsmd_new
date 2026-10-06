@@ -13,7 +13,7 @@
  * scripts run inside consumer projects with no node_modules; and no ledger write of its own,
  * because state.yaml has one writer and this is not it.
  *
- * Exit codes: 0 ok, 1 usage, 2 failure (details printed), 3 gate needed (green and ship),
+ * Exit codes: 0 ok, 1 usage, 2 failure (details printed), 3 a step is owed first,
  * 4 gate still running (gate --wait: call it again).
  */
 
@@ -23,6 +23,7 @@ const lib = require('./run-lib.cjs');
 const intents = require('./run-intents.cjs');
 const gate = require('./run-gate.cjs');
 const { integrate } = require('./run-integrate.cjs');
+const { review } = require('./run-review.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
@@ -36,10 +37,11 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs claim <intent-id> [--run <branch>] [--config <file>] take the intent on the base branch and commit it
   node run.cjs unclaim <intent-id> [--config <file>]     give back a claim nothing was built on
   node run.cjs worktree <intent-id> [--path <dir>] [--config <file>] open the intent worktree and bootstrap it
-  node run.cjs frontier <intent-id> [--tree <dir>]       validate the contracts, print the ready items
+  node run.cjs frontier <intent-id> [--tree <dir>] [--config <file>] validate the contracts, print the ready items and who builds each
   node run.cjs probes <item-id> [--tree <dir>] [--intent <id>] rerun the item's measurements: 0 they hold, 2 drift
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
   node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, ownership as the union
+  node run.cjs review --item <id> --tree <dir> [--intent <id>] the item's cold review: 3 dispatch the reviewer, 0 clean, 2 fix
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
@@ -54,15 +56,15 @@ const USAGE = `INFERNO orchestrator runner
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
-  --config <file>   select, claim, unclaim, worktree, integrate, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
+  --config <file>   select, claim, unclaim, worktree, frontier, review, integrate, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
   --base <branch>   integrate, gate, ship and teardown: the base branch to fold in (default: the config's base)
   --since <ref>     verify-item: what to compare the working tree against (default HEAD)
-  --item <id>       integrate: the item this landing completes once the checks are green
+  --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed
   --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
-  --intent <id>     verify-item, integrate and probes: the intent owning the item, when the id is ambiguous
+  --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
 
-Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, or an item completed with no integration proof), 4 gate still running.`;
+Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item review, or an item completed with no integration proof or review), 4 gate still running.`;
 
 function required(value, usage) {
   if (!value) throw new RunError(`usage: node run.cjs ${usage}`, 'BAD_ARGS', 1);
@@ -79,6 +81,7 @@ const COMMANDS = {
   'verify-item': (args, options) =>
     gate.verifyItem(required(args[0] || options.items, 'verify-item <item-id> | verify-item --items <a,b>'), options),
   integrate: (args, options) => integrate(options),
+  review: (args, options) => review(options),
   gate: (args, options) => gate.gate(options),
   green: (args, options) => gate.green(options),
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),
@@ -88,7 +91,7 @@ const COMMANDS = {
 };
 
 /** The steps that work inside an intent worktree, so running one is owning the tree. */
-const OWNING = new Set(['frontier', 'probes', 'verify-item', 'integrate', 'gate', 'green', 'ship', 'dispatch-log']);
+const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log']);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
 const FLAGS = new Set(['--json', '--detach', '--wait']);

@@ -1,0 +1,7 @@
+name = "specsmd_inferno_builder_escalate"
+description = "Takes over an INFERNO work item that two strong-tier reviews rejected, with every finding so far."
+model = "gpt-6.1-sol"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Load and follow `.agents/skills/specsmd-inferno-builder/SKILL.md` for every assignment. Accept work only as a complete assignment from the session that dispatched you, stay within that assignment, and never spawn or dispatch another agent.
+"""

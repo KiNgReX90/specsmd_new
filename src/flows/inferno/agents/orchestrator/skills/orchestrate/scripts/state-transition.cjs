@@ -24,6 +24,7 @@
  *                                             item is already completed
  *   block-intent   --intent <id> --reason <w> park a pending intent outside the queue
  *   unblock-intent --intent <id>              return a parked intent to the queue
+ *   review-item    --intent <id> --item <id>  record an item review verdict (state-review.cjs)
  *   check [--intent <id>]                     report ledger drift; exit 1 if any found
  *
  * `check` itself lives in state-check.cjs, the reader beside this writer, and is re-exported
@@ -41,6 +42,7 @@ const archive = require('./state-archive.cjs');
 const { archivePaths, archivedIds } = archive;
 const { check } = require('./state-check.cjs');
 const block = require('./state-block.cjs');
+const review = require('./state-review.cjs');
 const { withStateLock, atomicWrite } = require('./state-store.cjs');
 const { main: runCli } = require('./state-cli.cjs');
 
@@ -133,6 +135,7 @@ function completeItem(options) {
   if (isComplete(previous) && proven) {
     return { changed: false, item: options.item, status: 'completed', note: 'already completed' };
   }
+  review.refuseUnreviewed(lines, item, options.item, isComplete(previous));
 
   const completedAt = nowIso(options.now);
   setFields(lines, item, [
@@ -327,6 +330,7 @@ const lockedCommands = {
   closeIntent: locked(closeIntent),
   claimIntent: locked(claimIntent),
   unclaimIntent: locked(unclaimIntent),
+  reviewItem: locked(review.reviewItem),
 };
 
 function main(argv) {

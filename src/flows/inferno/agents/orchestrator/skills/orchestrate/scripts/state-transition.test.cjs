@@ -47,12 +47,14 @@ intents:
         mode: autopilot
         status: pending
         depends_on: []
+        review: clean
       - id: menu-wiring
         title: "Menu wiring"
         status: pending
         complexity: medium
         mode: autopilot
         depends_on: [menu-shell]
+        review: clean
   - id: already-shipped
     title: Prior intent
     status: completed
@@ -538,6 +540,7 @@ test("does not confuse an item id with an intent id", () => {
         title: "Item with the same id as its intent"
         status: pending
         depends_on: []
+        review: clean
 `;
   const { file } = sandbox(collide);
   completeItem({ file, intent: "shared-name", item: "shared-name", proof: "abc1234", now: NOW });

@@ -18,9 +18,10 @@ const scheduler = require('./team-scheduler.cjs');
 const ownership = require('./run-ownership.cjs');
 const probes = require('./run-probes.cjs');
 const { isComplete } = require('./state-transition.cjs');
-
-/** Work an item's kind makes cheap enough for the small tier, whatever its complexity says. */
-const CHEAP_KINDS = new Set(['test', 'docs-only', 'docs', 'config-only', 'config']);
+const { completedBeforeReviewRule } = require('./state-review.cjs');
+// The tier and the ladder live with the review that moves an item up it, so frontier and
+// `run.cjs review --item` print the same actor.
+const { actorLabel, nextActor, nextLine, tierOf } = require('./run-review.cjs');
 
 /**
  * The hour the proof rule landed. Every ledger written before it carries completed items and
@@ -36,16 +37,25 @@ const PROOF_RULE_LANDED = Date.parse('2026-09-09T18:00:00Z');
  * and a recent timestamp is a run interrupted between the mark and the checks, so its
  * successors stay held until an integration proves the tree it landed on.
  */
-function itemIntegrated(item) {
-  if (!isComplete(item.status)) return false;
+function itemProved(item) {
   if (item.integrated_sha) return true;
   const completed = Date.parse(item.completed_at || '');
   return Number.isNaN(completed) || completed < PROOF_RULE_LANDED;
 }
 
+/** The same for the item review: owed by every item completed after the review rule landed. */
+function itemReviewed(item) {
+  return item.review === 'clean' || completedBeforeReviewRule(item.completed_at);
+}
 
-function tierOf(item) {
-  return item.complexity === 'low' || CHEAP_KINDS.has(item.kind) ? 'cheap' : 'strong';
+function itemIntegrated(item) {
+  return isComplete(item.status) && itemProved(item) && itemReviewed(item);
+}
+
+function heldLine(item, tree) {
+  return itemProved(item)
+    ? `HELD ${item.id}: completed with no clean item review, run run.cjs review --item ${item.id} --tree ${tree}, then integrate --item ${item.id}`
+    : `HELD ${item.id}: completed with no integration proof, run run.cjs integrate --item ${item.id} --tree ${tree} to prove it`;
 }
 
 function loadItems(tree, intent) {
@@ -60,6 +70,9 @@ function loadItems(tree, intent) {
         kind: item.kind || String(spec.frontmatter.kind || '').toLowerCase(),
         complexity: item.complexity || String(spec.frontmatter.complexity || '').toLowerCase(),
         depends_on: item.depends_on,
+        review: item.review,
+        review_tier: item.review_tier,
+        review_rejections: item.review_rejections,
         context: manifest.context || {},
         ownership: manifest.ownership || {},
         reads: manifest.reads,
@@ -100,6 +113,7 @@ function frontier(intentId, options) {
   const ledger = lib.readLedger(tree);
   const intent = lib.findIntent(ledger, intentId);
   const items = loadItems(tree, intent);
+  const models = lib.readConfig(tree, options.config).models || {};
 
   const errors = contractErrors(tree, items);
   if (errors.length > 0) {
@@ -145,7 +159,7 @@ function frontier(intentId, options) {
   let group = [];
   for (const item of ready) {
     const eligible = item.complexity === 'low' && alone(item);
-    if (eligible && (group.length === 0 || tierOf(group[0]) === tierOf(item))) group.push(item);
+    if (eligible && (group.length === 0 || nextActor(group[0]).actor === nextActor(item).actor)) group.push(item);
     else {
       if (group.length > 1) batch.push(group.map((entry) => entry.id));
       group = eligible ? [item] : [];
@@ -153,12 +167,15 @@ function frontier(intentId, options) {
   }
   if (group.length > 1) batch.push(group.map((entry) => entry.id));
 
-  const shape = (item) => ({ id: item.id, complexity: item.complexity, kind: item.kind, tier: tierOf(item) });
-  const out = held.map(
-    (item) =>
-      `HELD ${item.id}: completed with no integration proof, run run.cjs integrate --item ${item.id} --tree ${tree} to prove it`
-  );
-  out.push(...ready.map((item) => `ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${tierOf(item)}`));
+  const shape = (item) => {
+    const { actor } = nextActor(item);
+    return { id: item.id, complexity: item.complexity, kind: item.kind, tier: actor, model: models[actor] || null };
+  };
+  const out = held.map((item) => heldLine(item, tree));
+  for (const item of ready) {
+    out.push(`ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${actorLabel(item, models)}`);
+    if (item.review === 'fix') out.push(nextLine(item.id, item, models));
+  }
   for (const item of waiting) out.push(`waiting ${item.id} on ${item.depends_on.join(', ')}`);
   for (const pair of serialize) out.push(`serialize ${pair.items.join(' + ')} (shares ${pair.shared.join(', ')})`);
   for (const group2 of batch) out.push(`batch ${group2.join(',')}`);

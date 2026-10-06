@@ -19,6 +19,10 @@ roles:
     agent: specsmd_inferno_builder_strong
     model: gpt-6.1-sol
     reasoning_effort: xhigh
+  builder_escalate:
+    agent: specsmd_inferno_builder_escalate
+    model: gpt-6.1-sol
+    reasoning_effort: xhigh
   config:
     agent: specsmd_inferno_config
     model: gpt-5.6-terra
@@ -72,7 +76,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 1. Read applicable `AGENTS.md` instructions and the current Codex config if it exists.
 2. If absent, discover likely production build and full-test commands from project manifests and discover the repository default branch. Treat discoveries as proposals, not confirmed choices.
 3. Display effective settings in plain language:
-   - the five fixed role assignments;
+   - the fixed role assignments;
    - ordered final verification commands, and any path scopes that let one be skipped;
    - worktree bootstrap commands and the machine rules pasted into every dispatch;
    - delivery mode and proposed base branch;
