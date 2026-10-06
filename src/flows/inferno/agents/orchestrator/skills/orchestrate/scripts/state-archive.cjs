@@ -8,6 +8,7 @@ const {
   locateIntents, getIntent, statusOf, isComplete, nowIso, writeState,
 } = require('./state-ledger.cjs');
 const { readList, removeListValues } = require('./state-lists.cjs');
+const { atomicWrite } = require('./state-store.cjs');
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
 const ARCHIVE_HEADER =
@@ -113,11 +114,22 @@ function noteFreedDependencies(lines, intent, freed, date) {
   return true;
 }
 
-/** Move `.specs-inferno/intents/<id>` under `archive/intents/`, tolerating a half-done move. */
+/**
+ * Move `.specs-inferno/intents/<id>` under `archive/intents/`, tolerating a half-done move.
+ * Both directories present is refused: either could be the newer one, and reporting success
+ * would leave the live copy behind for good.
+ */
 function moveIntentDirectory(paths, id) {
   const from = path.join(paths.intentsDir, id);
   const to = path.join(paths.archiveIntentsDir, id);
-  if (fs.existsSync(to)) return fs.existsSync(from) ? 'both' : 'already';
+  if (fs.existsSync(to)) {
+    if (!fs.existsSync(from)) return 'already';
+    throw new TransitionError(
+      `both ${path.relative(paths.specsDir, from)} and ${path.relative(paths.specsDir, to)} exist. ` +
+        'Keep one, remove the other, then run archive-intent again.',
+      'ARCHIVE_CONFLICT'
+    );
+  }
   if (!fs.existsSync(from)) return 'absent';
   fs.mkdirSync(paths.archiveIntentsDir, { recursive: true });
   fs.renameSync(from, to);
@@ -134,7 +146,7 @@ function appendToArchive(archiveFile, blocks) {
     throw new TransitionError(`archive file has no top-level \`intents:\` key: ${archiveFile}`, 'NO_INTENTS');
   }
   if (!existing.endsWith('\n')) existing += '\n';
-  fs.writeFileSync(archiveFile, `${existing}${blocks.join('\n')}\n`, 'utf8');
+  atomicWrite(archiveFile, `${existing}${blocks.join('\n')}\n`);
 }
 
 /**
@@ -164,7 +176,14 @@ function archiveIntent(options) {
     const named = entries.find((entry) => entry.id === options.intent);
     if (!named) {
       if (archivedIds(paths.archiveFile).has(options.intent)) {
-        return { changed: false, archived: [], skipped, note: `${options.intent} already archived` };
+        // The ledger half is done; an interrupted move may still have left the directory.
+        const repaired = moveIntentDirectory(paths, options.intent);
+        return {
+          changed: repaired === 'moved', archived: [], skipped, freed: [],
+          directories: [{ intent: options.intent, result: repaired }],
+          archive: path.relative(path.dirname(paths.specsDir), paths.archiveFile),
+          note: `${options.intent} already archived`,
+        };
       }
       getIntent(lines, options.intent);
     } else if (!isComplete(statusOf(lines, named))) {
@@ -195,49 +214,102 @@ function archiveIntent(options) {
     return { changed: false, archived: [], skipped, note: 'nothing to archive' };
   }
 
+  // Refuse an unsupported dependency form before anything is written, not halfway through.
   const ids = new Set(targets.map((entry) => entry.id));
-  const date = nowIso(options.now).slice(0, 10);
-
-  // Free the dependents FIRST, while the blocks are still in place: every insert shifts the
-  // lines below it, so re-locate after each note rather than trusting stale indexes.
-  const freed = [];
+  const preview = [...lines];
   for (const entry of entries) {
+    if (!ids.has(entry.id)) freeDependencies(preview, getIntent(preview, entry.id), ids);
+  }
+
+  const journal = {
+    version: 1,
+    date: nowIso(options.now).slice(0, 10),
+    skipped,
+    targets: targets.map((entry) => ({ id: entry.id, block: lines.slice(entry.start, entry.end).join('\n') })),
+  };
+  atomicWrite(journalPath(file), JSON.stringify(journal));
+  return recoverArchive(file, options);
+}
+
+function journalPath(file) {
+  return `${path.resolve(file)}.archive-journal.json`;
+}
+
+/** Intent blocks already in the archive, keyed by id. */
+function archivedBlocks(archiveFile) {
+  const blocks = new Map();
+  if (!fs.existsSync(archiveFile)) return blocks;
+  const lines = loadState(archiveFile);
+  for (const entry of locateIntents(lines)) blocks.set(entry.id, lines.slice(entry.start, entry.end).join('\n'));
+  return blocks;
+}
+
+/**
+ * Run, or resume, the archive a journal records. An archive touches three places (the
+ * archive file, the live ledger, the artifact directories), so a crash between them used to
+ * leave an intent in both files or its artifacts in the live tree, and a retry either
+ * appended the block twice or reported "already archived" without moving anything. The
+ * journal names the blocks before the first write; every phase below is idempotent, so a
+ * retry from any interruption finishes the same archive exactly once. Returns null when no
+ * archive is in flight.
+ */
+function recoverArchive(file, options = {}) {
+  const journalFile = journalPath(file);
+  if (!fs.existsSync(journalFile)) return null;
+  const journal = JSON.parse(fs.readFileSync(journalFile, 'utf8'));
+  const paths = archivePaths(file);
+  const ids = new Set(journal.targets.map((entry) => entry.id));
+
+  // Phase 1: append each block the archive does not hold yet, byte for byte.
+  const existing = archivedBlocks(paths.archiveFile);
+  for (const target of journal.targets) {
+    if (existing.has(target.id) && existing.get(target.id) !== target.block) {
+      throw new TransitionError(
+        `archive/state.yaml already holds a different ${target.id}. Reconcile the two entries, then delete ${path.basename(journalFile)}.`,
+        'ARCHIVE_CONFLICT'
+      );
+    }
+  }
+  const missing = journal.targets.filter((entry) => !existing.has(entry.id));
+  if (missing.length) appendToArchive(paths.archiveFile, missing.map((entry) => entry.block));
+  if (options.failpoint) options.failpoint('archive');
+
+  // Phase 2: free the dependents FIRST, while the blocks are still in place, then cut the
+  // blocks back to front so an earlier block's indexes survive a later block's removal.
+  const lines = loadState(file);
+  const freed = [];
+  for (const entry of locateIntents(lines)) {
     if (ids.has(entry.id)) continue;
-    const current = locateIntents(lines).find((candidate) => candidate.id === entry.id);
-    if (!current) continue;
-    const dropped = freeDependencies(lines, current, ids);
+    const dropped = freeDependencies(lines, getIntent(lines, entry.id), ids);
     if (dropped.length === 0) continue;
-    noteFreedDependencies(lines, getIntent(lines, entry.id), dropped, date);
+    noteFreedDependencies(lines, getIntent(lines, entry.id), dropped, journal.date);
     freed.push({ intent: entry.id, freed: dropped });
   }
-
-  // Cut back to front so an earlier block's indexes survive a later block's removal.
-  const located = locateIntents(lines);
-  const ordered = targets
-    .map((entry) => located.find((candidate) => candidate.id === entry.id))
-    .sort((a, b) => b.start - a.start);
-  const cut = new Map();
-  for (const entry of ordered) {
-    cut.set(entry.id, lines.slice(entry.start, entry.end).join('\n'));
+  let cut = false;
+  for (const entry of locateIntents(lines).reverse()) {
+    if (!ids.has(entry.id)) continue;
     lines.splice(entry.start, entry.end - entry.start);
+    cut = true;
   }
+  if (cut || freed.length) writeState(file, lines);
+  if (options.failpoint) options.failpoint('live');
 
-  appendToArchive(paths.archiveFile, targets.map((entry) => cut.get(entry.id)));
-  writeState(file, lines);
-
-  const directories = targets.map((entry) => ({
+  // Phase 3: the artifact directories.
+  const directories = journal.targets.map((entry) => ({
     intent: entry.id,
     result: moveIntentDirectory(paths, entry.id),
   }));
+  if (options.failpoint) options.failpoint('artifacts');
+  fs.unlinkSync(journalFile);
 
   return {
     changed: true,
-    archived: targets.map((entry) => entry.id),
-    skipped,
+    archived: [...ids],
+    skipped: journal.skipped,
     freed,
     directories,
     archive: path.relative(path.dirname(paths.specsDir), paths.archiveFile),
   };
 }
 
-module.exports = { archiveIntent, archivePaths, archivedIds };
+module.exports = { archiveIntent, archivePaths, archivedIds, recoverArchive };

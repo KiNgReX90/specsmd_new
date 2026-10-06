@@ -37,9 +37,11 @@ const {
   getIntent, statusOf, isComplete, setField, removeField, nowIso, writeState,
 } = require('./state-ledger.cjs');
 const { listValues } = require('./state-lists.cjs');
-const { archiveIntent, archivePaths, archivedIds } = require('./state-archive.cjs');
+const archive = require('./state-archive.cjs');
+const { archivePaths, archivedIds } = archive;
 const { check } = require('./state-check.cjs');
-const { blockIntent, unblockIntent } = require('./state-block.cjs');
+const block = require('./state-block.cjs');
+const { withStateLock, atomicWrite } = require('./state-store.cjs');
 const { main: runCli } = require('./state-cli.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
@@ -76,7 +78,7 @@ function syncWorkItemMarkdown(stateFile, intentId, itemId, status, completedAt) 
   if (completedIdx !== -1) headLines[completedIdx] = `completed_at: ${completedAt}`;
   else headLines.splice(statusIdx + 1, 0, `completed_at: ${completedAt}`);
 
-  fs.writeFileSync(mdPath, `---\n${headLines.join('\n')}${rest}`, 'utf8');
+  atomicWrite(mdPath, `---\n${headLines.join('\n')}${rest}`);
   return path.relative(path.dirname(specsDir), mdPath);
 }
 
@@ -299,10 +301,38 @@ function unclaimIntent(options) {
   return { changed: true, intent: options.intent, status: 'pending', previous };
 }
 
+/**
+ * Every write command runs inside one ledger transaction: the lock, then any archive an
+ * earlier writer left half done, then the command's own read, check and write. Finishing the
+ * interrupted archive first means no command ever reads a ledger that still lists an intent
+ * the archive already holds.
+ */
+function transaction(fn, options) {
+  const file = options.file || DEFAULT_STATE_PATH;
+  return withStateLock(file, () => {
+    const recovered = archive.recoverArchive(file, options);
+    if (recovered && fn === archive.archiveIntent && !options.sweep && recovered.archived.includes(options.intent)) {
+      return recovered;
+    }
+    return fn({ ...options, file });
+  }, options);
+}
+
+const locked = (fn) => (options) => transaction(fn, options);
+const archiveIntent = locked(archive.archiveIntent);
+const blockIntent = locked(block.blockIntent);
+const unblockIntent = locked(block.unblockIntent);
+const lockedCommands = {
+  completeItem: locked(completeItem),
+  closeIntent: locked(closeIntent),
+  claimIntent: locked(claimIntent),
+  unclaimIntent: locked(unclaimIntent),
+};
+
 function main(argv) {
   return runCli(argv, {
-    claimIntent, unclaimIntent, blockIntent, unblockIntent, completeItem, closeIntent,
-    archiveIntent, check,
+    ...lockedCommands,
+    blockIntent, unblockIntent, archiveIntent, check,
   });
 }
 
@@ -319,11 +349,8 @@ if (require.main === module) {
 }
 
 module.exports = {
-  completeItem,
-  closeIntent,
+  ...lockedCommands,
   archiveIntent,
-  claimIntent,
-  unclaimIntent,
   blockIntent,
   unblockIntent,
   check,
