@@ -124,23 +124,24 @@ function frontier(intentId, options) {
 
   const waiting = items.filter((item) => !ready.includes(item));
   const owns = (item) => item.ownership.editable || [];
+  const shares = (entry, other) => owns(other).some((owned) => lib.overlaps(entry, owned, tree));
 
   const serialize = [];
   for (let i = 0; i < ready.length; i += 1) {
     for (let j = i + 1; j < ready.length; j += 1) {
-      const shared = owns(ready[i]).filter((entry) => owns(ready[j]).includes(entry));
+      const shared = owns(ready[i]).filter((entry) => shares(entry, ready[j]));
       if (shared.length > 0) serialize.push({ items: [ready[i].id, ready[j].id], shared });
     }
   }
 
   const dispatch = scheduler
-    .selectDispatchableItems(ready, { completedIds })
+    .selectDispatchableItems(ready, { completedIds, tree })
     .map((item) => item.id);
 
   // A batch is only a saving when the items could not have run in parallel anyway: same
   // tier, low complexity, and ownership nothing else in the frontier touches.
   const alone = (item) =>
-    owns(item).every((entry) => !ready.some((other) => other !== item && owns(other).includes(entry)));
+    owns(item).every((entry) => !ready.some((other) => other !== item && shares(entry, other)));
   const batch = [];
   let group = [];
   for (const item of ready) {

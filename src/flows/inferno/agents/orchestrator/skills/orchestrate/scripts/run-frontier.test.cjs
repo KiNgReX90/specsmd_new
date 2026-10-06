@@ -142,6 +142,24 @@ intents:
         complexity: low
         status: pending
         depends_on: []
+  - id: zeta
+    title: "Zeta"
+    status: pending
+    base_branch: main
+    depends_on_intents: []
+    work_items:
+      - id: z-dir
+        title: "Z folder"
+        kind: behavior
+        complexity: low
+        status: pending
+        depends_on: []
+      - id: z-file
+        title: "Z file"
+        kind: behavior
+        complexity: low
+        status: pending
+        depends_on: []
 `;
 
 /** A tree shaped like a host project: an owned module, its test, a script that checks it. */
@@ -277,6 +295,8 @@ const ITEMS = {
     editable: ["src/board/tile.ts"],
     diagnosis: { claim: "the width is dropped", probe: "cat src/board/nope.css", shows: "2" },
   }),
+  "zeta/z-dir": item({ id: "z-dir", intent: "zeta", editable: ["src/board/"] }),
+  "zeta/z-file": item({ id: "z-file", intent: "zeta", editable: ["./src/board/tile.css"] }),
   "theta/t-fresh": item({
     id: "t-fresh",
     intent: "theta",
@@ -405,6 +425,13 @@ test("a serialize line always precedes the candidates the cap trims", () => {
   const candidate = printed.findIndex((line) => line.startsWith("candidate "));
   assert.ok(serialize >= 0, "the shared ownership is still reported");
   assert.ok(candidate > serialize, "candidates come after the serialize lines");
+});
+
+test("a folder owner and a file below it are serialized and never dispatched together", () => {
+  const tree = fixture();
+  const payload = JSON.parse(run(tree, ["frontier", "zeta", "--json"]).out);
+  assert.deepEqual(payload.serialize.map((entry) => entry.items), [["z-dir", "z-file"]]);
+  assert.deepEqual(payload.dispatch, ["z-dir"]);
 });
 
 // --- probes --------------------------------------------------------------

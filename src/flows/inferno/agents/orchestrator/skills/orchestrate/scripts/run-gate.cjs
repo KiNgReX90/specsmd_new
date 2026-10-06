@@ -228,7 +228,7 @@ function gateNow(options) {
     lib.dirtyPaths(tree).length === 0 && proofs.scopeHash(tree) === started &&
     JSON.stringify(lib.readConfig(tree, options.config).verification) === definition;
   for (const [index, command] of commands.entries()) {
-    const result = proofs.runCommand(tree, config, options.config, command, path.join(dir, `${index}.log`));
+    const result = proofs.runCommand(tree, config, options.config, command, path.join(dir, `${index}.log`), Boolean(options.force));
     const rerunCommand = config.verification.flake_rerun && config.verification.flake_rerun[command];
     if (result.result === 'fail' && rerunCommand) {
       if (unchanged()) {
@@ -334,6 +334,7 @@ function gateDetach(options) {
   const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
   if (options.config) args.push('--config', options.config);
+  if (options.force) args.push('--force');
   const out = fs.openSync(paths.result, 'w');
   const err = fs.openSync(paths.log, 'w');
   const child = spawn(process.execPath, args, { cwd: tree, detached: true, stdio: ['ignore', out, err] });

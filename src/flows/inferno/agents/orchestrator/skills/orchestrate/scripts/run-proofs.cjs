@@ -26,7 +26,7 @@ function scopeHash(tree, scope) {
     if (included(file)) entries.set(file, row.slice(0, separator));
   }
   const dirty = new Set([
-    ...gitFields(tree, ['diff', '--name-only', '-z', 'HEAD']),
+    ...gitFields(tree, ['diff', '--name-only', '--no-renames', '-z', 'HEAD']),
     ...gitFields(tree, ['ls-files', '--others', '--exclude-standard', '-z']),
   ]);
   for (const file of dirty) {
@@ -71,15 +71,19 @@ function readProof(proof) {
   }
 }
 
-/** Only a successful command on unchanged inputs can mint a proof. */
-function runCommand(tree, config, selected, command, log) {
+/**
+ * Only a successful command on unchanged inputs can mint a proof. `force` reruns a command
+ * whose proof still holds, and revokes that proof first so a run that never finishes cannot
+ * leave the old success standing.
+ */
+function runCommand(tree, config, selected, command, log, force = false) {
   const proof = commandProof(tree, config, selected, command);
   const previous = readProof(proof);
-  if (previous) return { command, result: 'green', seconds: previous.seconds, stamp: previous.stamp };
+  if (previous && !force) return { command, result: 'green', seconds: previous.seconds, stamp: previous.stamp };
+  fs.rmSync(proof.file, { force: true });
   const run = lib.runShell(command, tree, log);
   const moved = run.code === 0 && commandProof(tree, lib.readConfig(tree, selected), selected, command).file !== proof.file;
   if (run.code !== 0 || moved) {
-    fs.rmSync(proof.file, { force: true });
     if (moved) fs.appendFileSync(log, '\nverification inputs changed while the command ran. Run it again.\n');
     return { command, result: 'fail', seconds: run.seconds, log: run.log, ...(moved ? { moved: true } : {}) };
   }

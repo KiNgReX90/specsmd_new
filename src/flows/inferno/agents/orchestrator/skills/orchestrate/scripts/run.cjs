@@ -43,7 +43,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
-  node run.cjs gate [--tree <dir>] [--config <file>]     run the finalize commands without matching proofs
+  node run.cjs gate [--tree <dir>] [--config <file>] [--force] run the finalize commands without matching proofs
   node run.cjs gate --detach [--tree <dir>]              start the gate as its own process and return
   node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the started gate: 0 green, 2 red, 4 still running (default 9 min)
   node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
@@ -60,6 +60,7 @@ Options
   --item <id>       integrate: the item this landing completes once the checks are green
   --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate and probes: the intent owning the item, when the id is ambiguous
+  --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
 
 Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, or an item completed with no integration proof), 4 gate still running.`;
@@ -91,7 +92,7 @@ const COMMANDS = {
 const OWNING = new Set(['frontier', 'probes', 'verify-item', 'integrate', 'gate', 'green', 'ship', 'dispatch-log']);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
-const FLAGS = new Set(['--json', '--detach', '--wait']);
+const FLAGS = new Set(['--json', '--detach', '--wait', '--force']);
 
 function parseArgs(argv) {
   const options = { cwd: process.cwd() };
