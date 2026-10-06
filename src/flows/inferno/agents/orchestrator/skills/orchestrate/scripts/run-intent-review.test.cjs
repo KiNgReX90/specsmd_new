@@ -3,7 +3,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { CONFIG, INTENT_TREE, git, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { CONFIG, INTENT_TREE, git, killedMutate, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // The intent review: one cold reviewer reads the whole intent against its brief before the
 // gate. `run.cjs review` without --item dispatches it, then validates, records and commits
@@ -11,11 +11,16 @@ const { CONFIG, INTENT_TREE, git, repo, run, worktree, write } = require("./revi
 
 const REVIEW = ".specs-inferno/intents/alpha/review.yaml";
 
-function opened(options) {
+function started(options) {
   const fixture = repo(options);
   const tree = worktree(fixture, INTENT_TREE);
   write(tree, "src/a.ts", "export const a = 3;\n");
   git(tree, ["commit", "-qam", "the work"]);
+  return { fixture, tree };
+}
+
+function opened(options) {
+  const { fixture, tree } = started(options);
   // The dispatch the reviewer answers: a record binds the tree it was dispatched on.
   run(fixture, ["review", "--tree", tree]);
   return { fixture, tree };
@@ -244,6 +249,28 @@ test("a commit landing between the dispatch and the record is not recorded as re
   assert.equal(result.code, 3, result.out + result.err);
   assert.match(result.out, /moved since the dispatch/);
   assert.equal(head(tree), before);
+});
+
+test("a review written with no dispatch on record is refused and nothing is recorded", () => {
+  const { fixture, tree } = started();
+  const before = head(tree);
+  write(tree, REVIEW, "verdict: clean\n");
+  const result = review(fixture, tree);
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.match(result.out, /has no dispatch on record/);
+  assert.equal(head(tree), before);
+});
+
+test("the record restores a mutant a killed mutate left behind, then records over the whole file", async () => {
+  const { fixture, tree } = opened();
+  await killedMutate(fixture, tree);
+  write(tree, REVIEW, "verdict: clean\n");
+  const result = review(fixture, tree);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /restored src\/a\.ts from an interrupted mutate/);
+  assert.match(result.out, /intent review clean, recorded/);
+  assert.equal(fs.readFileSync(path.join(tree, "src/a.ts"), "utf8"), "export const a = 3;\n");
+  assert.equal(git(tree, ["status", "--porcelain"]), "");
 });
 
 test("in the intent review a number names a criterion only with its own item", () => {

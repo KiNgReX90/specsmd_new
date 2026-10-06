@@ -144,6 +144,49 @@ test("a second mutate refuses while a live run holds its mutant, and the live ru
   await done;
   assert.equal(second.status, 2, second.stdout + second.stderr);
   assert.match(second.stderr, /another mutate/);
+  assert.match(second.stderr, /if no mutate is running, delete \S+mutate-journal\.json/);
   assert.match(out, /^caught yes$/m);
   assert.equal(content(f), ORIGINAL);
 });
+
+/** Fields 3 (state) and 22 (start time) of /proc/<pid>/stat; the name in field 2 may hold spaces. */
+function procStat(pid) {
+  const text = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+  const fields = text.slice(text.lastIndexOf(")") + 2).split(" ");
+  return { state: fields[0], start: fields[19] };
+}
+
+/** A zombie: the child of a shell that exec'd into a sleep, which never reaps it. */
+async function zombie(t) {
+  const parent = spawn("sh", ["-c", "sleep 0.2 & echo $!; exec sleep 30"], { stdio: ["ignore", "pipe", "ignore"] });
+  t.after(() => parent.kill("SIGKILL"));
+  const pid = Number(await new Promise((resolve) => parent.stdout.once("data", resolve)));
+  for (let i = 0; i < 200 && procStat(pid).state !== "Z"; i += 1) await new Promise((r) => setTimeout(r, 25));
+  assert.equal(procStat(pid).state, "Z", "the zombie never formed");
+  return { pid, start: procStat(pid).start };
+}
+
+for (const [name, owner] of [
+  ["an unrelated live process", (t) => {
+    const other = spawn("sleep", ["30"], { stdio: "ignore" });
+    t.after(() => other.kill("SIGKILL"));
+    return { pid: other.pid };
+  }],
+  ["a zombie with the same start time", zombie],
+]) {
+  test(`a killed run's journal whose pid now names ${name} is restored, and the mutate runs`, { skip: !fs.existsSync("/proc/self/stat") }, async (t) => {
+    const f = fixture(t);
+    const run = await held(f);
+    run.child.kill("SIGKILL");
+    await run.done;
+    run.release();
+    const journal = path.join(f.cache, fs.readdirSync(f.cache, { recursive: true }).find((p) => p.endsWith("mutate-journal.json")));
+    fs.writeFileSync(journal, JSON.stringify({ ...JSON.parse(fs.readFileSync(journal, "utf8")), ...(await owner(t)) }));
+    assert.notEqual(content(f), ORIGINAL);
+    const next = mutate(f, CHECK);
+    assert.equal(next.code, 0, next.out + next.err);
+    assert.match(next.out, /restored src\/m\.js/);
+    assert.match(next.out, /^caught yes$/m);
+    assert.equal(content(f), ORIGINAL);
+  });
+}

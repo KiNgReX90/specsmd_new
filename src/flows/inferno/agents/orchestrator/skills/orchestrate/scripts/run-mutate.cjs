@@ -26,13 +26,35 @@ function journalPath(tree) {
   return path.join(lib.cacheDir(tree), lib.currentBranch(tree), 'mutate-journal.json');
 }
 
-function alive(pid) {
+/** Fields 3 (state) and 22 (start time) of /proc/<pid>/stat, or null. The name in field 2 may hold spaces. */
+function procStat(pid) {
   try {
-    process.kill(pid, 0);
-    return true;
+    const text = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const fields = text.slice(text.lastIndexOf(')') + 2).split(' ');
+    return { state: fields[0], start: fields[19] };
   } catch (error) {
-    return error.code === 'EPERM';
+    return null;
   }
+}
+
+const PROC = fs.existsSync('/proc/self/stat');
+
+/**
+ * Whether the run that wrote the journal still lives. Its pid alone proves nothing: a dead
+ * run's pid can go to any process, and a zombie still answers kill(pid, 0). With /proc the
+ * owner is the same pid with the same start time, and no zombie. Without /proc, the pid only.
+ */
+function alive(entry) {
+  if (!PROC) {
+    try {
+      process.kill(entry.pid, 0);
+      return true;
+    } catch (error) {
+      return error.code === 'EPERM';
+    }
+  }
+  const now = procStat(entry.pid);
+  return now !== null && now.state !== 'Z' && now.start === entry.start;
 }
 
 /**
@@ -49,9 +71,10 @@ function recoverInterrupted(tree) {
   } catch (error) {
     entry = null;
   }
-  if (entry && Number.isInteger(entry.pid) && entry.pid !== process.pid && alive(entry.pid)) {
+  if (entry && Number.isInteger(entry.pid) && entry.pid !== process.pid && alive(entry)) {
     throw new RunError(
-      `another mutate (pid ${entry.pid}) is running on ${entry.file}; wait for it, then run this again`,
+      `another mutate (pid ${entry.pid}) is running on ${entry.file}; wait for it, then run this again; ` +
+        `if no mutate is running, delete ${journal}`,
       'MUTATE_RUNNING'
     );
   }
@@ -117,7 +140,9 @@ function mutate(options) {
   const { rel, abs, n, original, mutant } = target(tree, options);
   const journal = journalPath(tree);
   fs.mkdirSync(path.dirname(journal), { recursive: true });
-  fs.writeFileSync(journal, `${JSON.stringify({ file: rel, mutant: sha(mutant), pid: process.pid })}\n`);
+  const self = procStat('self');
+  const owner = { pid: process.pid, start: self && self.start };
+  fs.writeFileSync(journal, `${JSON.stringify({ file: rel, mutant: sha(mutant), ...owner })}\n`);
   // A listener replaces the default action, so a signal now waits for the restore below.
   const hold = () => {};
   for (const signal of SIGNALS) process.on(signal, hold);

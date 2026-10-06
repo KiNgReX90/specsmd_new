@@ -3,7 +3,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { CONFIG, INTENT_TREE, git, intentReviewed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { CONFIG, INTENT_TREE, git, intentReviewed, killedMutate, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // The gate never proves a tree the intent review has not read, and green never lets a merge
 // through without a clean review for the tree and the evidence every external criterion
@@ -111,22 +111,11 @@ test("green finds the evidence where the archive moved the intent", () => {
 });
 
 test("a mutant a killed mutate left behind is restored before the gate's dirty check", async () => {
-  const { spawn } = require("node:child_process");
   const { fixture, tree } = opened();
   intentReviewed(tree);
-  const release = path.join(fixture.cache, "..", "release");
-  const child = spawn(process.execPath, [path.join(__dirname, "run.cjs"), "mutate", "--tree", tree, "--file", "src/a.ts",
-    "--line", "1", "--replace", "export const a = 99;", "--test", `until [ -f ${release} ]; do sleep 0.05; done`],
-  { cwd: tree, env: { ...process.env, XDG_CACHE_HOME: fixture.cache }, stdio: "ignore" });
-  const file = path.join(tree, "src/a.ts");
-  for (let i = 0; i < 200 && !fs.readFileSync(file, "utf8").includes("99"); i += 1) await new Promise((r) => setTimeout(r, 25));
-  const done = new Promise((resolve) => child.on("close", resolve));
-  child.kill("SIGKILL");
-  await done;
-  fs.writeFileSync(release, "");
-  assert.match(fs.readFileSync(file, "utf8"), /99/);
+  await killedMutate(fixture, tree);
   const result = gate(fixture, tree);
   assert.equal(result.code, 0, result.out + result.err);
   assert.match(result.out, /restored src\/a\.ts from an interrupted mutate/);
-  assert.equal(fs.readFileSync(file, "utf8"), "export const a = 3;\n");
+  assert.equal(fs.readFileSync(path.join(tree, "src/a.ts"), "utf8"), "export const a = 3;\n");
 });

@@ -20,6 +20,7 @@ const path = require('path');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
+const { recoverInterrupted } = require('./run-mutate.cjs');
 const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 
@@ -182,7 +183,7 @@ function record(tree, context, ledger) {
   return verdictResult(tree, { ...context, item: updated }, review, head);
 }
 
-/** The step itself: dispatch line when owed, record when written, the verdict when current. */
+/** The step itself. Every call first puts back a killed mutate's leftover and refuses this item's uncommitted work. */
 function review(options) {
   if (!options.item) {
     throw new RunError('usage: node run.cjs review --item <id> --tree <dir> [--intent <id>]', 'BAD_ARGS', 1);
@@ -200,6 +201,8 @@ function review(options) {
   const pending = exists && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   const current = exists && !pending ? parseItemReview(tree, rel, item.id, { recorded: true }) : null;
 
+  // A mutant a killed mutate left behind goes back first, so it never reads as this item's work.
+  const restored = recoverInterrupted(tree);
   // Only this item's work has to be committed: another builder may be editing beside it.
   const listed = current ? current.files : [];
   const dirty = lib.dirtyPaths(tree).filter((file) => lib.ownedBy(file, editable) || listed.includes(file));
@@ -211,6 +214,13 @@ function review(options) {
     );
   }
 
+  const result = step(tree, context, { ledger, editable, exists, pending, current });
+  return { ...result, out: [...restored, ...result.out] };
+}
+
+/** Dispatch line when no review exists, record when one is written, the verdict when current. */
+function step(tree, context, { ledger, editable, exists, pending, current }) {
+  const { intent, item, config } = context;
   if (!exists) return owed(tree, context, 'no review yet', forkPoint(tree, config, intent), editable);
   if (pending) return record(tree, context, ledger);
   // A fix review is owed again by any commit on the item's own paths, not only on the files

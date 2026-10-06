@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFileSync, spawn, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const WRITER = path.join(__dirname, 'state-transition.cjs');
@@ -180,6 +180,25 @@ function reviewBefore(args, cwd) {
   if (intentReviewState(tree, {}, intent).owed.length > 0) intentReviewed(tree, intent);
 }
 
+/**
+ * Leave behind what a mutate killed outright leaves: its mutant in line 1 of `file` and its
+ * journal. The mutate's test waits for a release file that is written only after the kill.
+ */
+async function killedMutate(fixture, tree, file = 'src/a.ts', replace = 'export const a = 99;') {
+  const abs = path.join(tree, file);
+  const before = fs.readFileSync(abs, 'utf8');
+  const release = path.join(path.dirname(fixture.root), `release-${process.hrtime.bigint()}`);
+  const child = spawn(process.execPath, [RUN, 'mutate', '--tree', tree, '--file', file, '--line', '1', '--replace', replace,
+    '--test', `until [ -f ${release} ]; do sleep 0.05; done`],
+  { cwd: tree, env: { ...process.env, XDG_CACHE_HOME: fixture.cache }, stdio: 'ignore' });
+  const done = new Promise((resolve) => child.on('close', resolve));
+  for (let i = 0; i < 200 && fs.readFileSync(abs, 'utf8') === before; i += 1) await new Promise((r) => setTimeout(r, 25));
+  child.kill('SIGKILL');
+  await done;
+  fs.writeFileSync(release, '');
+  assert.notEqual(fs.readFileSync(abs, 'utf8'), before, 'the mutant never landed');
+}
+
 /** Mark items reviewed clean straight through the writer, for a ledger a test completes by hand. */
 function markReviewed(state, ids, intent = 'alpha') {
   for (const id of ids) {
@@ -189,6 +208,6 @@ function markReviewed(state, ids, intent = 'alpha') {
 }
 
 module.exports = {
-  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, hostLock, intentReviewed, markReviewed, repo, reviewBefore, reviewed, run,
-  worktree, write,
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, hostLock, intentReviewed, killedMutate, markReviewed, repo, reviewBefore,
+  reviewed, run, worktree, write,
 };
