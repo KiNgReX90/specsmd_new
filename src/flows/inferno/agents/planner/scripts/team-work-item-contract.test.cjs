@@ -93,3 +93,63 @@ test("work item contract rejects missing required context", () => {
     errors: ["item-3: context.required must contain at least one path"],
   });
 });
+
+test("work item template and planner body carry the wiring blocks", () => {
+  const template = fs.readFileSync(templatePath, "utf8");
+  const agent = fs.readFileSync(agentPath, "utf8");
+
+  for (const token of ["provides:", "consumes:", "seam:"]) {
+    assert.match(template, new RegExp(token));
+    assert.match(agent, new RegExp(token));
+  }
+});
+
+function wired(wiring) {
+  return {
+    id: "item-4",
+    kind: "behavior",
+    context: {
+      required: [{ path: "src/feature.js", reason: "primary implementation" }],
+      patterns: [{ path: "src/existing.js", reason: "local pattern" }],
+      tests: [{ path: "test/feature.test.js", reason: "coverage target" }],
+    },
+    ownership: { editable: ["src/feature.js"] },
+    ...wiring,
+  };
+}
+
+test("work item contract accepts well-formed provides and consumes", () => {
+  const item = wired({
+    provides: [{ kind: "table", name: "dossiers" }],
+    consumes: [
+      { kind: "command", name: "save_dossier", seam: "e2e/save.spec.ts" },
+      { kind: "table", name: "dossiers" },
+    ],
+  });
+
+  assert.deepEqual(validateWorkItem(item), { valid: true, errors: [] });
+});
+
+test("work item contract rejects a consumed command or event with no seam", () => {
+  const item = wired({
+    consumes: [
+      { kind: "command", name: "save_dossier" },
+      { kind: "event", name: "scan_done", seam: " " },
+    ],
+  });
+
+  assert.deepEqual(validateWorkItem(item).errors, [
+    "item-4: consumes[0].seam must name the test that crosses the bridge for command save_dossier",
+    "item-4: consumes[1].seam must name the test that crosses the bridge for event scan_done",
+  ]);
+});
+
+test("work item contract rejects a wiring entry with an unknown kind or no name", () => {
+  const item = wired({ provides: [{ kind: "query", name: "x" }, { kind: "event" }], consumes: [] });
+
+  assert.deepEqual(validateWorkItem(item).errors, [
+    "item-4: provides[0].kind must be command, table or event",
+    "item-4: provides[1].name must be a non-empty string",
+    "item-4: consumes must list at least one entry when the item declares it",
+  ]);
+});

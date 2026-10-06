@@ -1,4 +1,5 @@
 const { overlaps } = require("./run-owned.cjs");
+const { entryErrors } = require("./run-wiring.cjs");
 
 const IMPLEMENTATION_KINDS_REQUIRING_PATTERNS = new Set([
   "architecture",
@@ -82,6 +83,8 @@ function validateWorkItem(workItem) {
     errors.push(`${id}: context.tests is required unless the item is docs-only or config-only`);
   }
   errors.push(...readsErrors(id, workItem && workItem.reads));
+  errors.push(...entryErrors(id, "provides", workItem && workItem.provides));
+  errors.push(...entryErrors(id, "consumes", workItem && workItem.consumes));
 
 
   return {

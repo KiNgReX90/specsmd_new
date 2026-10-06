@@ -54,6 +54,23 @@ reads:
       stale: {{this.stale}}
 {{/each}}
 {{/if}}
+{{#if provides}}
+provides:
+{{#each provides}}
+    - kind: {{this.kind}}
+      name: {{this.name}}
+{{/each}}
+{{/if}}
+{{#if consumes}}
+consumes:
+{{#each consumes}}
+    - kind: {{this.kind}}
+      name: {{this.name}}
+{{#if this.seam}}
+      seam: {{this.seam}}
+{{/if}}
+{{/each}}
+{{/if}}
 {{#if probes}}
 probes:
 {{#each probes}}

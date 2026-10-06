@@ -21,6 +21,7 @@ const { listValues } = require('./state-lists.cjs');
 const { RunError } = require('./run-error.cjs');
 const owned = require('./run-owned.cjs');
 const { parseYaml, stripQuotes } = require('./run-yaml.cjs');
+const { validateWiring } = require('./run-wiring.cjs');
 
 // ---------------------------------------------------------------------------
 // git
@@ -170,7 +171,7 @@ function readConfig(root, selected) {
   if (selected && file !== defaultFile && fs.existsSync(defaultFile)) {
     const defaults = parseYaml(fs.readFileSync(defaultFile, 'utf8'));
     // Machine facts every host config shares; the budget lookup must match the installer's.
-    for (const section of ['worktree', 'recovery', 'halt', 'budget', 'doubles']) {
+    for (const section of ['worktree', 'recovery', 'halt', 'budget', 'doubles', 'wiring']) {
       if (
         !Object.prototype.hasOwnProperty.call(config, section) &&
         Object.prototype.hasOwnProperty.call(defaults, section)
@@ -182,6 +183,7 @@ function readConfig(root, selected) {
   config.host = resolveHost(config, file);
   validateRoles(config, file);
   validateVerification(config, file);
+  validateWiring(config, file);
   return config;
 }
 

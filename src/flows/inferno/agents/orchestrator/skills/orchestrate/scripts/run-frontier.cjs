@@ -17,6 +17,7 @@ const lib = require('./run-lib.cjs');
 const scheduler = require('./team-scheduler.cjs');
 const ownership = require('./run-ownership.cjs');
 const probes = require('./run-probes.cjs');
+const { wiringErrors } = require('./run-wiring.cjs');
 const { isComplete } = require('./state-transition.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 // The tier and the ladder live with the review that moves an item up it, so frontier and
@@ -78,12 +79,28 @@ function loadItems(tree, intent) {
         context: manifest.context || {},
         ownership: manifest.ownership || {},
         reads: manifest.reads,
+        provides: manifest.provides,
+        consumes: manifest.consumes,
         probes: manifest.probes,
         description: spec.description,
         diagnosis: manifest.diagnosis,
         file: spec.file,
       };
     });
+}
+
+/**
+ * What the completed items of the intent provide. A provider that already landed still wires
+ * its consumers. A completed spec that is gone provides nothing rather than failing the run.
+ */
+function completedManifests(tree, intent) {
+  return intent.items.filter((item) => isComplete(item.status)).map((item) => {
+    try {
+      return lib.readItemSpec(tree, intent.id, item.id).manifest || {};
+    } catch (error) {
+      return {};
+    }
+  });
 }
 
 /** The contract check, plus the one team-scheduler cannot make: the paths have to exist. */
@@ -120,6 +137,7 @@ function frontier(intentId, options) {
   const integrated = (item) => itemIntegrated(item, since);
 
   const errors = contractErrors(tree, items);
+  if (errors.length === 0) errors.push(...wiringErrors(tree, intent.id, items, [...items, ...completedManifests(tree, intent)], config));
   if (errors.length > 0) {
     return { exit: 2, payload: { ok: false, errors }, out: errors.map((error) => `INVALID ${error}`) };
   }
