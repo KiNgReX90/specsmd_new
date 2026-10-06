@@ -23,6 +23,7 @@ const lib = require('./run-lib.cjs');
 const intents = require('./run-intents.cjs');
 const gate = require('./run-gate.cjs');
 const { integrate } = require('./run-integrate.cjs');
+const { checkDoubles } = require('./check-doubles.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
@@ -43,6 +44,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
+  node run.cjs doubles [--tree <dir>] [--config <file>] count the test doubles against the merge base: 0 held, 2 rose
   node run.cjs gate [--tree <dir>] [--config <file>]     run the finalize commands without matching proofs
   node run.cjs gate --detach [--tree <dir>]              start the gate as its own process and return
   node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the started gate: 0 green, 2 red, 4 still running (default 9 min)
@@ -54,8 +56,8 @@ const USAGE = `INFERNO orchestrator runner
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
-  --config <file>   select, claim, unclaim, worktree, integrate, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
-  --base <branch>   integrate, gate, ship and teardown: the base branch to fold in (default: the config's base)
+  --config <file>   select, claim, unclaim, worktree, integrate, doubles, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
+  --base <branch>   integrate, doubles, gate, ship and teardown: the base branch to fold in (default: the config's base)
   --since <ref>     verify-item: what to compare the working tree against (default HEAD)
   --item <id>       integrate: the item this landing completes once the checks are green
   --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
@@ -79,6 +81,7 @@ const COMMANDS = {
   'verify-item': (args, options) =>
     gate.verifyItem(required(args[0] || options.items, 'verify-item <item-id> | verify-item --items <a,b>'), options),
   integrate: (args, options) => integrate(options),
+  doubles: (args, options) => checkDoubles(options),
   gate: (args, options) => gate.gate(options),
   green: (args, options) => gate.green(options),
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),

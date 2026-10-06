@@ -24,6 +24,7 @@ const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
 const impact = require('./run-e2e-impact.cjs');
 const { resolveBase } = require('./run-intents.cjs');
+const { checkDoubles } = require('./check-doubles.cjs');
 
 const { RunError } = lib;
 
@@ -135,6 +136,11 @@ function integrate(options) {
 
   const red = (out) => ({ exit: 2, payload: { ok: false, tree, branch, items: ids, folded: folded.length > 0, results }, out });
 
+  // The double ratchet runs first: a branch that fakes more of the app is refused before any
+  // command spends time proving it.
+  const doubles = config.doubles === undefined ? null : checkDoubles({ ...options, tree, base }, config);
+  if (doubles && doubles.exit !== 0) return red([...folded, ...doubles.out]);
+
   // Every command runs, red or not, and one red result names every failure. Stopping at the
   // first failure cost one orchestrator round trip and one builder correction per failing
   // command: an item that broke check, definitions and cargo paid three integrate runs and
@@ -156,7 +162,7 @@ function integrate(options) {
     ]);
   }
 
-  const out = [...folded];
+  const out = [...folded, ...(doubles ? doubles.out : [])];
   if (commands.length === 0) {
     out.push(`no verification.integrate list in ${lib.SPECS_DIR}/config.yaml: folded ${base} only`);
   } else {

@@ -42,6 +42,11 @@ verification:
     "cargo test --workspace": ["src-tauri/**", "Cargo.*"]
     "npm run test:e2e": ["src/**", "src-tauri/**", "e2e/**", "package.json", "package-lock.json", "playwright.config.*"]
 
+doubles:                          # optional: refuses a branch that raises the count of test files matching pattern, against the merge base; a --config file inherits it
+  pattern: '__TAURI_INTERNALS__'  # a regex in single quotes for a hand-built double; paths and exclude are globs
+  paths: ['e2e/**']
+  exclude: ['e2e/contract.ts']
+
 worktree:
   bootstrap:                      # optional: commands run inside a fresh intent worktree before the first dispatch
     - npm ci
