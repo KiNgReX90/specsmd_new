@@ -43,7 +43,9 @@ function scanRefusal(tree, context, folded) {
   return {
     exit: 3,
     payload: { ok: false, intent: context.intent, owed: 'scan' },
-    out: [...folded, `the scan of ${context.intent} is owed: collect it, then run ${owed.reviewCommand(tree, context.options)} again`],
+    out: [...folded, `the scan of ${context.intent} is owed: run ${owed.scanCommand(tree, context.options)}, ` +
+      'spawn the dispatch lines it prints in one message per group it names, ' +
+      `run ${owed.scanCommand(tree, context.options, true)}, then ${owed.reviewCommand(tree, context.options)} again`],
   };
 }
 
@@ -135,7 +137,7 @@ function reviewIntent(options) {
         `refusing to record the intent review over uncommitted work in ${dirty.slice(0, 5).join(', ')}: ` +
           'commit or discard it, then run this command again.'), 'DIRTY');
     }
-    if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, restored);
+    if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, restored);
     const sent = readDispatch(tree, intent);
     if (!sent || sent.hash !== proofs.scopeHash(tree)) {
       const since = sent ? `moved since the dispatch at ${sent.head.slice(0, 7)}` : 'has no dispatch on record';
@@ -152,7 +154,7 @@ function reviewIntent(options) {
   const restored = gate.refuseDirty(tree);
   const base = options.base || resolveBase(config, null, tree);
   const folded = [...restored, ...gate.foldBase(tree, base)];
-  if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, folded);
+  if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, folded);
   const state = owed.intentReviewState(tree, config, intent);
   const current = state.review && state.review.tree === proofs.scopeHash(tree);
   if (current) {

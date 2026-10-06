@@ -66,6 +66,8 @@ describe('inferno flow', () => {
     ['commands/inferno-oracle.md', 'specsmd-inferno-oracle'],
     ['commands/inferno-reviewer.md', 'specsmd-inferno-reviewer'],
     ['agents/reviewer/agent.md', 'inferno-reviewer-agent'],
+    ['commands/inferno-scanner.md', 'specsmd-inferno-scanner'],
+    ['agents/scanner/agent.md', 'inferno-scanner-agent'],
     ['agents/planner/agent.md', 'inferno-planner-agent'],
     ['agents/builder/agent.md', 'inferno-builder-agent'],
     ['agents/builder-cheap/agent.md', 'inferno-builder-cheap-agent'],
@@ -86,6 +88,27 @@ describe('inferno flow', () => {
     const command = readFileSync(path.join(INFERNO, 'commands/inferno-reviewer.md'), 'utf8');
     const agent = readFileSync(path.join(INFERNO, 'agents/reviewer/agent.md'), 'utf8');
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  it('inferno-scanner command body is identical to the canonical scanner agent body', () => {
+    const command = readFileSync(path.join(INFERNO, 'commands/inferno-scanner.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/scanner/agent.md'), 'utf8');
+    expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
+  });
+
+  // The scanner answers one question and fixes nothing: it writes its result file, and the
+  // collect reads exactly the keys it is taught, every question by the id the scripts use.
+  it('the scanner carries the tools of a judge and teaches exactly the result schema and the four questions', () => {
+    const scanner = readFileSync(path.join(INFERNO, 'commands/inferno-scanner.md'), 'utf8');
+    const tools = (frontmatter(scanner).match(/^tools:\s*(.*)$/m)?.[1] ?? '').split(/,\s*/);
+    expect(tools.sort()).toEqual(['Bash', 'Glob', 'Grep', 'Read', 'Write']);
+    expect(scanner).toMatch(/never fix/);
+    const file = require(path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts/run-scan-file.cjs'));
+    const blocks = [...scanner.matchAll(/```yaml\n([\s\S]*?)```/g)].map((match) => match[1]);
+    expect(blocks).toHaveLength(1);
+    expect([...blocks[0].matchAll(/^([a-z_]+):/gm)].map((match) => match[1])).toEqual(file.RESULT_KEYS);
+    expect([...blocks[0].matchAll(/^\s+-?\s*([a-z_]+):/gm)].map((match) => match[1])).toEqual(file.LINE_KEYS);
+    for (const [id, question] of Object.entries(file.QUESTIONS)) expect(scanner).toContain(`- \`${id}\`: ${question}`);
   });
 
   // The reviewer judges and records nothing itself: it may write its review file, and run.cjs
@@ -149,6 +172,8 @@ describe('inferno flow', () => {
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-reviewer.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/reviewer/agent.md', 'claude-opus-5-5', 'xhigh'],
+    ['commands/inferno-scanner.md', 'claude-sonnet-5-5', 'high'],
+    ['agents/scanner/agent.md', 'claude-sonnet-5-5', 'high'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));

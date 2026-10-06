@@ -153,15 +153,22 @@ const INTENT_TREE = 'alpha-00000000T000000Z';
 
 /**
  * Record an intent review for the tree as it stands, the way `run.cjs review` records one:
- * the reviewer's body plus the tree hash and commit, committed through a pathspec.
+ * the reviewer's body plus the tree hash and commit, committed through a pathspec. The scan
+ * the review owes first is recorded with no lines when none was collected.
  */
 function intentReviewed(tree, intent = 'alpha', body = 'verdict: clean\n') {
   const proofs = require('./run-proofs.cjs');
-  const { intentReviewPath } = require('./run-intent-owed.cjs');
+  const { intentReviewPath, scanPath } = require('./run-intent-owed.cjs');
   const rel = intentReviewPath(tree, intent);
+  const scan = scanPath(tree, intent);
+  const paths = [rel];
+  if (!fs.existsSync(path.join(tree, scan))) {
+    write(tree, scan, 'lines: []\n');
+    paths.push(scan);
+  }
   write(tree, rel, `${body}tree: ${proofs.scopeHash(tree)}\ncommit: ${git(tree, ['rev-parse', 'HEAD'])}\n`);
-  git(tree, ['add', '--', rel]);
-  git(tree, ['commit', '-qm', `intent review ${intent}`, '--', rel]);
+  git(tree, ['add', '--', ...paths]);
+  git(tree, ['commit', '-qm', `intent review ${intent}`, '--', ...paths]);
 }
 
 /**

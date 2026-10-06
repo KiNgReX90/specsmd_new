@@ -30,12 +30,19 @@ const { RunError } = lib;
  * The key of each actor's `roles` entry on each host: the one the installer renders that
  * role's pins from. The host dispatches the agent the key names, `specsmd-inferno-<key>` on
  * Claude and `specsmd_inferno_<key>` on Codex, the agents the flow's own files define. The
- * reviewer's agents arrive with the reviewer role.
+ * reviewer's and the scanner's agents arrive with their roles.
  */
 const ROLES = {
-  claude: { cheap: 'builder-cheap', strong: 'builder', escalate: 'builder-escalate', oracle: 'oracle', reviewer: 'reviewer' },
-  codex: { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer' },
+  claude: {
+    cheap: 'builder-cheap', strong: 'builder', escalate: 'builder-escalate', oracle: 'oracle', reviewer: 'reviewer', scanner: 'scanner',
+  },
+  codex: {
+    cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer', scanner: 'scanner',
+  },
 };
+
+/** The config key that pins an actor's model on Claude ahead of its role entry. */
+const PINS = { reviewer: (config) => config.review && config.review.model, scanner: (config) => config.scan && config.scan.model };
 
 /** The tier that builds an item first. Complexity alone decides it. */
 function tierOf(item) {
@@ -69,7 +76,8 @@ function builtBy(item) {
  * The agent and model this host dispatches for an actor. The agent is always the host's own
  * for that role, since the installer pins the role's model on exactly that agent. On Codex the
  * model is the role entry's alone, because the spawned agent's pin wins. On Claude it is
- * `models.<tier>`, or `review.model` for the reviewer, before the role entry's.
+ * `models.<tier>`, `review.model` for the reviewer or `scan.model` for the scanner, before the
+ * role entry's.
  */
 function hostActor(actor, config = {}) {
   const host = config.host === 'codex' ? 'codex' : 'claude';
@@ -78,7 +86,7 @@ function hostActor(actor, config = {}) {
   const role = roles[key] && typeof roles[key] === 'object' ? roles[key] : {};
   const roleModel = (typeof role.model === 'string' && role.model) || null;
   if (host === 'codex') return { agent: `specsmd_inferno_${key}`, model: roleModel };
-  const pinned = actor === 'reviewer' ? config.review && config.review.model : config.models && config.models[actor];
+  const pinned = PINS[actor] ? PINS[actor](config) : config.models && config.models[actor];
   return { agent: `specsmd-inferno-${key}`, model: pinned || roleModel };
 }
 

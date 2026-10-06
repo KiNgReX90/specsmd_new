@@ -66,10 +66,9 @@ function scanIds(tree, intentId) {
   return lines.map((line) => (line && typeof line.id === 'string' ? line.id : null)).filter(Boolean);
 }
 
-/** The scan is owed while the config names a scanner model and no scan was collected. */
-function scanOwed(tree, config, intentId) {
-  const configured = Boolean(config.scan && typeof config.scan === 'object' && config.scan.model);
-  return configured && scanIds(tree, intentId) === null;
+/** The scan is owed on every host until `run.cjs scan --collect` recorded one for the intent. */
+function scanOwed(tree, intentId) {
+  return scanIds(tree, intentId) === null;
 }
 
 /** Validate a review file against the intent as it stands. */
@@ -87,7 +86,7 @@ function parseFor(tree, rel, intentId, recorded) {
 function intentReviewState(tree, config, intentId) {
   const rel = intentReviewPath(tree, intentId);
   const owed = [];
-  if (scanOwed(tree, config, intentId)) owed.push('the scan is owed: collect it before the review');
+  if (scanOwed(tree, intentId)) owed.push('the scan is owed: run.cjs scan, then collect it before the review');
   if (!fs.existsSync(path.join(tree, rel))) return { rel, review: null, owed: [...owed, 'no intent review yet'] };
   if (lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0) {
     return { rel, review: null, owed: [...owed, `${rel} is written but not recorded`] };
@@ -110,6 +109,13 @@ function intentReviewState(tree, config, intentId) {
 function reviewCommand(tree, options) {
   const extra = `${options.intent ? ` --intent ${options.intent}` : ''}${options.config ? ` --config ${options.config}` : ''}`;
   return `run.cjs review --tree ${tree}${extra}`;
+}
+
+/** The scan call for the same tree and host, or its collect. */
+function scanCommand(tree, options, collect = false) {
+  const plan = options.plan ? ` --only ${options.only || 'wiring'} --plan ${options.plan}` : '';
+  const extra = `${options.intent ? ` --intent ${options.intent}` : ''}${options.config ? ` --config ${options.config}` : ''}`;
+  return `run.cjs scan${collect ? ' --collect' : ''} --tree ${tree}${plan}${extra}`;
 }
 
 /**
@@ -167,5 +173,5 @@ function mergeOwed(tree, config, intentId) {
 
 module.exports = {
   gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, reviewCommand,
-  scanOwed, scanPath,
+  scanCommand, scanOwed, scanPath,
 };

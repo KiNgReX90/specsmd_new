@@ -21,9 +21,11 @@ Run one verification at a time and never start a second while one is running.
 
 ## 1. Spawn the planner
 
-Dispatch one `specsmd-inferno-planner` subagent with the statement verbatim. It pins its own model and effort. Never plan inline: reading the tree and writing the brief in this session is the one thing this command does not do, whatever the statement asks for.
+Dispatch one `specsmd-inferno-planner` subagent with the statement verbatim. It pins its own model and effort. Never plan inline, whatever the statement asks: this session never reads the tree or writes the brief.
 
 The planner triages before it captures and returns, in this order: a `Triage: direct | intent` line, an `Intent PLANNED` block per intent, `reserve:` lines, `direct:` recipes and `oracle:` paragraphs. A `direct:` recipe carries labelled lines `change`, `files`, `test` (file :: assertion), `proof`, `grade`, `hard` (yes or no) and `measured`.
+
+After capture, run `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id>` for each `Intent PLANNED` block, then follow what it prints.
 
 ## 2. The `oracle:` paragraphs
 
@@ -43,9 +45,9 @@ One call carries every id and title of that item. Then commit on the default bra
 
 ## 4. `Triage: direct`, build it
 
-A direct recipe is built, here, now. Nobody is asked: the statement you were given is the authorisation, and the triage decides the shape. The one statement that stops at the plan is one that explicitly asks for a plan, a decomposition or an intent and no build; say the plan is written and stop.
+A direct recipe is built, here, now. Nobody is asked: the statement is the authorisation, and the triage decides the shape. The one statement that stops at the plan is one that explicitly asks for a plan, a decomposition or an intent and no build; say the plan is written and stop.
 
-A recipe with `hard: yes` goes to the oracle first and the decision goes into the assignment as written. Then dispatch ONE `specsmd-inferno-builder` subagent on `models.strong` from `.specs-inferno/config.yaml`. This launcher dispatches rather than builds, because the recipe was written for a cold builder and this session has not read its files. Never drop a direct build to the cheap tier. The assignment carries the orchestrator's dispatch fields:
+A recipe with `hard: yes` goes to the oracle first and the decision goes into the assignment as written. Then dispatch ONE `specsmd-inferno-builder` subagent on `models.strong` from `.specs-inferno/config.yaml`. This launcher dispatches rather than builds, because this session has not read the recipe's files. Never drop a direct build to the cheap tier. The assignment carries the orchestrator's dispatch fields:
 
 - work item id `direct/<slug>` and intent `direct`;
 - the tree: this primary checkout, on the default branch;

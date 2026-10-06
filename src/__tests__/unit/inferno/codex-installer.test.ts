@@ -23,10 +23,13 @@ const SKILLS = [
   'specsmd-inferno-config',
   'specsmd-inferno-intents',
   'specsmd-inferno-reviewer',
+  'specsmd-inferno-scanner',
 ];
 // The intents skill is a one-screen listing, so its whole body is the SKILL.md, and the
-// reviewer skill reads the canonical reviewer body; neither ships a procedure reference.
-const PROCEDURE_SKILLS = SKILLS.filter((skill) => !['specsmd-inferno-intents', 'specsmd-inferno-reviewer'].includes(skill));
+// reviewer and scanner skills read their canonical bodies; none ships a procedure reference.
+const PROCEDURE_SKILLS = SKILLS.filter(
+  (skill) => !['specsmd-inferno-intents', 'specsmd-inferno-reviewer', 'specsmd-inferno-scanner'].includes(skill)
+);
 // The orchestrator is the session's main thread and has no custom agent of its own.
 const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_planner: ['gpt-5.6-sol', 'xhigh'],
@@ -34,6 +37,7 @@ const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_builder_escalate: ['gpt-6.1-sol', 'xhigh'],
   specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_reviewer: ['gpt-6.1-sol', 'xhigh'],
+  specsmd_inferno_scanner: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
 };
@@ -218,7 +222,7 @@ describe('the run scripts and the Codex bundle', () => {
 
   it('falls back to the agents the Codex agent files define', () => {
     const { hostActor } = require(path.join(SCRIPTS, 'run-review.cjs'));
-    for (const actor of ['cheap', 'strong', 'escalate', 'oracle', 'reviewer']) {
+    for (const actor of ['cheap', 'strong', 'escalate', 'oracle', 'reviewer', 'scanner']) {
       const { agent } = hostActor(actor, { host: 'codex' });
       const toml = readFileSync(path.join(INFERNO, 'codex/agents', `${agent}.toml`), 'utf8');
       expect(tomlStrings(toml).name).toBe(agent);
