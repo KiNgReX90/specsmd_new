@@ -331,27 +331,32 @@ function worktree(intentId, options) {
  * they are a record of one run's dispatches, never work anyone builds from.
  */
 function dispatchLog(intentId, options) {
-  if (!options.item || !options.tier || !options.agent) {
-    throw new RunError('dispatch-log requires --item, --tier and --agent', 'BAD_ARGS', 1);
+  const items = options.items ? String(options.items).split(',').map((id) => id.trim()).filter(Boolean) : [options.item].filter(Boolean);
+  if (items.length === 0 || !options.tier || !options.agent) {
+    throw new RunError('dispatch-log requires --item (or --items a,b for a chain one builder builds), --tier and --agent', 'BAD_ARGS', 1);
   }
   const root = lib.primaryRoot(options.cwd);
   const tree = options.tree || lib.repoRoot(options.cwd);
-  const spec = lib.readItemSpec(tree, intentId, options.item);
-  const editable = (spec.manifest.ownership && spec.manifest.ownership.editable) || [];
+  const editable = new Set();
+  for (const id of items) {
+    const spec = lib.readItemSpec(tree, intentId, id);
+    for (const entry of (spec.manifest.ownership && spec.manifest.ownership.editable) || []) editable.add(entry);
+  }
   const record = dispatch.recordDispatch(tree, {
     intent: intentId,
-    item: options.item,
+    items,
     dispatch_id: options.dispatch_id || crypto.randomUUID(),
-    editable,
+    editable: [...editable],
   });
   const log = path.join(lib.cacheDir(root), 'dispatch', `${intentId}.log`);
-  const line = [new Date().toISOString(), intentId, options.item, options.tier, options.agent, options.batch || ''].join('\t');
+  const batch = options.batch || (items.length > 1 ? items.join(',') : '');
+  const lines = items.map((id) => [new Date().toISOString(), intentId, id, options.tier, options.agent, batch].join('\t'));
   fs.mkdirSync(path.dirname(log), { recursive: true });
-  fs.appendFileSync(log, `${line}\n`, 'utf8');
+  fs.appendFileSync(log, `${lines.join('\n')}\n`, 'utf8');
   return {
     exit: 0,
-    payload: { log, line, dispatch_id: record.dispatchId, tree },
-    out: [`logged ${options.item} -> ${log}`, `dispatch ${record.dispatchId}`],
+    payload: { log, line: lines[0], dispatch_id: record.dispatchId, tree },
+    out: [`logged ${items.join(', ')} -> ${log}`, `dispatch ${record.dispatchId}`],
   };
 }
 

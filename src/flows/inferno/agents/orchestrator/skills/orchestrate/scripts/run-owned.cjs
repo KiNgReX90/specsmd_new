@@ -8,25 +8,32 @@
  * An entry is a repository-relative path or glob. A plain path owns itself and everything
  * below it, with or without a trailing slash. `./`, `a/../b` and, given the tree, a directory
  * symlink resolve to the real path first, so an alias cannot slip a write past ownership. An
- * entry or a symlink that leaves the tree is refused rather than ignored.
+ * entry or a symlink that leaves the tree is refused rather than ignored, while a changed file
+ * that leaves it (an untracked link to a shared folder) is simply owned by nobody.
  *
- * Zero dependencies and no require of run-lib.cjs: run-lib re-exports these as its own.
+ * No require of run-lib.cjs: run-lib re-exports these as its own.
  */
 
 const fs = require('fs');
 const path = require('path');
 
+const { RunError } = require('./run-error.cjs');
+
+function refuse(message) {
+  return new RunError(message, 'OWNERSHIP');
+}
+
 const GLOB = /[*?[]/;
 
 /** The entry as a normalized path relative to the tree, its symlinked prefix resolved. */
 function canonical(entry, tree) {
-  if (typeof entry !== 'string' || !entry.trim()) throw Error('Ownership requires a path');
+  if (typeof entry !== 'string' || !entry.trim()) throw refuse('Ownership requires a path');
   const root = tree && fs.realpathSync(tree);
   let value = entry.replace(/\\/g, '/').replace(/\/+$/, '');
   if (root && path.isAbsolute(value)) value = path.relative(root, value).replace(/\\/g, '/');
   value = path.posix.normalize(value).replace(/^\.\//, '');
   if (value === '..' || value.startsWith('../') || path.isAbsolute(value)) {
-    throw Error(`Ownership escapes the tree: ${entry}`);
+    throw refuse(`Ownership escapes the tree: ${entry}`);
   }
   if (!root) return value;
   // Resolve the longest existing prefix before the first glob segment: a symlinked directory
@@ -37,7 +44,7 @@ function canonical(entry, tree) {
   while (count && !fs.existsSync(path.join(root, ...parts.slice(0, count)))) count -= 1;
   const prefix = fs.realpathSync(path.join(root, ...parts.slice(0, count)));
   value = path.relative(root, path.join(prefix, ...parts.slice(count))).replace(/\\/g, '/') || '.';
-  if (value === '..' || value.startsWith('../')) throw Error(`Ownership alias escapes the tree: ${entry}`);
+  if (value === '..' || value.startsWith('../')) throw refuse(`Ownership alias escapes the tree: ${entry}`);
   return value;
 }
 
@@ -48,7 +55,7 @@ function segmentTokens(value) {
     const char = value[i];
     if (char === '[') {
       const end = value.indexOf(']', i + 1);
-      if (end === -1) throw Error(`Unclosed ownership character class: ${value}`);
+      if (end === -1) throw refuse(`Unclosed ownership character class: ${value}`);
       const regex = new RegExp(`^[${value.slice(i + 1, end).replace(/^!/, '^')}]$`);
       tokens.push({ accepts: (letter) => regex.test(letter) });
       i = end;
@@ -120,7 +127,13 @@ function overlaps(left, right, tree) {
 
 /** Whether `file` falls under one of an item's `ownership.editable` entries. */
 function ownedBy(file, editable, tree) {
-  const target = canonical(file, tree);
+  let target;
+  try {
+    target = canonical(file, tree);
+  } catch (error) {
+    if (error instanceof RunError && /escapes the tree/.test(error.message)) return false;
+    throw error;
+  }
   return (editable || []).some((entry) => patternsOverlap(target, pattern(entry, tree)));
 }
 

@@ -205,6 +205,16 @@ test('--force reruns all commands and a forced failure revokes its proof', (t) =
   assert.deepEqual(verdict(fixture, 'green', 3).missing, [commands[2]]);
 });
 
+test('a forced gate that never finishes leaves no old proof standing for the command it was running', (t) => {
+  const commands = [...COMMANDS];
+  commands[2] += '; if [ -f .runs/kill ]; then kill -9 $PPID; fi';
+  const fixture = repo(t, config(commands));
+  verdict(fixture, 'gate', 0);
+  write(fixture.root, '.runs/kill', '');
+  assert.notEqual(run(fixture, 'gate', '--force').code, 0);
+  assert.deepEqual(verdict(fixture, 'green', 3).missing, [commands[2]]);
+});
+
 test('--config keeps independent proofs and resolves relative to --tree', (t) => {
   const fixture = repo(t);
   write(fixture.root, OTHER, config());

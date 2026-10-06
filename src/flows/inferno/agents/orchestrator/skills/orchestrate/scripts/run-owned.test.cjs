@@ -23,8 +23,17 @@ test('scheduler and verifier resolve the same directory and symlink aliases', (t
   assert.equal(lib.overlaps('alias', 'src/file.ts', tree), true);
   assert.equal(lib.ownedBy('src/file.rs', ['src/*.ts'], tree), false);
   fs.symlinkSync(os.tmpdir(), path.join(tree, 'outside'));
-  assert.throws(() => lib.ownedBy('outside/file', ['outside/**'], tree), /escapes/);
-  assert.throws(() => lib.ownedBy('src/file.ts', ['../elsewhere'], tree), /escapes/);
+  const refusal = { name: 'RunError', code: 'OWNERSHIP', message: /escapes/ };
+  assert.throws(() => lib.ownedBy('src/file.ts', ['outside/**'], tree), refusal);
+  assert.throws(() => lib.ownedBy('src/file.ts', ['../elsewhere'], tree), refusal);
+  assert.throws(() => lib.overlaps('src/[ab', 'src/a', tree), { code: 'OWNERSHIP' });
+});
+
+test('a changed path that leaves the tree is owned by nobody rather than a crash', (t) => {
+  const tree = fixture(t);
+  fs.symlinkSync(os.tmpdir(), path.join(tree, 'node_modules'));
+  assert.equal(lib.ownedBy('node_modules/x.js', ['src/'], tree), false);
+  assert.equal(lib.ownedBy('../x.js', ['src/'], tree), false);
 });
 
 test('character-class owners cannot dispatch overlapping writers', () => {

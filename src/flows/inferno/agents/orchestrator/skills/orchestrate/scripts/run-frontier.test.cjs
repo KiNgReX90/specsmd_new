@@ -142,6 +142,18 @@ intents:
         complexity: low
         status: pending
         depends_on: []
+  - id: iota
+    title: "Iota"
+    status: pending
+    base_branch: main
+    depends_on_intents: []
+    work_items:
+      - id: i-alias
+        title: "I alias"
+        kind: behavior
+        complexity: low
+        status: pending
+        depends_on: []
   - id: zeta
     title: "Zeta"
     status: pending
@@ -295,6 +307,7 @@ const ITEMS = {
     editable: ["src/board/tile.ts"],
     diagnosis: { claim: "the width is dropped", probe: "cat src/board/nope.css", shows: "2" },
   }),
+  "iota/i-alias": item({ id: "i-alias", intent: "iota", editable: ["src/board/tile.ts", "alias/"] }),
   "zeta/z-dir": item({ id: "z-dir", intent: "zeta", editable: ["src/board/"] }),
   "zeta/z-file": item({ id: "z-file", intent: "zeta", editable: ["./src/board/tile.css"] }),
   "theta/t-fresh": item({
@@ -432,6 +445,15 @@ test("a folder owner and a file below it are serialized and never dispatched tog
   const payload = JSON.parse(run(tree, ["frontier", "zeta", "--json"]).out);
   assert.deepEqual(payload.serialize.map((entry) => entry.items), [["z-dir", "z-file"]]);
   assert.deepEqual(payload.dispatch, ["z-dir"]);
+});
+
+test("a hit under a folder the item owns through a symlinked alias is not its candidate", () => {
+  const tree = fixture();
+  fs.symlinkSync("src/board", path.join(tree.root, "alias"));
+  const result = run(tree, ["frontier", "iota"]);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.doesNotMatch(result.out, /candidate i-alias src\/board\/tile\.test\.ts/);
+  assert.match(run(tree, ["frontier", "alpha"]).out, /candidate a-tile src\/board\/tile\.test\.ts/);
 });
 
 // --- probes --------------------------------------------------------------

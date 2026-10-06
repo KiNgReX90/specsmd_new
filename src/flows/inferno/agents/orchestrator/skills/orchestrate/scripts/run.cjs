@@ -39,7 +39,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs frontier <intent-id> [--tree <dir>]       validate the contracts, print the ready items
   node run.cjs probes <item-id> [--tree <dir>] [--intent <id>] rerun the item's measurements: 0 they hold, 2 drift
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
-  node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, ownership as the union
+  node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, each item against its dispatch
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
@@ -49,7 +49,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
   node run.cjs ship <intent-id> --tree <dir> [--config <file>] fold, merge, push, verify, tear down
   node run.cjs teardown --tree <dir> [--base <branch>] [--config <file>] remove a worktree and branch the base already holds
-  node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name> [--tree <dir>] record the builder's baseline, print its dispatch id
+  node run.cjs dispatch-log <intent-id> --item <id> | --items <a,b> --tier <tier> --agent <name> [--tree <dir>] record the builder's baseline, print its dispatch id
   node run.cjs accept-dispatch <dispatch-id> --changed-paths <json-array> [--tree <dir>] freeze the result it reported
 
 Options
@@ -61,7 +61,7 @@ Options
   --dispatch-id <id> verify-item: the accepted dispatch to check (default the item's latest)
   --peers <json>    verify-item: the dispatch ids that may explain a sibling's change (default every accepted one)
   --item <id>       integrate: the item this landing completes once the checks are green
-  --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
+  --items <a,b>     integrate, verify-item and dispatch-log: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate and probes: the intent owning the item, when the id is ambiguous
   --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)

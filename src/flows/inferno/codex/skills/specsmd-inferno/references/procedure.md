@@ -105,7 +105,7 @@ A single item returns the envelope in the builder procedure. Allowed statuses ar
 
 ## Serialized integration
 
-Run `run.cjs dispatch-log` for every item right before its builder starts and `run.cjs accept-dispatch <dispatch_id> --changed-paths '<changed_files as JSON>'` once the round has returned; verify every result before the first integrate, then process them one at a time.
+Run `run.cjs dispatch-log <intent-id> --item <item-id> --tier <tier> --agent <name> --tree <path>` right before each builder starts and keep its `dispatch_id`. Run `run.cjs accept-dispatch <dispatch_id> --changed-paths '<changed_files as JSON>' --tree <path>` for each `ready` item before `verify-item`, then process the results one at a time.
 
 1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path>` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only on evidence that the assigned change requires it.
 2. `verify-item` and `integrate` confirm the builder's checks; do not replay a focused check by hand. For a `design_contract`, require verification against the cited source. A note naming a defect the builder saw and left, a residual or a product call is postponed work: send it back with `followup_task` before integrating, never into the ledger, the report or the user's lap.

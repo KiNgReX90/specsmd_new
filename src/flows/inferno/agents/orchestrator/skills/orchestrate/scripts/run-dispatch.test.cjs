@@ -92,7 +92,8 @@ test('corrected native dispatch supersedes its earlier accepted attempt', (t) =>
 test('prior baseline peer cannot explain a later rollback', (t) => {
   const f = fixture(t); const proof = require('./run-dispatch.cjs');
   begin(f, 'old-b', ['src/b.ts']); f.write('src/b.ts', 'old accepted b'); accept(f, 'old-b', ['src/b.ts']);
-  f.write('src/b.ts', 'new baseline b'); f.commit();
+  // The new commit restores the peer's own baseline bytes, so only the baseline head tells them apart.
+  f.write('src/b.ts', 'b'); f.write('src/other.ts', 'moves head'); f.commit();
   begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'new a'); f.write('src/b.ts', 'old accepted b');
   const a = accept(f, 'a', ['src/a.ts']);
   assert.deepEqual(proof.verifyDispatch(f.tree, a, ['src/a.ts']).outside, ['src/b.ts']);
@@ -112,4 +113,38 @@ test('dispatch-log records the baseline and accept-dispatch checks the result ag
   const proof = require('./run-dispatch.cjs');
   const record = proof.loadDispatch(f.tree, { intent: 'demo', item: 'a' });
   assert.deepEqual(proof.verifyDispatch(f.tree, record, ['src/**']).outside, []);
+});
+
+test('a record rewritten without the key is refused by its signature', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'new'); f.write('src/b.ts', 'escaped');
+  const record = accept(f, 'a', ['src/a.ts']);
+  record.beforeSnapshot.files['src/b.ts'] = record.acceptedSnapshot.files['src/b.ts'];
+  record.beforeSnapshot.digest = proof.hash(record.beforeSnapshot.files);
+  assert.throws(() => proof.verifyDispatch(f.tree, record, ['src/a.ts']), /signature/);
+});
+
+test('a record copied into another tree of the same repository is refused by its tree identity', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  begin(f, 'a', ['src/a.ts']); f.write('src/a.ts', 'new'); accept(f, 'a', ['src/a.ts']);
+  const other = path.join(path.dirname(f.tree), 'other');
+  git(f.tree, 'worktree', 'add', '-q', '-b', 'other', other);
+  const from = path.dirname(proof.recordFile(f.tree, 'a'));
+  const to = path.dirname(proof.recordFile(other, 'a'));
+  fs.mkdirSync(to, { recursive: true });
+  for (const name of fs.readdirSync(from)) fs.copyFileSync(path.join(from, name), path.join(to, name));
+  assert.throws(() => proof.loadDispatch(other, { intent: 'alpha', item: 'a' }), /tree identity/);
+});
+
+test('a baseline records a submodule by its commit', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  const lib = path.join(path.dirname(f.tree), 'lib');
+  fs.mkdirSync(lib);
+  git(lib, 'init', '-q', '-b', 'main'); git(lib, 'config', 'user.name', 'Fixture'); git(lib, 'config', 'user.email', 'fixture@example.test');
+  write(lib, 'x', 'x'); git(lib, 'add', '-A'); git(lib, 'commit', '-qm', 'lib');
+  git(f.tree, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', lib, 'vendor/lib'); f.commit();
+  begin(f, 'a', ['src/a.ts']);
+  write(path.join(f.tree, 'vendor/lib'), 'x', 'moved'); git(path.join(f.tree, 'vendor/lib'), 'commit', '-qam', 'moved');
+  const record = accept(f, 'a', []);
+  assert.deepEqual(proof.verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['vendor/lib']);
 });

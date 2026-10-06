@@ -195,18 +195,6 @@ function opened(fixture) {
   return { tree: made.path, branch: made.branch };
 }
 
-/** Record a builder's baseline the way the orchestrator does before it launches one. */
-function dispatched(fixture, tree, id) {
-  const args = ["dispatch-log", "alpha", "--item", id, "--tier", "strong", "--agent", "builder", "--tree", tree, "--json"];
-  return JSON.parse(run(fixture, args).out).dispatch_id;
-}
-
-/** Accept a builder's result with the files it reports as changed. */
-function accepted(fixture, tree, dispatch, paths = []) {
-  const result = run(fixture, ["accept-dispatch", dispatch, "--changed-paths", JSON.stringify(paths), "--tree", tree]);
-  assert.equal(result.code, 0, result.out + result.err);
-}
-
 // --- usage ---------------------------------------------------------------
 test("an unknown subcommand is a usage error, not a failure", () => {
   const fixture = repo();
@@ -544,71 +532,7 @@ test("frontier suggests one dispatch for consecutive low items of the same tier"
   assert.deepEqual(result.batch, [["a-one", "a-two"]]);
 });
 
-// --- verify-item ---------------------------------------------------------
-test("verify-item passes the item's own check and reports ownership clean", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 0);
-  assert.match(result.out, /PASS/);
-});
-
-test("verify-item fails with the log path and the tail of the log", () => {
-  const failing = {
-    ...ITEMS,
-    "alpha/a-one": item({ id: "a-one", intent: "alpha", finalize_check: "echo the reason; exit 1" }),
-  };
-  const fixture = repo({ items: failing });
-  const { tree } = opened(fixture);
-  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 2);
-  assert.match(result.out, /FAIL/);
-  assert.match(result.out, /the reason/);
-});
-
-test("verify-item names a changed file outside the item's ownership", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  const dispatch = dispatched(fixture, tree, "a-one");
-  write(tree, "src/b.ts", "export const b = 9;\n");
-  accepted(fixture, tree, dispatch);
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 2);
-  assert.match(result.out, /src\/b\.ts/);
-});
-
-test("verify-item ignores a file an earlier item already committed on the branch", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  write(tree, "src/b.ts", "export const b = 9;\n");
-  git(tree, ["commit", "-qam", "a-two landed first"]);
-  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 0, result.out);
-  assert.match(result.out, /ownership clean since [0-9a-f]{40}/);
-});
-
-test("verify-item refuses an item with no accepted dispatch unless a baseline is named", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  const refused = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(refused.code, 2, refused.out + refused.err);
-  assert.match(refused.err, /DISPATCH_PROOF.*dispatch-log/);
-  const named = run(fixture, ["verify-item", "a-one", "--tree", tree, "--since", "HEAD"]);
-  assert.equal(named.code, 0, named.out + named.err);
-  assert.match(named.out, /ownership clean since HEAD/);
-});
-
-test("accept-dispatch refuses a reported file the builder never changed", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  const dispatch = dispatched(fixture, tree, "a-one");
-  const result = run(fixture, ["accept-dispatch", dispatch, "--changed-paths", '["src/a.ts"]', "--tree", tree]);
-  assert.equal(result.code, 2, result.out + result.err);
-  assert.match(result.err, /no dispatch patch: src\/a\.ts/);
-});
+// verify-item and accept-dispatch: run-attribution.test.cjs.
 
 // --- integrate -----------------------------------------------------------
 // The cheap checks run after every item lands, on the committed tree with the base folded in,
@@ -1184,22 +1108,6 @@ test("an item the integration proved releases its successor", () => {
 
   assert.equal(result.code, 0, result.out);
   assert.deepEqual(JSON.parse(result.out).ready.map((entry) => entry.id), ["a-two"]);
-});
-
-test("verify-item takes the union of a batch's ownership", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  const one = dispatched(fixture, tree, "a-one");
-  const two = dispatched(fixture, tree, "a-two");
-  write(tree, "src/a.ts", "export const a = 4;\n");
-  write(tree, "src/b.ts", "export const b = 5;\n");
-  accepted(fixture, tree, one, ["src/a.ts"]);
-
-  assert.equal(run(fixture, ["verify-item", "a-one", "--tree", tree]).code, 2, "src/b.ts is outside a-one alone");
-  accepted(fixture, tree, two, ["src/b.ts"]);
-  const batch = run(fixture, ["verify-item", "--items", "a-one,a-two", "--tree", tree]);
-  assert.equal(batch.code, 0, batch.out + batch.err);
-  assert.match(batch.out, /ownership clean/);
 });
 
 // --- the browser journeys this landing can break -------------------------

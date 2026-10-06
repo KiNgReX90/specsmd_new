@@ -8,7 +8,7 @@ const { spawn } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
-const dispatch = require('./run-dispatch.cjs');
+const { attribute } = require('./run-attribute.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 
 const { RunError } = lib;
@@ -91,44 +91,6 @@ function sinceOutside(tree, since, editable) {
   );
 }
 
-/** The dispatch records verify-item may consult as peers: every accepted one, or `--peers`. */
-function peerRecords(tree, peers) {
-  if (peers === undefined) return undefined;
-  let ids = peers;
-  if (typeof ids === 'string') {
-    try {
-      ids = JSON.parse(ids);
-    } catch (error) {
-      throw new RunError('verify-item --peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
-    }
-  }
-  if (!Array.isArray(ids)) throw new RunError('verify-item --peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
-  return ids.map((id) => dispatch.loadDispatch(tree, { dispatch_id: id }));
-}
-
-/**
- * Each item's accepted dispatch, checked against its own ownership: a change counts as the
- * item's only when its builder reported it and it changed since that builder started, and a
- * sibling's change counts as the sibling's only when the sibling's dispatch accepted it. The
- * ledger is the single writer's and never a builder's, so it is never outside.
- */
-function attribute(tree, items, options) {
-  if (options.dispatch_id && items.length > 1) {
-    throw new RunError('--dispatch-id names one item; a batch is checked against each item\'s latest dispatch', 'BAD_ARGS', 1);
-  }
-  const peers = peerRecords(tree, options.peers);
-  const outside = new Set();
-  const attributed = [];
-  for (const entry of items) {
-    const record = dispatch.loadDispatch(tree, { intent: entry.intent, item: entry.id, dispatch_id: options.dispatch_id });
-    const own = (entry.spec.manifest.ownership && entry.spec.manifest.ownership.editable) || [];
-    const result = dispatch.verifyDispatch(tree, record, own, { peers });
-    for (const file of result.outside) if (!file.startsWith(`${lib.SPECS_DIR}/`)) outside.add(file);
-    attributed.push({ item: entry.id, dispatch_id: result.dispatch_id, since: result.since, changed: result.changed });
-  }
-  return { since: attributed[0].since, outside: [...outside].sort(), attributed };
-}
-
 /**
  * One item's own check plus its ownership. A batch is reviewed as the unit it was built as:
  * each item against its own dispatch, so a change one item of the batch reported is that
@@ -147,11 +109,18 @@ function verifyItem(itemId, options) {
       items.flatMap((entry) => (entry.spec.manifest.ownership && entry.spec.manifest.ownership.editable) || [])
     ),
   ];
-  // `--since` names the baseline by hand; without it each item answers to its own dispatch.
-  const { since, outside, attributed } = options.since
-    ? { since: options.since, outside: sinceOutside(tree, options.since, editable), attributed: [] }
-    : attribute(tree, items, options);
+  // `--since` names the baseline by hand; without it each item answers to its own dispatch,
+  // and an item the runner before signed records dispatched is checked the old way.
   const out = [];
+  let attribution = options.since ? null : attribute(tree, items, options);
+  if (attribution && attribution.legacy) {
+    out.push(`no signed dispatch for ${attribution.legacy.join(', ')}: checked since HEAD as the runner before signed records did`);
+    attribution = null;
+  }
+  const since = attribution ? attribution.since : options.since || 'HEAD';
+  const outside = attribution ? attribution.outside : sinceOutside(tree, since, editable);
+  const unreported = attribution ? attribution.unreported : [];
+  const attributed = attribution ? attribution.attributed : [];
   let failed = outside.length > 0;
   const checks = [];
   for (const entry of items) {
@@ -178,10 +147,13 @@ function verifyItem(itemId, options) {
   } else {
     out.push(`ownership clean since ${since}`);
   }
+  if (unreported.length > 0) {
+    out.push(`owned but not in changed_files: ${unreported.slice(0, 10).join(', ')}`);
+  }
 
   return {
     exit: failed ? 2 : 0,
-    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, checks, dispatches: attributed },
+    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, unreported, checks, dispatches: attributed },
     out,
   };
 }
