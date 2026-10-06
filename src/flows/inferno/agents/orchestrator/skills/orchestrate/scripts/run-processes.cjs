@@ -100,12 +100,21 @@ function matching(left, right) {
   return ['pid', 'starttime', 'boot_id', 'command', 'cwd'].every((key) => left?.[key] !== undefined && left[key] === right?.[key]);
 }
 
-/** Register a process the run just launched in its worktree, by its pid, never by a cwd scan. */
+/** Whether this system can tell a process's identity at all. */
+function canIdentify(transport = {}) {
+  return transport.proc !== undefined ? transport.proc : fs.existsSync('/proc/self/stat');
+}
+
+/**
+ * Register a process the run just launched in its worktree, by its pid, never by a cwd scan.
+ * Null on a system without /proc: nothing is registered there, so teardown stops nothing.
+ */
 function registerProcess(tree, pid, runId, transport = {}) {
   const record = loadOwnership(tree);
   if (!record || record.run_id !== runId) {
     throw new RunError(`registering a process needs the run that owns ${tree}; open it with run.cjs worktree first`, 'PROCESS_OWNER');
   }
+  if (!canIdentify(transport)) return null;
   const identity = (transport.inspect || processIdentity)(pid);
   if (!identity || !inside(record.tree, identity.cwd) || pid === process.pid || pid === process.ppid) {
     throw new RunError(`process ${pid} cannot be verified as running inside ${record.tree}`, 'PROCESS_OWNER');
@@ -134,4 +143,4 @@ function stopOwnedProcesses(record, transport = {}) {
   return stopped;
 }
 
-module.exports = { linkedTree, loadOwnership, matching, processIdentity, recordOwnership, registerProcess, stopOwnedProcesses };
+module.exports = { canIdentify, linkedTree, loadOwnership, matching, processIdentity, recordOwnership, registerProcess, stopOwnedProcesses };

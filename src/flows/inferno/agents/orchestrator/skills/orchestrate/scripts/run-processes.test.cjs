@@ -159,3 +159,46 @@ test('ship refuses the worktree of another intent', (t) => {
   assert.equal(result.code, 2, result.out + result.err);
   assert.match(result.err, /not the worktree of alpha/);
 });
+
+test('gate --detach registers the gate process under the run that owns the tree', { skip: !LINUX }, (t) => {
+  const fx = fixture(t);
+  assert.equal(fx.run(['claim', 'alpha']).code, 0);
+  const made = JSON.parse(fx.run(['worktree', 'alpha', '--json']).out);
+  const started = fx.run(['gate', '--detach', '--tree', made.path, '--json']);
+  assert.equal(started.code, 0, started.out + started.err);
+  const job = JSON.parse(started.out);
+  const file = path.resolve(made.path, git(made.path, ['rev-parse', '--git-path', 'inferno-processes.json']));
+  const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(record.processes.some((entry) => entry.pid === job.pid && entry.run_id === record.run_id), JSON.stringify(record));
+  assert.equal(fx.run(['gate', '--wait', '--tree', made.path, '--minutes', '0.5']).code, 0);
+});
+
+test('ship refuses a worktree of another repository', (t) => {
+  const fx = fixture(t);
+  const other = path.join(fx.dir, 'other');
+  git(fx.dir, ['init', '-q', '-b', 'main', other]);
+  git(other, ['config', 'user.email', 'test@example.com']);
+  git(other, ['config', 'user.name', 'Test']);
+  write(other, '.specs-inferno/state.yaml', STATE.replace('status: pending', 'status: completed'));
+  write(other, '.specs-inferno/config.yaml', CONFIG);
+  git(other, ['add', '-A']);
+  git(other, ['commit', '-qm', 'init']);
+  const foreign = path.join(fx.dir, 'other-alpha');
+  git(other, ['worktree', 'add', '-q', '-b', 'inferno-intent/alpha-00000000T000000Z', foreign]);
+  const heads = [git(fx.root, ['rev-parse', 'HEAD']), git(other, ['rev-parse', 'HEAD']), git(foreign, ['rev-parse', 'HEAD'])];
+  const result = fx.run(['ship', 'alpha', '--tree', foreign]);
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.err, /another repository/);
+  assert.deepEqual([git(fx.root, ['rev-parse', 'HEAD']), git(other, ['rev-parse', 'HEAD']), git(foreign, ['rev-parse', 'HEAD'])], heads);
+});
+
+test('a system without /proc registers nothing and does not fail', (t) => {
+  const fx = fixture(t);
+  assert.equal(fx.run(['claim', 'alpha']).code, 0);
+  const made = JSON.parse(fx.run(['worktree', 'alpha', '--json']).out);
+  const owned = require('./run-processes.cjs');
+  const before = owned.loadOwnership(made.path);
+  const result = owned.registerProcess(made.path, 400000, made.branch, { proc: false, inspect: () => assert.fail('inspected') });
+  assert.equal(result, null);
+  assert.deepEqual(owned.loadOwnership(made.path), before);
+});

@@ -78,6 +78,9 @@ function registerProcess(pid, tree, runId) {
   if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER}`, 'BAD_ARGS', 1);
   processes.linkedTree(lib.primaryRoot(tree), tree);
   const record = processes.registerProcess(tree, Number(pid), runId);
+  if (!record) {
+    return { exit: 0, payload: { registered: null, tree, run_id: runId }, out: ['this system cannot record process identities, so teardown stops nothing'] };
+  }
   return { exit: 0, payload: { registered: Number(pid), tree: record.tree, run_id: runId }, out: [`registered ${pid} in ${record.tree}`] };
 }
 

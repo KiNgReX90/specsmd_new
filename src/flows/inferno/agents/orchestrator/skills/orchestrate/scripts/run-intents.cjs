@@ -18,7 +18,7 @@ const writer = require('./state-transition.cjs');
 const { frontier, tierOf } = require('./run-frontier.cjs');
 const { archivePaths, archivedIds } = require('./state-archive.cjs');
 const { PARKED_VALUES } = require('./state-ledger.cjs');
-const { bootstrap, branchesFor, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
+const { bootstrap, branchesFor, intentOf, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
 const { recordOwnership } = require('./run-processes.cjs');
 const { ownership } = require('./run-owner.cjs');
 
@@ -286,7 +286,9 @@ function worktree(intentId, options) {
   // An existing worktree is a resume: it still runs the bootstrap phases a failed or
   // interrupted setup left owed, and skips the ones that completed.
   const open = worktreeFor(root, intentId);
-  const claimed = intent.claimed_by && intent.claimed_by.startsWith('inferno-intent/') ? intent.claimed_by : null;
+  // A claimed branch is adopted only when it names this intent's run; otherwise the tree gets
+  // a stamped branch of its own, which the ownership record can recognise.
+  const claimed = intentOf(intent.claimed_by) === intentId ? intent.claimed_by : null;
   const branch = open ? open.branch : claimed || `inferno-intent/${intentId}-${lib.stamp()}`;
   const target = open ? open.path : options.path || path.join(path.dirname(root), `${path.basename(root)}-inferno-${intentId}`);
   if (!open) {

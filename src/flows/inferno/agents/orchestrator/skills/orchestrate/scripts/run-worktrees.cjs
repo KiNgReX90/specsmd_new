@@ -99,14 +99,21 @@ function readBootstrap(file) {
   }
 }
 
-/** Run the bootstrap phases still owed. Edits already in the tree are never counted as its mess. */
+/**
+ * Run the bootstrap phases still owed. An edit someone made in the tree is never counted as
+ * the bootstrap's mess, but a change a phase made stays the bootstrap's on every later call,
+ * recorded in `changed`, so a plain retry never reports a dirtying bootstrap complete.
+ */
 function bootstrap(tree, intentId, commands, options) {
   const file = bootstrapPath(tree);
   const record = readBootstrap(file) || { version: 1, intent: intentId, phases: [] };
+  const owned = new Set(record.changed || []);
   const save = () => atomicWrite(file, `${JSON.stringify(record, null, 2)}\n`);
-  const prior = lib.dirtyPaths(tree);
+  const prior = lib.dirtyPaths(tree).filter((file) => !owned.has(file));
+  const made = () => lib.dirtyPaths(tree).filter((file) => !prior.includes(file));
   const results = [];
   record.complete = false;
+  record.changed = made();
   save();
   for (const [index, command] of commands.entries()) {
     const input = bootstrapInput(tree, commands.slice(0, index + 1));
@@ -116,13 +123,13 @@ function bootstrap(tree, intentId, commands, options) {
     const log = path.join(lib.cacheDir(options.root), 'bootstrap', `${intentId}-${index}.log`);
     const result = (options.runShell || lib.runShell)(command, tree, log, { wrap: false });
     record.phases[index] = { command, input, complete: result.code === 0, code: result.code, log };
+    record.changed = made();
     results.push(result);
     save();
     if (result.code !== 0) return { ok: false, results, log };
   }
   record.phases = record.phases.slice(0, commands.length);
-  const dirty = lib.dirtyPaths(tree).filter((file) => !prior.includes(file));
-  if (dirty.length > 0) return { ok: false, results, dirty };
+  if (record.changed.length > 0) return { ok: false, results, dirty: record.changed };
   record.complete = true;
   save();
   return { ok: true, results };

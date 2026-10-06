@@ -87,3 +87,57 @@ test('a changed dependency file invalidates the completed bootstrap phases', (t)
   assert.equal(intents.worktree('a', { cwd: root, runShell }).exit, 0);
   assert.equal(calls, 2);
 });
+
+/** A runner whose `dirty` phase rewrites a tracked file and whose `breaks` phase fails while `fail.on`. */
+function dirtying(target, fail) {
+  const calls = [];
+  const runShell = (command, tree, log) => {
+    calls.push(command);
+    if (command === 'dirty') fs.writeFileSync(path.join(tree, 'unrelated.txt'), 'rewritten by the bootstrap\n');
+    return { command, code: command === 'breaks' && fail.on ? 1 : 0, log, seconds: 0 };
+  };
+  return { calls, runShell };
+}
+
+test('a bootstrap that dirtied the tree stays failed on a plain retry until its change is dealt with', (t) => {
+  const { root, dir } = fixture(t, ['dirty']);
+  intents.claim('a', { cwd: root });
+  const target = path.join(dir, 'tree');
+  const { calls, runShell } = dirtying(target, { on: false });
+  const first = intents.worktree('a', { cwd: root, path: target, runShell });
+  assert.equal(first.exit, 2);
+  assert.deepEqual(first.payload.dirty, ['unrelated.txt']);
+  const retry = intents.worktree('a', { cwd: root, runShell });
+  assert.equal(retry.exit, 2);
+  assert.deepEqual(retry.payload.dirty, ['unrelated.txt']);
+  assert.deepEqual(calls, ['dirty'], 'a plain retry reruns no phase');
+  execFileSync('git', ['checkout', '--', 'unrelated.txt'], { cwd: target });
+  assert.equal(intents.worktree('a', { cwd: root, runShell }).exit, 0);
+});
+
+test('a phase that dirtied the tree before a later phase failed is still the bootstrap\'s change on retry', (t) => {
+  const { root, dir } = fixture(t, ['dirty', 'breaks']);
+  intents.claim('a', { cwd: root });
+  const target = path.join(dir, 'tree');
+  const fail = { on: true };
+  const { calls, runShell } = dirtying(target, fail);
+  assert.equal(intents.worktree('a', { cwd: root, path: target, runShell }).exit, 2);
+  fail.on = false;
+  const retry = intents.worktree('a', { cwd: root, runShell });
+  assert.equal(retry.exit, 2);
+  assert.deepEqual(retry.payload.dirty, ['unrelated.txt']);
+  assert.deepEqual(calls, ['dirty', 'breaks', 'breaks']);
+  execFileSync('git', ['checkout', '--', 'unrelated.txt'], { cwd: target });
+  assert.equal(intents.worktree('a', { cwd: root, runShell }).exit, 0);
+});
+
+test('a claim on a branch with no run stamp still opens and resumes its worktree', (t) => {
+  const { root, dir } = fixture(t, ['first']);
+  intents.claim('a', { cwd: root, run: 'inferno-intent/a-custom' });
+  const runShell = (command, tree, log) => ({ command, code: 0, log, seconds: 0 });
+  const first = intents.worktree('a', { cwd: root, path: path.join(dir, 'tree'), runShell });
+  assert.equal(first.exit, 0, first.out.join('\n'));
+  const again = intents.worktree('a', { cwd: root, runShell });
+  assert.equal(again.exit, 0, again.out.join('\n'));
+  assert.equal(again.payload.path, first.payload.path);
+});
