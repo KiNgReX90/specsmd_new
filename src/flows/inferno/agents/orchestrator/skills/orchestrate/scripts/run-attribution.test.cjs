@@ -45,6 +45,7 @@ function fixture(t, items) {
   write(root, 'other.cjs', 'other\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'fixture');
+  git(root, 'checkout', '-qb', 'intent');
   const cache = path.join(directory, 'cache');
   function call(...args) {
     const result = spawnSync(process.execPath, [RUN, ...args, '--json'], {
@@ -71,7 +72,19 @@ function fixture(t, items) {
     assert.equal(result.code, 0, result.out);
   }
   const verify = (...args) => call('verify-item', ...args, '--tree', root);
-  return { root, cache, call, human, start, accept, accepted, verify, write: (file, value) => write(root, file, value), git: (...args) => git(root, ...args) };
+  function land(...files) {
+    git(root, 'add', ...files);
+    git(root, 'commit', '-qm', 'an item landed');
+  }
+  /** Commit on the base branch from a worktree of its own, the way another intent's ship does. */
+  function moveBase(file, value) {
+    const base = path.join(directory, 'base');
+    if (!fs.existsSync(base)) git(root, 'worktree', 'add', '-q', base, 'main');
+    write(base, file, value);
+    git(base, 'add', file);
+    git(base, 'commit', '-qm', 'the base moved');
+  }
+  return { root, cache, call, human, start, accept, accepted, verify, land, moveBase, write: (file, value) => write(root, file, value), git: (...args) => git(root, ...args) };
 }
 
 test('verify-item passes the item check and fails with the log tail', (t) => {
@@ -231,7 +244,7 @@ test('verify-item waits for every open dispatch of the round to be accepted', (t
   assert.equal(f.verify('a').code, 0);
 });
 
-test('a sibling verified after an earlier item landed with a fold does not see the landing as its own', (t) => {
+test('a sibling verified after an earlier item landed and the base was folded in sees neither as its own', (t) => {
   const f = fixture(t, { a: ['a.cjs'], b: ['b.cjs'] });
   const one = f.start('--item', 'a');
   const two = f.start('--item', 'b');
@@ -239,9 +252,68 @@ test('a sibling verified after an earlier item landed with a fold does not see t
   f.write('b.cjs', 'module.exports = 2;\n');
   f.accepted(one, ['a.cjs']);
   f.accepted(two, ['b.cjs']);
-  f.write('other.cjs', 'folded from the base\n');
-  f.git('add', 'a.cjs', 'other.cjs');
-  f.git('commit', '-qm', 'a integrated with the base folded in');
+  f.land('a.cjs');
+  f.moveBase('other.cjs', 'moved on the base\n');
+  f.git('merge', '-q', '--no-edit', 'main');
+  const result = f.verify('b');
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(result.data.outside, []);
+  const fast = fixture(t, { a: ['a.cjs'] });
+  const dispatch = fast.start('--item', 'a');
+  fast.write('a.cjs', 'module.exports = 2;\n');
+  fast.accepted(dispatch, ['a.cjs']);
+  fast.moveBase('other.cjs', 'moved on the base\n');
+  fast.git('merge', '-q', '--ff-only', 'main');
+  assert.deepEqual(fast.verify('a').data.outside, []);
+});
+
+test('a builder that commits its own escape still has it named outside', (t) => {
+  for (const whole of [true, false]) {
+    const f = fixture(t, { a: ['a.cjs'] });
+    const dispatch = f.start('--item', 'a');
+    f.write('a.cjs', 'module.exports = 2;\n');
+    f.write('other.cjs', 'escaped\n');
+    if (whole) f.git('commit', '-qam', 'the builder commits');
+    else f.land('other.cjs');
+    f.accepted(dispatch, ['a.cjs']);
+    const result = f.verify('a');
+    assert.equal(result.code, 2, result.out);
+    assert.deepEqual(result.data.outside, ['other.cjs']);
+  }
+});
+
+test('an escape into a sibling\'s ownership that nobody reported is named after the sibling lands', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'a2.cjs'], b: ['b.cjs'] });
+  const one = f.start('--item', 'a');
+  const two = f.start('--item', 'b');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.write('a2.cjs', 'written by the builder of b\n');
+  f.accepted(one, ['a.cjs']);
+  f.accepted(two, ['b.cjs']);
+  assert.deepEqual(f.verify('a').data.unreported, ['a2.cjs']);
+  f.land('a.cjs', 'a2.cjs');
+  const result = f.verify('b');
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['a2.cjs']);
+});
+
+test('a later round is waited for, and its patches on top of a landed sibling are not the earlier item\'s', (t) => {
+  const f = fixture(t, { a: ['a.cjs'], b: ['b.cjs'], c: ['a.cjs', 'c.cjs'] });
+  const one = f.start('--item', 'a');
+  const two = f.start('--item', 'b');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.accepted(one, ['a.cjs']);
+  f.accepted(two, ['b.cjs']);
+  f.land('a.cjs');
+  const later = f.start('--item', 'c');
+  f.write('a.cjs', 'module.exports = 3;\n');
+  f.write('c.cjs', 'module.exports = 3;\n');
+  assert.match(f.verify('b').out, new RegExp(`dispatch ${later} for c is still open`));
+  f.accepted(later, ['a.cjs', 'c.cjs']);
+  assert.deepEqual(f.verify('b').data.outside, []);
+  f.land('a.cjs', 'c.cjs');
   const result = f.verify('b');
   assert.equal(result.code, 0, result.out);
   assert.deepEqual(result.data.outside, []);
@@ -271,6 +343,66 @@ test('an item dispatched by the runner before signed records is checked the old 
   const refused = f.verify('b');
   assert.equal(refused.code, 2, refused.out);
   assert.match(refused.out, /DISPATCH_PROOF.*no dispatch recorded for b.*dispatch-log/);
+});
+
+test('a dispatch this runner logged is refused, never checked the old way, when its record is missing', (t) => {
+  const f = fixture(t, { a: ['a.cjs'] });
+  const tree = path.join(path.dirname(f.root), 'wt');
+  f.git('worktree', 'add', '-q', '-b', 'wt', tree);
+  assert.equal(f.call('dispatch-log', 'alpha', '--item', 'a', '--tier', 'strong', '--agent', 'builder').code, 0);
+  write(tree, '.specs-inferno/intents/alpha/work-items/a.md', spec('a', ['a.cjs', 'other.cjs']));
+  write(tree, 'a.cjs', 'module.exports = 2;\n');
+  write(tree, 'other.cjs', 'escaped\n');
+  const elsewhere = f.call('verify-item', 'a', '--tree', tree);
+  assert.equal(elsewhere.code, 2, elsewhere.out);
+  assert.match(elsewhere.out, /DISPATCH_PROOF.*--tree.*cache/);
+  const directory = path.join(f.cache, 'specsmd-inferno', 'repo', 'dispatch');
+  for (const name of fs.readdirSync(directory)) if (!name.endsWith('.log')) fs.rmSync(path.join(directory, name), { recursive: true });
+  const cleared = f.verify('a');
+  assert.equal(cleared.code, 2, cleared.out);
+  assert.match(cleared.out, /DISPATCH_PROOF.*--tree.*cache/);
+});
+
+test('a re-dispatch after an attempt nobody accepted carries that attempt\'s files', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'a.test.cjs'] });
+  f.start('--item', 'a');
+  f.write('a.test.cjs', 'written before the builder stopped\n');
+  const retry = f.start('--item', 'a');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.accepted(retry, ['a.cjs', 'a.test.cjs']);
+  const result = f.verify('a');
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(result.data.dispatches[0].changed, ['a.cjs', 'a.test.cjs']);
+});
+
+test('a correction that removes a file its first attempt added does not stop a sibling\'s review', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'tmp/'], b: ['b.cjs'] });
+  const first = f.start('--item', 'a');
+  const two = f.start('--item', 'b');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.accepted(two, ['b.cjs']);
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.write('tmp/x.cjs', 'left over\n');
+  f.accepted(first, ['a.cjs', 'tmp/x.cjs']);
+  const fix = f.start('--item', 'a');
+  fs.rmSync(path.join(f.root, 'tmp'), { recursive: true });
+  f.accepted(fix, ['tmp/x.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(result.data.outside, []);
+});
+
+test('verify-item refuses and names .git/info/exclude when it changed since the dispatch', (t) => {
+  const f = fixture(t, { a: ['a.cjs'] });
+  const dispatch = f.start('--item', 'a');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.write('src/escaped.cjs', 'hidden\n');
+  fs.mkdirSync(path.join(f.root, '.git', 'info'), { recursive: true });
+  fs.appendFileSync(path.join(f.root, '.git', 'info', 'exclude'), 'src/escaped.cjs\n');
+  f.accepted(dispatch, ['a.cjs']);
+  const result = f.verify('a');
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, /DISPATCH_PROOF.*\.git\/info\/exclude/);
 });
 
 test('--since reports an untracked symlink leaving the tree as outside instead of crashing', (t) => {

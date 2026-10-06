@@ -350,7 +350,8 @@ function dispatchLog(intentId, options) {
   });
   const log = path.join(lib.cacheDir(root), 'dispatch', `${intentId}.log`);
   const batch = options.batch || (items.length > 1 ? items.join(',') : '');
-  const lines = items.map((id) => [new Date().toISOString(), intentId, id, options.tier, options.agent, batch].join('\t'));
+  // The seventh field, the dispatch id, tells this runner's line from the six of the runner before signed records.
+  const lines = items.map((id) => [new Date().toISOString(), intentId, id, options.tier, options.agent, batch, record.dispatchId].join('\t'));
   fs.mkdirSync(path.dirname(log), { recursive: true });
   fs.appendFileSync(log, `${lines.join('\n')}\n`, 'utf8');
   return {

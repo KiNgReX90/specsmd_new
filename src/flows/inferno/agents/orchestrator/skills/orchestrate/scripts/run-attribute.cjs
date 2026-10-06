@@ -30,17 +30,15 @@ function peerRecords(tree, peers) {
 }
 
 /**
- * Whether the runner before signed records dispatched this item: its dispatch log has the line
- * but no record exists. Such an item is checked the old way, so an intent in flight when the
- * runner was updated still lands.
+ * The dispatch ids the log holds for this item, `null` for a line the runner before signed
+ * records wrote: its six fields end before the seventh, the dispatch id, this runner adds.
  */
-function legacyDispatched(tree, intent, item) {
+function loggedDispatches(tree, intent, item) {
   const log = path.join(lib.cacheDir(tree), 'dispatch', `${intent}.log`);
-  if (!fs.existsSync(log)) return false;
-  return fs.readFileSync(log, 'utf8').split('\n').some((line) => {
-    const fields = line.split('\t');
-    return fields[1] === intent && fields[2] === item;
-  });
+  if (!fs.existsSync(log)) return [];
+  return fs.readFileSync(log, 'utf8').split('\n').map((line) => line.split('\t'))
+    .filter((fields) => fields[1] === intent && fields[2] === item)
+    .map((fields) => fields[6] || null);
 }
 
 function editableOf(tree, intent, ids) {
@@ -52,20 +50,32 @@ function editableOf(tree, intent, ids) {
   return [...owned];
 }
 
+/**
+ * The record that answers for an item. An item only the runner before signed records dispatched
+ * is checked the old way (`null`), so an intent in flight when the runner was updated still
+ * lands. A dispatch this runner logged is never checked the old way when its record is missing.
+ */
 function recordFor(tree, entry, options) {
   try {
     return dispatch.loadDispatch(tree, { intent: entry.intent, item: entry.id, dispatch_id: options.dispatch_id });
   } catch (error) {
-    if (error instanceof RunError && /^no dispatch recorded/.test(error.message) && !options.dispatch_id &&
-        legacyDispatched(tree, entry.intent, entry.id)) return null;
+    if (!(error instanceof RunError) || !/^no dispatch recorded/.test(error.message) || options.dispatch_id) throw error;
+    const logged = loggedDispatches(tree, entry.intent, entry.id);
+    const signed = logged.find(Boolean);
+    if (signed) {
+      throw new RunError(`dispatch ${signed} for ${entry.id} was logged, but ${fs.realpathSync(tree)} has no record of it: pass the ` +
+        `--tree its dispatch-log used, or name a baseline with --since if the record left the cache (${lib.cacheDir(tree)})`, 'DISPATCH_PROOF');
+    }
+    if (logged.length > 0) return null;
     throw error;
   }
 }
 
 /**
  * Each reviewed item against the record of the builder that built it, a chain's items against
- * their one shared record. Returns `legacy` instead when an item predates signed records. The
- * ledger is the single writer's and never a builder's, so it is never outside.
+ * their one shared record, with `options.base` the branch whose fold is excused. Returns `legacy`
+ * instead when an item predates signed records. The ledger is the single writer's and never a
+ * builder's, so it is never outside.
  */
 function attribute(tree, items, options) {
   if (options.dispatch_id && items.length > 1) {
@@ -89,10 +99,10 @@ function attribute(tree, items, options) {
     const open = dispatch.openDispatches(tree, record);
     if (open.length > 0) {
       throw new RunError(`dispatch ${open[0].dispatch_id} for ${open[0].items.join(', ')} is still open: run accept-dispatch ` +
-        'on every result of the round, a blocked one with its changed_files as they are, before verify-item', 'DISPATCH_PROOF');
+        'on every result started since this item\'s baseline, a blocked one with its changed_files as they are, before verify-item', 'DISPATCH_PROOF');
     }
     const ids = dispatch.itemsOf(record);
-    const result = dispatch.verifyDispatch(tree, record, editableOf(tree, record.assignment.intent, ids), { peers });
+    const result = dispatch.verifyDispatch(tree, record, editableOf(tree, record.assignment.intent, ids), { peers, base: options.base });
     for (const file of result.outside) if (!ledger(file)) outside.add(file);
     for (const file of result.unreported) if (!ledger(file)) unreported.add(file);
     attributed.push({ items: ids, dispatch_id: result.dispatch_id, since: result.since, changed: result.changed });

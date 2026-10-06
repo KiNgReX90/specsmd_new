@@ -8,10 +8,10 @@
  * and nothing tied a builder's reported files to what it actually changed.
  *
  * One record may cover a serial chain (`--items a,b`): one builder builds the chain in order,
- * so files its items share are no overlap. A correction gets its own record that points at the
- * attempts before it, and the item is judged from the first attempt's baseline with the files
- * of every accepted attempt, so a correction neither has to repeat an earlier attempt's files
- * nor hides an escape that attempt made.
+ * so files its items share are no overlap. A correction or a re-dispatch gets its own record that
+ * points at the attempts before it, accepted or not, and the item is judged from the first
+ * attempt's baseline, so the next attempt may report what an earlier one changed and never hides
+ * an escape that attempt made.
  *
  * Records are signed with a key kept in the user's cache beside them. That makes them tamper
  * evident against accidents (a hand edit, a record carried into another tree, a stale copy),
@@ -100,13 +100,19 @@ function entryOf(target) {
   throw refuse(`cannot snapshot ${target}: not a file, a link or a submodule`);
 }
 
-/** Every tracked and untracked path by identity, so uncommitted builder output is captured too. */
+const excludeFile = (tree) => lib.git(tree, ['rev-parse', '--git-path', 'info/exclude']);
+
+/**
+ * Every tracked and untracked path by identity, so uncommitted builder output is captured too,
+ * plus the identity of `info/exclude`, which decides what counts as untracked.
+ */
 function captureSnapshot(tree) {
   const files = {};
   for (const file of [...new Set(gitNames(tree, ['ls-files', '--cached', '--others', '--exclude-standard']))].sort()) {
     files[file] = entryOf(path.join(tree, file));
   }
-  return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files) };
+  const exclude = hash(entryOf(path.resolve(tree, excludeFile(tree))));
+  return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files), exclude };
 }
 
 const same = (left, right, file) => hash(left.files[file] || null) === hash(right.files[file] || null);
@@ -202,12 +208,14 @@ function lineage(tree, record) {
   return [...seen.values()];
 }
 
-/** A record as verification reads it: the first attempt's baseline and every accepted file. */
+/** A record as verification reads it: the first attempt's baseline and every accepted or carried file. */
 function effective(tree, record) {
   const members = lineage(tree, record);
   const root = [...members].reverse().find((entry) => !(entry.previous || []).length) || members[members.length - 1];
   const claimed = new Set();
-  for (const entry of members) if (entry.phase === 'accepted') for (const file of claimedPaths(entry)) claimed.add(file);
+  for (const entry of members.filter((member) => member.phase === 'accepted')) {
+    for (const file of [...claimedPaths(entry), ...exactPaths(entry.completion.carried || [])]) claimed.add(file);
+  }
   return { record, members, ids: new Set(members.map((entry) => entry.dispatchId)), before: root.beforeSnapshot, claimed: [...claimed].sort() };
 }
 
@@ -244,8 +252,8 @@ function recordDispatch(tree, options) {
 
 /**
  * Freeze the accepted result, checked against the baseline: every reported path changed since
- * this dispatch, or an earlier accepted attempt of the same item already carries it. A second
- * accept with the same list is a no-op and with another list a refusal, never a silent keep.
+ * this dispatch, or since the item's first attempt, accepted or not, which this one carries. A
+ * second accept with the same list is a no-op and with another list a refusal, never a silent keep.
  */
 function acceptDispatch(tree, options) {
   const record = readJson(recordFile(tree, options.dispatch_id));
@@ -261,7 +269,8 @@ function acceptDispatch(tree, options) {
   }
   const snapshot = captureSnapshot(tree);
   const changed = snapshotDelta(record.beforeSnapshot, snapshot);
-  const earlier = new Set(effective(tree, record).claimed);
+  const view = effective(tree, record);
+  const earlier = new Set([...view.claimed, ...snapshotDelta(view.before, snapshot)]);
   const claim = reported.filter((file) => changed.includes(file));
   const carried = reported.filter((file) => !changed.includes(file) && earlier.has(file));
   const missing = reported.filter((file) => !changed.includes(file) && !earlier.has(file));
@@ -296,43 +305,74 @@ function currentRecords(tree) {
   return [...records.values()].filter((record) => isCurrent(tree, record));
 }
 
-/** Dispatches of the same round (same first baseline) whose results were never accepted. */
+/** Whether a baseline at `head` started at or after one at `ancestor`: the same commit or a later one. */
+function startsFrom(tree, ancestor, head) {
+  return ancestor === head || lib.git(tree, ['merge-base', '--is-ancestor', ancestor, head], { tolerate: true }) !== null;
+}
+
+/** Dispatches started at or after this item's first baseline whose results were never accepted. */
 function openDispatches(tree, record) {
   const own = effective(tree, record);
   return currentRecords(tree)
     .filter((entry) => entry.phase !== 'accepted' && !own.ids.has(entry.dispatchId))
-    .filter((entry) => effective(tree, entry).before.head_sha === own.before.head_sha)
+    .filter((entry) => startsFrom(tree, own.before.head_sha, effective(tree, entry).before.head_sha))
     .map((entry) => ({ dispatch_id: entry.dispatchId, items: itemsOf(entry) }));
 }
 
-/** Paths that landed in a commit since the baseline and are clean now: a fold or an integration. */
-function committedSince(tree, head) {
-  if (lib.git(tree, ['rev-parse', 'HEAD']) === head) return new Set();
+/**
+ * Paths the fold of `base` brought in since the baseline at `head` and nothing changed since:
+ * what the base changed after the last base commit the baseline held, merged or fast-forwarded.
+ * On the base branch itself nothing is a fold.
+ */
+function foldedSince(tree, head, base) {
+  if (!base || lib.currentBranch(tree) === base) return new Set();
   const dirty = new Set([...gitNames(tree, ['diff', '--name-only', '--no-renames', 'HEAD']), ...gitNames(tree, ['ls-files', '--others', '--exclude-standard'])]);
-  return new Set(gitNames(tree, ['diff', '--name-only', '--no-renames', head, 'HEAD']).filter((file) => !dirty.has(file)));
+  const folded = new Set();
+  for (const ref of [base, `origin/${base}`]) {
+    const tip = lib.git(tree, ['merge-base', 'HEAD', ref], { tolerate: true });
+    const held = tip && lib.git(tree, ['merge-base', head, tip], { tolerate: true });
+    if (!held || held === tip) continue;
+    for (const file of gitNames(tree, ['diff', '--name-only', '--no-renames', held, tip])) if (!dirty.has(file)) folded.add(file);
+  }
+  return folded;
 }
 
-/** A peer explains only its own accepted paths, and only from the same first baseline. */
+/**
+ * The changed paths that peers' accepted patches explain. Walking back from what a path holds
+ * now, each step is a peer that claimed it and left exactly those bytes, until the bytes are this
+ * item's baseline. Only a peer that started at or after that baseline counts, so a patch an older
+ * round made, which a commit since rolled back, never explains the same bytes coming back.
+ */
 function explainedByPeers(tree, own, editable, peers, current) {
-  const explained = new Set();
+  const views = [];
   for (const peer of peers) {
     validateDispatch(tree, peer);
     if (own.ids.has(peer.dispatchId)) continue;
     const view = effective(tree, peer);
-    if (view.before.head_sha !== own.before.head_sha) continue;
-    const peerChanged = snapshotDelta(view.before, peer.acceptedSnapshot);
-    for (const file of view.claimed) {
-      if (!peerChanged.includes(file) || !lib.ownedBy(file, peer.assignment.ownership.editable, tree)) {
-        throw refuse('peer dispatch claims an unverified or unowned path');
-      }
-      if (!current.changed.includes(file)) continue;
-      if (same(peer.acceptedSnapshot, own.before, file)) continue;
-      if (!same(view.before, own.before, file)) continue;
-      if (own.claimed.includes(file) || lib.ownedBy(file, editable, tree)) {
+    if (!startsFrom(tree, own.before.head_sha, view.before.head_sha)) continue;
+    const patch = snapshotDelta(view.before, peer.acceptedSnapshot);
+    const files = view.claimed.filter((file) => patch.includes(file) && current.changed.includes(file));
+    for (const file of files) {
+      if (!lib.ownedBy(file, peer.assignment.ownership.editable, tree)) throw refuse('peer dispatch claims an unowned path');
+      if (!same(peer.acceptedSnapshot, own.before, file) && (own.claimed.includes(file) || lib.ownedBy(file, editable, tree))) {
         throw refuse(`dispatch ownership overlaps at ${file} with dispatch ${peer.dispatchId}: ` +
           'a serial chain one builder builds takes one dispatch-log --items a,b');
       }
-      if (same(peer.acceptedSnapshot, current.snapshot, file)) explained.add(file);
+    }
+    views.push({ peer, before: view.before, files });
+  }
+  const explained = new Set();
+  for (const file of current.changed) {
+    const left = views.filter((view) => view.files.includes(file));
+    let state = current.snapshot;
+    for (;;) {
+      const index = left.findIndex((view) => same(view.peer.acceptedSnapshot, state, file));
+      if (index === -1) break;
+      state = left.splice(index, 1)[0].before;
+      if (same(state, own.before, file)) {
+        explained.add(file);
+        break;
+      }
     }
   }
   return explained;
@@ -340,10 +380,9 @@ function explainedByPeers(tree, own, editable, peers, current) {
 
 /**
  * Every path changed since the item's first baseline, sorted into the item's own, `unreported`
- * (owned by the spec and the record, changed, but missing from changed_files) and `outside`.
- * An unreported change that landed in a commit since the baseline is the integration's (a
- * sibling landing, a fold of the base), not the builder's: builders never commit, and every
- * item is committed only after its review.
+ * (owned by the spec and the record, changed, but missing from changed_files) and `outside`. A
+ * path the fold of `options.base` brought in is the base's. Any other commit since the baseline,
+ * a sibling's landing or a builder's own, is attributed like an uncommitted change.
  */
 function verifyDispatch(tree, record, editable, options = {}) {
   validateDispatch(tree, record);
@@ -354,15 +393,19 @@ function verifyDispatch(tree, record, editable, options = {}) {
     if (missing.length > 0) throw refuse(`accepted paths have no dispatch patch: ${missing.join(', ')}`);
   }
   const snapshot = captureSnapshot(tree);
+  if (snapshot.exclude !== own.before.exclude) {
+    throw refuse(`${excludeFile(tree)} changed since the dispatch baseline, so a file it now hides would escape this check: ` +
+      'restore it, then verify again');
+  }
   for (const file of own.claimed) {
     if (!same(snapshot, record.acceptedSnapshot, file)) {
       throw refuse(`accepted dispatch bytes changed at ${file}: run dispatch-log before a correction resumes the builder, ` +
         'then accept-dispatch its result');
     }
   }
-  const committed = committedSince(tree, own.before.head_sha);
+  const folded = foldedSince(tree, own.before.head_sha, options.base);
   const changed = [...new Set([...snapshotDelta(own.before, record.acceptedSnapshot), ...snapshotDelta(own.before, snapshot)])]
-    .filter((file) => own.claimed.includes(file) || !committed.has(file))
+    .filter((file) => own.claimed.includes(file) || !folded.has(file))
     .sort();
   const current = { snapshot, changed };
   const explained = explainedByPeers(tree, own, editable, options.peers || currentRecords(tree).filter((entry) => entry.phase === 'accepted'), current);

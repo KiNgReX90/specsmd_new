@@ -112,7 +112,8 @@ function verifyItem(itemId, options) {
   // `--since` names the baseline by hand; without it each item answers to its own dispatch,
   // and an item the runner before signed records dispatched is checked the old way.
   const out = [];
-  let attribution = options.since ? null : attribute(tree, items, options);
+  let attribution = options.since ? null
+    : attribute(tree, items, { ...options, base: options.base || resolveBase(lib.readConfig(tree, options.config), null, tree) });
   if (attribution && attribution.legacy) {
     out.push(`no signed dispatch for ${attribution.legacy.join(', ')}: checked since HEAD as the runner before signed records did`);
     attribution = null;
