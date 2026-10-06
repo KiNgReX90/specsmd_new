@@ -42,30 +42,34 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs frontier <intent-id> [--tree <dir>] [--config <file>] validate the contracts, print the ready items and who builds each
   node run.cjs probes <item-id> [--tree <dir>] [--intent <id>] rerun the item's measurements: 0 they hold, 2 drift
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
-  node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, ownership as the union
+  node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, each item against its dispatch
   node run.cjs review --item <id> --tree <dir> [--intent <id>] the item's cold review: 3 dispatch the reviewer, 0 clean, 2 fix
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
   node run.cjs doubles [--tree <dir>] [--config <file>] count the test doubles against the merge base: 0 held, 2 rose
-  node run.cjs gate [--tree <dir>] [--config <file>]     run the finalize commands without matching proofs
+  node run.cjs gate [--tree <dir>] [--config <file>] [--force] run the finalize commands without matching proofs
   node run.cjs gate --detach [--tree <dir>]              start the gate as its own process and return
   node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the started gate: 0 green, 2 red, 4 still running (default 9 min)
   node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
   node run.cjs ship <intent-id> --tree <dir> [--config <file>] fold, merge, push, verify, tear down
   node run.cjs teardown --tree <dir> [--base <branch>] [--config <file>] remove a worktree and branch the base already holds
   node run.cjs register-process <pid> --tree <dir> --run-id <id> let teardown stop a process the run launched in the tree
-  node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>
+  node run.cjs dispatch-log <intent-id> --item <id> | --items <a,b> --tier <tier> --agent <name> [--tree <dir>] record the builder's baseline, print its dispatch id
+  node run.cjs accept-dispatch <dispatch-id> --changed-paths <json-array> [--tree <dir>] freeze the result it reported
 
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
   --config <file>   select, claim, unclaim, worktree, frontier, review, integrate, doubles, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
   --base <branch>   integrate, doubles, gate, ship and teardown: the base branch to fold in (default: the config's base)
-  --since <ref>     verify-item: what to compare the working tree against (default HEAD)
+  --since <ref>     verify-item: compare against this ref instead of the item's accepted dispatch
+  --dispatch-id <id> verify-item: the accepted dispatch to check (default the item's latest)
+  --peers <json>    verify-item: the dispatch ids that may explain a sibling's change (default every accepted one)
   --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed
-  --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
+  --items <a,b>     integrate, verify-item and dispatch-log: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous
+  --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
 
 Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item review, or an item completed with no integration proof or review), 4 gate still running.`;
@@ -108,13 +112,15 @@ const COMMANDS = {
     registerProcess(required(args[0], REGISTER), required(options.tree, REGISTER), required(options.run_id, REGISTER)),
   'dispatch-log': (args, options) =>
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
+  'accept-dispatch': (args, options) =>
+    intents.acceptDispatch(required(args[0], 'accept-dispatch <dispatch-id> --changed-paths <json-array>'), options),
 };
 
 /** The steps that work inside an intent worktree, so running one is owning the tree. */
-const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log']);
+const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch']);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
-const FLAGS = new Set(['--json', '--detach', '--wait']);
+const FLAGS = new Set(['--json', '--detach', '--wait', '--force']);
 
 function parseArgs(argv) {
   const options = { cwd: process.cwd() };

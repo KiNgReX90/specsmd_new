@@ -8,6 +8,7 @@ const { spawn } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
+const { attribute } = require('./run-attribute.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const processes = require('./run-processes.cjs');
 
@@ -84,11 +85,17 @@ function reviewed(ledger, itemId, options) {
   });
 }
 
+/** Every path changed since `since` that the union of the reviewed items does not own. */
+function sinceOutside(tree, since, editable) {
+  return changedPaths(tree, since).filter(
+    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !lib.ownedBy(file, editable, tree)
+  );
+}
+
 /**
  * One item's own check plus its ownership. A batch is reviewed as the unit it was built as:
- * the ownership is the union of its items' editable lists, because attributing every
- * uncommitted change to the first id of a batch reported a false ownership error on work the
- * batch legitimately owned (2026-09-09).
+ * each item against its own dispatch, so a change one item of the batch reported is that
+ * item's, and under `--since` against the union of its items' editable lists.
  */
 function verifyItem(itemId, options) {
   const tree = treeOf(options);
@@ -103,15 +110,19 @@ function verifyItem(itemId, options) {
       items.flatMap((entry) => (entry.spec.manifest.ownership && entry.spec.manifest.ownership.editable) || [])
     ),
   ];
-  // Builders never commit and every item is committed only after this review, so the item's
-  // own work is what sits uncommitted on HEAD. The merge base used to be the default here, and
-  // it named every file an earlier item in the same intent had already landed (2026-09-05).
-  const since = options.since || 'HEAD';
-  const outside = changedPaths(tree, since).filter(
-    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !lib.ownedBy(file, editable)
-  );
-
+  // `--since` names the baseline by hand; without it each item answers to its own dispatch,
+  // and an item the runner before signed records dispatched is checked the old way.
   const out = [];
+  let attribution = options.since ? null
+    : attribute(tree, items, { ...options, base: options.base || resolveBase(lib.readConfig(tree, options.config), null, tree) });
+  if (attribution && attribution.legacy) {
+    out.push(`no signed dispatch for ${attribution.legacy.join(', ')}: checked since HEAD as the runner before signed records did`);
+    attribution = null;
+  }
+  const since = attribution ? attribution.since : options.since || 'HEAD';
+  const outside = attribution ? attribution.outside : sinceOutside(tree, since, editable);
+  const unreported = attribution ? attribution.unreported : [];
+  const attributed = attribution ? attribution.attributed : [];
   let failed = outside.length > 0;
   const checks = [];
   for (const entry of items) {
@@ -138,10 +149,14 @@ function verifyItem(itemId, options) {
   } else {
     out.push(`ownership clean since ${since}`);
   }
+  if (unreported.length > 0) {
+    out.push(`owned but not in changed_files: ${unreported.slice(0, 10).join(', ')}. If this item wrote them, run dispatch-log ` +
+      'for it again and accept-dispatch its full list, or each sibling\'s review names them outside');
+  }
 
   return {
     exit: failed ? 2 : 0,
-    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, checks },
+    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, unreported, checks, dispatches: attributed },
     out,
   };
 }
@@ -229,7 +244,7 @@ function gateNow(options) {
     lib.dirtyPaths(tree).length === 0 && proofs.scopeHash(tree) === started &&
     JSON.stringify(lib.readConfig(tree, options.config).verification) === definition;
   for (const [index, command] of commands.entries()) {
-    const result = proofs.runCommand(tree, config, options.config, command, path.join(dir, `${index}.log`));
+    const result = proofs.runCommand(tree, config, options.config, command, path.join(dir, `${index}.log`), Boolean(options.force));
     const rerunCommand = config.verification.flake_rerun && config.verification.flake_rerun[command];
     if (result.result === 'fail' && rerunCommand) {
       if (unchanged()) {
@@ -335,6 +350,7 @@ function gateDetach(options) {
   const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
   if (options.config) args.push('--config', options.config);
+  if (options.force) args.push('--force');
   const out = fs.openSync(paths.result, 'w');
   const err = fs.openSync(paths.log, 'w');
   const child = spawn(process.execPath, args, { cwd: tree, detached: true, stdio: ['ignore', out, err] });

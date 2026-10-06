@@ -19,6 +19,7 @@ const writer = require('./state-transition.cjs');
 const { listValues } = require('./state-lists.cjs');
 
 const { RunError } = require('./run-error.cjs');
+const owned = require('./run-owned.cjs');
 const { parseYaml, stripQuotes } = require('./run-yaml.cjs');
 
 // ---------------------------------------------------------------------------
@@ -439,16 +440,6 @@ function capLines(out, max = 30) {
   return [...out.slice(0, max - 1), `... ${out.length - (max - 1)} more lines`];
 }
 
-/**
- * Whether `file` falls under one of an item's `ownership.editable` entries. A folder entry
- * owns every path below it whether or not it is written with a trailing slash.
- */
-function ownedBy(file, editable) {
-  return (editable || []).some(
-    (entry) => file === entry || file.startsWith(`${entry.replace(/\/+$/, '')}/`)
-  );
-}
-
 module.exports = {
   RunError,
   SPECS_DIR,
@@ -466,7 +457,8 @@ module.exports = {
   isHeavy,
   matchesAny,
   onPath,
-  ownedBy,
+  overlaps: owned.overlaps,
+  ownedBy: owned.ownedBy,
   parseYaml,
   primaryRoot,
   processesIn,

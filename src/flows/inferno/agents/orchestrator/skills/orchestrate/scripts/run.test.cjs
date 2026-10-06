@@ -534,46 +534,7 @@ test("frontier suggests one dispatch for consecutive low items of the same tier"
   assert.deepEqual(result.batch, [["a-one", "a-two"]]);
 });
 
-// --- verify-item ---------------------------------------------------------
-test("verify-item passes the item's own check and reports ownership clean", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 0);
-  assert.match(result.out, /PASS/);
-});
-
-test("verify-item fails with the log path and the tail of the log", () => {
-  const failing = {
-    ...ITEMS,
-    "alpha/a-one": item({ id: "a-one", intent: "alpha", finalize_check: "echo the reason; exit 1" }),
-  };
-  const fixture = repo({ items: failing });
-  const { tree } = opened(fixture);
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 2);
-  assert.match(result.out, /FAIL/);
-  assert.match(result.out, /the reason/);
-});
-
-test("verify-item names a changed file outside the item's ownership", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  write(tree, "src/b.ts", "export const b = 9;\n");
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 2);
-  assert.match(result.out, /src\/b\.ts/);
-});
-
-test("verify-item ignores a file an earlier item already committed on the branch", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  write(tree, "src/b.ts", "export const b = 9;\n");
-  git(tree, ["commit", "-qam", "a-two landed first"]);
-  const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
-  assert.equal(result.code, 0, result.out);
-  assert.match(result.out, /ownership clean since HEAD/);
-});
+// verify-item and accept-dispatch: run-attribution.test.cjs.
 
 // --- integrate -----------------------------------------------------------
 // The cheap checks run after every item lands, on the committed tree with the base folded in,
@@ -942,6 +903,7 @@ test("dispatch-log appends one line per dispatch", () => {
   const log = fs.readFileSync(result.log, "utf8");
   assert.equal(lines(log).length, 2);
   assert.match(log, /a-one\tcheap\tbuilder/);
+  assert.match(result.dispatch_id, /^[0-9a-f-]{36}$/);
 });
 
 // --- gate folds the base in ---------------------------------------------
@@ -1125,18 +1087,6 @@ test("an item the integration proved releases its successor", () => {
 
   assert.equal(result.code, 0, result.out);
   assert.deepEqual(JSON.parse(result.out).ready.map((entry) => entry.id), ["a-two"]);
-});
-
-test("verify-item takes the union of a batch's ownership", () => {
-  const fixture = repo();
-  const { tree } = opened(fixture);
-  write(tree, "src/a.ts", "export const a = 4;\n");
-  write(tree, "src/b.ts", "export const b = 5;\n");
-
-  assert.equal(run(fixture, ["verify-item", "a-one", "--tree", tree]).code, 2, "src/b.ts is outside a-one alone");
-  const batch = run(fixture, ["verify-item", "--items", "a-one,a-two", "--tree", tree]);
-  assert.equal(batch.code, 0, batch.out + batch.err);
-  assert.match(batch.out, /ownership clean/);
 });
 
 // --- the browser journeys this landing can break -------------------------
