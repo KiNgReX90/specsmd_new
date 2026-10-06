@@ -139,6 +139,25 @@ function resolveHost(config, file) {
   throw new RunError(`host in ${file} must be claude or codex, not ${String(config.host) || 'empty'}.`, 'BAD_CONFIG');
 }
 
+/**
+ * A Codex role entry names the agent it pins, and the installer pins the role's model on
+ * `specsmd_inferno_<role>` alone. An entry naming any other agent would dispatch one agent
+ * on another role's pin, so it is refused.
+ */
+function validateRoles(config, file) {
+  if (config.host !== 'codex' || !config.roles || typeof config.roles !== 'object') return;
+  for (const [role, entry] of Object.entries(config.roles)) {
+    if (!entry || typeof entry !== 'object' || entry.agent === undefined) continue;
+    const agent = `specsmd_inferno_${role.replace(/-/g, '_')}`;
+    if (entry.agent !== agent) {
+      throw new RunError(
+        `roles.${role}.agent in ${file} must be ${agent}, the agent this role installs, not ${String(entry.agent) || 'empty'}.`,
+        'BAD_CONFIG'
+      );
+    }
+  }
+}
+
 function readConfig(root, selected) {
   const defaultFile = path.resolve(root, SPECS_DIR, 'config.yaml');
   const file = path.resolve(root, selected || defaultFile);
@@ -159,6 +178,7 @@ function readConfig(root, selected) {
     }
   }
   config.host = resolveHost(config, file);
+  validateRoles(config, file);
   validateVerification(config, file);
   return config;
 }

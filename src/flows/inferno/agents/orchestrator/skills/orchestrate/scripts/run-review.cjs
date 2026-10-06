@@ -26,28 +26,15 @@ const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./sta
 const { RunError } = lib;
 
 /**
- * The agent each host dispatches for an actor, by the config's `host` key (claude when it has
- * none). The Codex names are the ones the flow's codex/agents files define; the reviewer's
- * agents arrive with the reviewer role.
+ * The key of each actor's `roles` entry on each host: the one the installer renders that
+ * role's pins from. The host dispatches the agent the key names, `specsmd-inferno-<key>` on
+ * Claude and `specsmd_inferno_<key>` on Codex, the agents the flow's own files define. The
+ * reviewer's agents arrive with the reviewer role.
  */
-const AGENTS = {
-  claude: {
-    cheap: 'specsmd-inferno-builder-cheap',
-    strong: 'specsmd-inferno-builder',
-    escalate: 'specsmd-inferno-builder-escalate',
-    oracle: 'specsmd-inferno-oracle',
-    reviewer: 'specsmd-inferno-reviewer',
-  },
-  codex: {
-    cheap: 'specsmd_inferno_builder_cheap',
-    strong: 'specsmd_inferno_builder_strong',
-    escalate: 'specsmd_inferno_builder_escalate',
-    oracle: 'specsmd_inferno_oracle',
-    reviewer: 'specsmd_inferno_reviewer',
-  },
+const ROLES = {
+  claude: { cheap: 'builder-cheap', strong: 'builder', escalate: 'builder-escalate', oracle: 'oracle', reviewer: 'reviewer' },
+  codex: { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer' },
 };
-/** The `roles` entry a host config names each actor under. */
-const ROLES = { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer' };
 
 /** The tier that builds an item first. Complexity alone decides it. */
 function tierOf(item) {
@@ -78,17 +65,20 @@ function builtBy(item) {
 }
 
 /**
- * The agent and model this host dispatches for an actor: the host's `roles.<role>` entry where
- * its config names one, else this host's own agent. The model is `models.<tier>`, or
- * `review.model` for the reviewer, before the role's.
+ * The agent and model this host dispatches for an actor. The agent is always the host's own
+ * for that role, since the installer pins the role's model on exactly that agent. On Codex the
+ * model is the role entry's alone, because the spawned agent's pin wins. On Claude it is
+ * `models.<tier>`, or `review.model` for the reviewer, before the role entry's.
  */
 function hostActor(actor, config = {}) {
+  const host = config.host === 'codex' ? 'codex' : 'claude';
+  const key = ROLES[host][actor];
   const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
-  const role = roles[ROLES[actor]] && typeof roles[ROLES[actor]] === 'object' ? roles[ROLES[actor]] : {};
-  const agent = typeof role.agent === 'string' && role.agent ? role.agent : AGENTS[config.host === 'codex' ? 'codex' : 'claude'][actor];
+  const role = roles[key] && typeof roles[key] === 'object' ? roles[key] : {};
+  const roleModel = (typeof role.model === 'string' && role.model) || null;
+  if (host === 'codex') return { agent: `specsmd_inferno_${key}`, model: roleModel };
   const pinned = actor === 'reviewer' ? config.review && config.review.model : config.models && config.models[actor];
-  const model = pinned || (typeof role.model === 'string' && role.model) || null;
-  return { agent, model };
+  return { agent: `specsmd-inferno-${key}`, model: pinned || roleModel };
 }
 
 /** The actor with the model the host names for it, as frontier and review print it. */

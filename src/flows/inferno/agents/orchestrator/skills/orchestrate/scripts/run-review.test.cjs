@@ -360,6 +360,8 @@ test("on a host whose config names roles, the next line names that host's agent 
   builder_escalate:
     agent: specsmd_inferno_builder_escalate
     model: codex-strong
+models:
+  strong: other-model
 delivery:
   base_branch: main
 `;
@@ -424,14 +426,25 @@ test("a Codex config with no host key names the Codex agents on every rung, in a
   assert.equal(oracle.agent, "specsmd_inferno_oracle");
 });
 
-test("a Claude config with a roles block and no host key keeps the Claude agents", () => {
-  const pins = "roles:\n  builder_strong:\n    model: pinned-strong\n  builder_escalate:\n    model: pinned-escalate\n";
-  const fixture = repo({ config: `${pins}${CONFIG}` });
-  assert.match(review(fixture).out, /^dispatch specsmd-inferno-reviewer model model-review item a-one$/m);
+test("a Claude config reads its role pins under the Claude role names and dispatches the Claude agent", () => {
+  const roles = "roles:\n  builder:\n    model: pinned-strong\n    agent: other-agent\n  builder_strong:\n    model: wrong-key\n";
+  const fixture = repo({ config: `${roles}${CONFIG.replace(/^models:\n(?: {2}.*\n)+/m, "")}` });
   write(fixture.root, REVIEW, FIX);
-  review(fixture);
-  atRung(fixture.root, "strong", 2);
-  assert.match(review(fixture).out, /^next escalate model-escalate specsmd-inferno-builder-escalate: a fresh builder/m);
+  assert.match(review(fixture).out, /^next strong pinned-strong specsmd-inferno-builder: a fresh builder takes a-one over/m);
+});
+
+test("a Codex config whose role names another role's agent is refused", () => {
+  const codex = `roles:
+  builder_escalate:
+    agent: specsmd_inferno_builder_strong
+    model: m
+delivery:
+  base_branch: main
+`;
+  const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": codex } });
+  const result = run(fixture, ["frontier", "alpha", ...CODEX_ARGS]);
+  assert.notEqual(result.code, 0, result.out + result.err);
+  assert.match(result.err, /BAD_CONFIG.*roles\.builder_escalate\.agent.*specsmd_inferno_builder_escalate/);
 });
 
 test("a declared host wins over the file name", () => {
