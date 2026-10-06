@@ -209,7 +209,11 @@ function refuseOverBudget(root, config) {
     return;
   }
   const result = spawnSync('python3', [found.script, '--repo', root, '--quiet'], { encoding: 'utf8' });
-  if (result.error || result.status === null || result.status === 0) return;
+  if (result.error || result.status === null) {
+    const cause = result.error ? result.error.message : `killed by ${result.signal}`;
+    throw new RunError(`the budget script ${found.script} could not run: ${cause}`, 'FLOW_BUDGET_FAILED');
+  }
+  if (result.status === 0) return;
   throw new RunError(
     `the flow text a worker loads is over its budget; a run cannot start under it.\n${result.stdout || ''}${result.stderr || ''}`.trim(),
     'FLOW_TEXT_OVER_BUDGET',

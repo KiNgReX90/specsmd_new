@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
-import { openSandbox, readLock, sha256, write } from './sandbox';
+import { openSandbox, readLock, sha256, snapshot, write } from './sandbox';
 
 const { installFlow } = require('../../../lib/installer');
 
@@ -110,8 +110,34 @@ describe.sequential('role pins from host config', () => {
     expect(lock.files[rel].sha256).toBe(sha256(readFileSync(rel)));
   });
 
-  it('refuses a role value that would break the file it is rendered into', async () => {
-    write('.specs-inferno/config.yaml', 'roles:\n  builder: {model: "claude\\nname: evil"}\n');
-    await expect(installFlow('inferno', ['claude'])).rejects.toThrow(/roles\.builder\.model/);
+  it('matches a Codex toml by the agent key before the role name', async () => {
+    write('.specs-inferno/config.codex.yaml', [
+      'roles:',
+      '  cheap: {agent: specsmd_inferno_builder_cheap, model: gpt-test-cheap}',
+      '  oracle: {agent: specsmd_inferno_planner, model: gpt-test-planner}',
+      '',
+    ].join('\n'));
+    await installFlow('inferno', ['codex']);
+
+    expect(tomlPins('.codex/agents/specsmd_inferno_builder_cheap.toml')[0]).toBe('gpt-test-cheap');
+    expect(tomlPins('.codex/agents/specsmd_inferno_planner.toml')[0]).toBe('gpt-test-planner');
+    expect(tomlPins('.codex/agents/specsmd_inferno_oracle.toml')).toEqual(['gpt-6-astra', 'xhigh']);
   });
+
+  it.each([`claude"x`, `claude'x`, 'a #b', 'a b', 'foo:', '{x}', 'claude\nname: evil'])(
+    'refuses the role value %j in a Claude and a Codex role and leaves the host untouched',
+    async (value) => {
+      const quoted = JSON.stringify(value);
+      for (const [file, entry, tool, key] of [
+        ['.specs-inferno/config.yaml', `builder: {model: ${quoted}}`, 'claude', 'roles.builder.model'],
+        ['.specs-inferno/config.codex.yaml', `oracle: {reasoning_effort: ${quoted}}`, 'codex', 'roles.oracle.reasoning_effort'],
+      ]) {
+        write(file, `roles:\n  ${entry}\n`);
+        const before = snapshot(box.root);
+        await expect(installFlow('inferno', [tool])).rejects.toThrow(key);
+        expect(snapshot(box.root)).toEqual(before);
+      }
+    },
+    30_000
+  );
 });

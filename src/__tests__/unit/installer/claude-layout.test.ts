@@ -32,6 +32,10 @@ describe.sequential('Claude command-only files', () => {
     const command = readFileSync('.claude/commands/specsmd-inferno-intents.md', 'utf8');
     expect(command).toMatch(/run\.cjs select/);
     expect(existsSync('.claude/agents/specsmd-inferno-intents.md')).toBe(false);
+    // A `!` line runs only under the command's own allowed-tools on a host with no permission rule for it.
+    expect(frontmatter(command)).toMatch(
+      /^allowed-tools: Bash\(node \.specsmd\/inferno\/agents\/orchestrator\/skills\/orchestrate\/scripts\/run\.cjs select\)$/m
+    );
     expect(Object.keys(readLock().files)).toContain('.claude/commands/specsmd-inferno-intents.md');
   });
 

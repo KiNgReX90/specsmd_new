@@ -175,6 +175,34 @@ describe('inferno flow', () => {
     expect(text).not.toMatch(/#\[cfg\(test\)\]/);
   });
 
+  // The launcher acts on the planner's handoff by its labels, so a label renamed on either
+  // side is a launcher that no longer finds what it builds.
+  it('every label the planner launcher acts on is one the planner agent writes', () => {
+    const launcher = readFileSync(path.join(INFERNO, 'claude/commands/inferno-planner.md'), 'utf8');
+    const agent = readFileSync(path.join(INFERNO, 'agents/planner/agent.md'), 'utf8');
+    const labels = ['Triage:', 'Intent PLANNED', 'reserve: TC-<n> <title> for <intent-id>/<item-id>', 'direct:', 'oracle:'];
+    for (const label of labels) {
+      expect(launcher, label).toContain(label);
+      expect(agent, label).toContain(label);
+    }
+    for (const field of ['change', 'files', 'test', 'proof', 'grade', 'hard', 'measured']) {
+      expect(launcher, field).toContain(`\`${field}\``);
+      expect(agent, field).toMatch(new RegExp(`^  ${field}: `, 'm'));
+    }
+  });
+
+  it('the intents command names every line prefix the selector prints', () => {
+    const command = readFileSync(path.join(INFERNO, 'claude/commands/inferno-intents.md'), 'utf8');
+    const selector = readFileSync(
+      path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts/run-intents.cjs'),
+      'utf8'
+    );
+    for (const prefix of ['claimable', 'no claimable intent', 'blocked', 'parked', 'running', 'recover', 'leftover']) {
+      expect(selector, prefix).toMatch(new RegExp(`out\\.push\\([\\s\\S]{0,80}?[\`']${prefix}\\b`));
+      expect(command, prefix).toContain(`\`${prefix}\``);
+    }
+  });
+
   it('the config command is dash-free', () => {
     const text = readFileSync(path.join(INFERNO, 'commands/inferno-config.md'), 'utf8');
     expect(text).not.toMatch(/[\u2013\u2014]/);

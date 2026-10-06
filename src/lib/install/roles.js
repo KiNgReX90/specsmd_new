@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
-// A model or effort value lands inside frontmatter or a toml string, so it is one plain token.
-const VALUE = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]*$/;
+// A model or effort value lands inside frontmatter or a toml string, so it is one plain token
+// that never ends in a colon, which YAML would read as a mapping key.
+const VALUE = /^[A-Za-z0-9](?:[A-Za-z0-9._:[\]-]*[A-Za-z0-9.\]])?$/;
 
 class RoleError extends Error {
     constructor(message) {
@@ -73,14 +74,15 @@ function claudeRole(rel, flowKey) {
     return canonical ? canonical[1] : null;
 }
 
-/** The Codex entry for an installed agent toml: the one whose `agent` names it, else the one named after it. */
+/** The Codex entry for an installed agent toml: the one whose `agent` names it, else one with no `agent` named after it. */
 function codexEntry(rel, flowKey, roles) {
     const match = rel.match(/^\.codex\/agents\/([A-Za-z0-9_]+)\.toml$/);
     if (!match) return null;
     const agent = match[1];
     const entries = Object.entries(roles);
     return entries.find(([, entry]) => entry && entry.agent === agent) ||
-        entries.find(([role]) => `specsmd_${flowKey}_${role.replace(/-/g, '_')}` === agent) ||
+        entries.find(([role, entry]) => !(entry && entry.agent) &&
+            `specsmd_${flowKey}_${role.replace(/-/g, '_')}` === agent) ||
         null;
 }
 
