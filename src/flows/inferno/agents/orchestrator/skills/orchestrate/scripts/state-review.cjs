@@ -10,18 +10,36 @@
  * brief, which tier built the version it read, and how often that tier was sent back.
  */
 
+const fs = require('fs');
+const path = require('path');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
+/** Where the host's install record sits, relative to the host root. */
+const LOCK = path.join('.specsmd', 'inferno', 'flow.lock');
+
+/** What a host with no recorded cutover is told, on every refusal the rule makes. */
+const REINSTALL = 'This host\'s .specsmd/inferno/flow.lock records no review cutover, so every item owes ' +
+  'one: reinstall the flow to record it, and items completed before that stay exempt.';
+
 /**
- * The hour the item review became mandatory. An item completed before it was integrated
- * under a flow that had no review, so it counts as reviewed and its successors run. An item
- * completed after it with no clean review was completed by something that skipped the step.
+ * When the item review became mandatory on this host: the moment its first install of a flow
+ * carrying the rule, as the installer recorded it in flow.lock. An item completed before it
+ * was integrated under a flow with no review. Null when the lock records none, and then the
+ * rule applies to every item.
  */
-const REVIEW_RULE_LANDED = Date.parse('2026-10-07T00:00:00Z');
+function reviewRuleSince(root) {
+  try {
+    const lock = JSON.parse(fs.readFileSync(path.join(root, LOCK), 'utf8'));
+    const since = Date.parse((lock.rules && lock.rules.review) || '');
+    return Number.isNaN(since) ? null : since;
+  } catch (error) {
+    return null;
+  }
+}
 
 const TIERS = new Set(['cheap', 'strong', 'escalate']);
 
@@ -31,23 +49,28 @@ function entryField(lines, entry, key) {
   return idx === -1 ? null : unquote(lines[idx].slice(entry.keyIndent + key.length + 1));
 }
 
-/** Whether a completed item predates the review rule, judged by its own completed_at. */
-function completedBeforeReviewRule(completedAt) {
+/**
+ * Whether a completed item predates the review rule on this host. An item with no
+ * completed_at was written by a flow older than the timestamp, so it predates it too.
+ */
+function completedBeforeReviewRule(completedAt, since) {
+  if (since === null) return false;
   const completed = Date.parse(completedAt || '');
-  return Number.isNaN(completed) || completed < REVIEW_RULE_LANDED;
+  return Number.isNaN(completed) || completed < since;
 }
 
 /**
  * The backstop complete-item runs after its idempotent return: an item is completed only
  * over a clean review, unless it was already completed before the rule.
  */
-function refuseUnreviewed(lines, item, itemId, alreadyComplete) {
+function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile) {
   if (entryField(lines, item, 'review') === 'clean') return;
-  if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'))) return;
+  const since = reviewRuleSince(path.dirname(path.dirname(path.resolve(stateFile))));
+  if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
     `refusing to complete ${itemId}: its item review is not clean. Run run.cjs review ` +
       `--item ${itemId} --tree <worktree>, have the builder fix every finding until the ` +
-      'review is clean, then integrate.',
+      `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );
 }
@@ -110,4 +133,4 @@ function reviewItem(options) {
   return { changed: true, item: options.item, verdict, tier, rejections, reviewed_at: reviewedAt };
 }
 
-module.exports = { REVIEW_RULE_LANDED, completedBeforeReviewRule, refuseUnreviewed, reviewItem };
+module.exports = { REINSTALL, completedBeforeReviewRule, refuseUnreviewed, reviewItem, reviewRuleSince };

@@ -135,7 +135,7 @@ function completeItem(options) {
   if (isComplete(previous) && proven) {
     return { changed: false, item: options.item, status: 'completed', note: 'already completed' };
   }
-  review.refuseUnreviewed(lines, item, options.item, isComplete(previous));
+  review.refuseUnreviewed(lines, item, options.item, isComplete(previous), file);
 
   const completedAt = nowIso(options.now);
   setFields(lines, item, [

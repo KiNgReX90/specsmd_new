@@ -21,7 +21,7 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
 const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
-const { completedBeforeReviewRule } = require('./state-review.cjs');
+const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 
 const { RunError } = lib;
 
@@ -32,6 +32,8 @@ const AGENTS = {
   escalate: 'specsmd-inferno-builder-escalate',
   oracle: 'specsmd-inferno-oracle',
 };
+/** The `roles` entry a host config (Codex) names each actor under. */
+const ROLES = { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle' };
 
 /** The tier that builds an item first. Complexity alone decides it. */
 function tierOf(item) {
@@ -61,22 +63,35 @@ function builtBy(item) {
   return actor === 'oracle' ? 'escalate' : actor;
 }
 
-/** The actor with the model the config names for it, as frontier and review print it. */
-function actorLabel(item, models) {
+/**
+ * The agent and model this host dispatches for an actor: `models.<tier>` and the Claude agent
+ * names by default, or the host's `roles.<role>` entry where its config names one.
+ */
+function hostActor(actor, config = {}) {
+  const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
+  const role = roles[ROLES[actor]] && typeof roles[ROLES[actor]] === 'object' ? roles[ROLES[actor]] : {};
+  const agent = typeof role.agent === 'string' && role.agent ? role.agent : AGENTS[actor];
+  const model = (config.models && config.models[actor]) || (typeof role.model === 'string' && role.model) || null;
+  return { agent, model };
+}
+
+/** The actor with the model the host names for it, as frontier and review print it. */
+function actorLabel(item, config) {
   const { actor } = nextActor(item);
-  const model = models && models[actor];
+  const { model } = hostActor(actor, config);
   return model ? `${actor} ${model}` : actor;
 }
 
 /** The one line frontier and review both print for a rejected item. */
-function nextLine(id, item, models) {
+function nextLine(id, item, config) {
   const next = nextActor(item);
-  const label = `${actorLabel(item, models)} ${next.agent}`;
+  const label = `${actorLabel(item, config)} ${hostActor(next.actor, config).agent}`;
+  const loop = 'then commit and run review again';
   if (next.actor === 'oracle') {
-    return `next ${label}: ask it about ${id} with every finding so far; its decision goes to the warm escalate builder as a correction`;
+    return `next ${label}: ask it about ${id} with every finding so far; its decision goes to the warm escalate builder as a correction, ${loop}`;
   }
-  if (next.fresh) return `next ${label}: a fresh builder takes ${id} over with every finding so far`;
-  return `next ${label}: send every finding to the warm builder of ${id} as one correction`;
+  if (next.fresh) return `next ${label}: a fresh builder takes ${id} over with every finding so far, ${loop}`;
+  return `next ${label}: send every finding to the warm builder of ${id} as one correction, ${loop}`;
 }
 
 function itemOf(ledger, id, options) {
@@ -132,7 +147,7 @@ function verdictResult(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   const next = nextActor(item);
-  out.push(nextLine(item.id, item, config.models));
+  out.push(nextLine(item.id, item, config));
   return {
     exit: 2,
     payload: { ok: false, item: item.id, verdict: 'fix', findings: review.findings, survivors: review.survivors, next },
@@ -192,11 +207,18 @@ function review(options) {
 
   if (!exists) return owed(tree, context, 'no review yet', forkPoint(tree, config, intent), editable);
   if (pending) return record(tree, context, ledger);
-  if (item.review && item.review_hash === filesHash(tree, current.files)) {
+  // A fix review is owed again by any commit on the item's own paths, not only on the files
+  // it listed: the usual answer to "this criterion has no test" is a new file.
+  const touched = item.review === 'fix' && item.review_commit
+    ? lib.gitLines(tree, ['diff', '--name-only', `${item.review_commit}..HEAD`], { tolerate: true })
+      .filter((file) => lib.ownedBy(file, editable) || current.files.includes(file))
+    : [];
+  if (item.review && item.review_hash === filesHash(tree, current.files) && touched.length === 0) {
     const head = `review ${item.id} ${current.verdict} for the current files (read at ${short(tree, item.review_commit)})`;
     return verdictResult(tree, context, current, head);
   }
-  return owed(tree, context, 'a listed file changed since the last review', item.review_commit || forkPoint(tree, config, intent), current.files);
+  const paths = [...new Set([...current.files, ...touched])];
+  return owed(tree, context, 'the item changed since the last review', item.review_commit || forkPoint(tree, config, intent), paths);
 }
 
 /**
@@ -205,10 +227,12 @@ function review(options) {
  */
 function owedReviews(tree, ledger, ids, options) {
   const lines = [];
+  const since = reviewRuleSince(tree);
   for (const id of ids) {
     const { intent, item } = itemOf(ledger, id, options);
-    if (writer.isComplete(item.status) && completedBeforeReviewRule(item.completed_at)) continue;
-    const command = `run.cjs review --item ${id} --tree ${tree}`;
+    const complete = writer.isComplete(item.status);
+    if (complete && completedBeforeReviewRule(item.completed_at, since)) continue;
+    const command = `run.cjs review --item ${id} --tree ${tree}${complete && since === null ? `. ${REINSTALL}` : ''}`;
     if (item.review !== 'clean') {
       lines.push(`${id} ${item.review === 'fix' ? 'has a fix review' : 'has no clean review'}, run ${command}`);
       continue;
@@ -227,4 +251,4 @@ function owedReviews(tree, ledger, ids, options) {
   return lines;
 }
 
-module.exports = { actorLabel, nextActor, nextLine, owedReviews, review, tierOf };
+module.exports = { actorLabel, hostActor, nextActor, nextLine, owedReviews, review, tierOf };

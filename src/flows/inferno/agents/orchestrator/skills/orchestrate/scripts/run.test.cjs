@@ -7,6 +7,7 @@ const { execFileSync, spawn, spawnSync } = require("node:child_process");
 
 const RUN = path.join(__dirname, "run.cjs");
 const WRITER = path.join(__dirname, "state-transition.cjs");
+const { LOCK_PATH, hostLock, markReviewed, reviewed } = require("./review-fixture.cjs");
 
 const STATE = `project:
   name: demo
@@ -163,6 +164,7 @@ function repo(options = {}) {
   // prerequisite answers from.
   write(root, ".specs-inferno/archive/state.yaml", "intents:\n  - id: gone-to-archive\n    status: completed\n");
   write(root, ".specs-inferno/config.yaml", options.config || CONFIG);
+  write(root, LOCK_PATH, hostLock());
   for (const [key, body] of Object.entries(options.items || ITEMS)) {
     const [intent, id] = key.split("/");
     write(root, `.specs-inferno/intents/${intent}/work-items/${id}.md`, body);
@@ -186,18 +188,6 @@ function run(fixture, args, options = {}) {
 
 function lines(out) {
   return out.split("\n").filter((line) => line.length > 0);
-}
-
-/**
- * Record a clean item review for each id, the way the reviewer and `run.cjs review` do, so
- * an integrate --item call meets the review it requires.
- */
-function reviewed(fixture, tree, ids, files = ["src/a.ts"]) {
-  for (const id of ids) {
-    write(tree, `.specs-inferno/intents/alpha/reviews/${id}.yaml`, `item: ${id}\nverdict: clean\nfiles: [${files.join(", ")}]\n`);
-    const result = run(fixture, ["review", "--item", id, "--tree", tree]);
-    assert.equal(result.code, 0, result.out + result.err);
-  }
 }
 
 /** Claim alpha and open its worktree; returns the worktree path and branch. */
@@ -789,13 +779,8 @@ function closed(fixture) {
   git(tree, ["commit", "-qam", "the work"]);
   const state = path.join(tree, ".specs-inferno/state.yaml");
   const proof = git(tree, ["rev-parse", "--short", "HEAD"]).trim();
+  markReviewed(state, ["a-one", "a-two"]);
   for (const id of ["a-one", "a-two"]) {
-    execFileSync(
-      process.execPath,
-      [WRITER, "review-item", "--intent", "alpha", "--item", id, "--file", state, "--verdict", "clean",
-        "--files-hash", "a".repeat(64), "--tier", "cheap", "--commit", proof],
-      { cwd: tree },
-    );
     execFileSync(
       process.execPath,
       [WRITER, "complete-item", "--intent", "alpha", "--item", id, "--file", state, "--proof", proof],
@@ -1043,7 +1028,7 @@ test("integrate --item completes the item with the sha its checks proved", () =>
   const { tree } = opened(fixture);
   write(tree, "src/a.ts", "export const a = 4;\n");
   git(tree, ["commit", "-qam", "a-one landed"]);
-  reviewed(fixture, tree, ["a-one"]);
+  reviewed(run, fixture, tree, ["a-one"]);
   const proved = git(tree, ["rev-parse", "--short", "HEAD"]).trim();
 
   const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]);
@@ -1055,88 +1040,6 @@ test("integrate --item completes the item with the sha its checks proved", () =>
   assert.equal(git(tree, ["status", "--porcelain"]).trim(), "", "integrate commits the ledger it wrote");
   const frontier = JSON.parse(run(fixture, ["frontier", "alpha", "--tree", tree, "--json"]).out);
   assert.deepEqual(frontier.ready.map((entry) => entry.id), ["a-two"]);
-});
-
-test("integrate leaves the item open when a check goes red", () => {
-  const config = INTEGRATE.replace("    - echo integrate ran", "    - echo the reason; exit 3");
-  const fixture = repo({ config });
-  const { tree } = opened(fixture);
-  reviewed(fixture, tree, ["a-one"]);
-  const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]);
-
-  assert.equal(result.code, 2);
-  assert.doesNotMatch(fs.readFileSync(path.join(tree, ".specs-inferno/state.yaml"), "utf8"), /integrated_sha/);
-});
-
-test("integrate --items completes a batch as one unit", () => {
-  const state = STATE.replace("        depends_on: [a-one]", "        depends_on: []");
-  const fixture = repo({ config: INTEGRATE, state });
-  const { tree } = opened(fixture);
-  write(tree, "src/a.ts", "export const a = 4;\n");
-  write(tree, "src/b.ts", "export const b = 5;\n");
-  git(tree, ["commit", "-qam", "the batch landed"]);
-
-  reviewed(fixture, tree, ["a-one", "a-two"], ["src/a.ts", "src/b.ts"]);
-  const result = run(fixture, ["integrate", "--tree", tree, "--items", "a-one,a-two"]);
-
-  assert.equal(result.code, 0, result.out + result.err);
-  const ledger = fs.readFileSync(path.join(tree, ".specs-inferno/state.yaml"), "utf8");
-  assert.equal((ledger.match(/integrated_sha:/g) || []).length, 2);
-});
-
-// Every item is reviewed cold against its brief before it lands. integrate checks every id
-// before the fold and writes nothing when one review is owed, so a batch never lands half.
-test("integrate --item refuses an item with no clean review, exit 3, and names the command", () => {
-  const fixture = repo({ config: INTEGRATE });
-  const { tree } = opened(fixture);
-  write(tree, "src/a.ts", "export const a = 4;\n");
-  git(tree, ["commit", "-qam", "a-one landed"]);
-  const tip = git(tree, ["rev-parse", "HEAD"]).trim();
-
-  const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]);
-
-  assert.equal(result.code, 3, result.out + result.err);
-  assert.match(result.err, /ERROR \[ITEM_REVIEW_OWED\]/);
-  assert.match(result.err, new RegExp(`run\\.cjs review --item a-one --tree ${tree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-  assert.equal(git(tree, ["rev-parse", "HEAD"]).trim(), tip, "nothing folded, nothing committed");
-  assert.doesNotMatch(fs.readFileSync(path.join(tree, ".specs-inferno/state.yaml"), "utf8"), /integrated_sha/);
-});
-
-test("integrate --items checks every id first and completes none while one review is owed", () => {
-  const state = STATE.replace("        depends_on: [a-one]", "        depends_on: []");
-  const fixture = repo({ config: INTEGRATE, state });
-  const { tree } = opened(fixture);
-  write(tree, "src/a.ts", "export const a = 4;\n");
-  write(tree, "src/b.ts", "export const b = 5;\n");
-  git(tree, ["commit", "-qam", "the batch landed"]);
-  reviewed(fixture, tree, ["a-one"]);
-
-  const result = run(fixture, ["integrate", "--tree", tree, "--items", "a-one,a-two"]);
-
-  assert.equal(result.code, 3, result.out + result.err);
-  assert.match(result.err, /a-two/);
-  assert.doesNotMatch(result.err, /review --item a-one/);
-  assert.doesNotMatch(fs.readFileSync(path.join(tree, ".specs-inferno/state.yaml"), "utf8"), /integrated_sha/);
-  assert.equal(git(tree, ["status", "--porcelain"]).trim(), "");
-});
-
-test("a change to a reviewed file voids the review, and a change to another item's file does not", () => {
-  const fixture = repo({ config: INTEGRATE });
-  const { tree } = opened(fixture);
-  reviewed(fixture, tree, ["a-one"]);
-  write(tree, "src/b.ts", "export const b = 9;\n");
-  git(tree, ["commit", "-qam", "another item landed beside it"]);
-  assert.equal(run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]).code, 0);
-
-  const state = STATE.replace("        depends_on: [a-one]", "        depends_on: []");
-  const second = repo({ config: INTEGRATE, state });
-  const opened2 = opened(second);
-  reviewed(second, opened2.tree, ["a-one"]);
-  write(opened2.tree, "src/a.ts", "export const a = 5;\n");
-  git(opened2.tree, ["commit", "-qam", "a-one changed after its review"]);
-  const result = run(second, ["integrate", "--tree", opened2.tree, "--item", "a-one"]);
-  assert.equal(result.code, 3, result.out + result.err);
-  assert.match(result.err, /changed since its review/);
 });
 
 // A completed item is never re-validated and never re-dispatched, whatever its proof. It is
@@ -1247,7 +1150,7 @@ test("integrate runs no browser step when the config declares no integrate_e2e",
   write(tree, "src/a.ts", "export const a = 4;\n");
   git(tree, ["commit", "-qam", "a-one landed"]);
 
-  reviewed(fixture, tree, ["a-one"]);
+  reviewed(run, fixture, tree, ["a-one"]);
   const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one", "--json"]);
 
   assert.equal(result.code, 0, result.out + result.err);
@@ -1283,7 +1186,7 @@ test("integrate runs the specs the landed source maps to", () => {
   write(tree, "src/a.ts", "export const a = 4;\n");
   git(tree, ["commit", "-qam", "a-one landed"]);
 
-  reviewed(fixture, tree, ["a-one"]);
+  reviewed(run, fixture, tree, ["a-one"]);
   const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]);
 
   assert.equal(result.code, 0, result.out + result.err);
@@ -1337,7 +1240,7 @@ test("a red e2e run stops the item short of completion", () => {
   write(tree, "src/a.ts", "export const a = 4;\n");
   git(tree, ["commit", "-qam", "a-one landed"]);
 
-  reviewed(fixture, tree, ["a-one"]);
+  reviewed(run, fixture, tree, ["a-one"]);
   const result = run(fixture, ["integrate", "--tree", tree, "--item", "a-one"]);
 
   assert.equal(result.code, 2, result.out + result.err);

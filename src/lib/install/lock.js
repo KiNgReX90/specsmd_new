@@ -29,10 +29,29 @@ async function readLock(root, flowKey) {
     }
 }
 
-function serializeLock({ flowKey, version, sourceCommit, files }) {
+/**
+ * The rule ids a flow declares in its `flow-rules.json`. A rule there holds back work its
+ * host completed without it, so it starts per host at the install that first carried it.
+ */
+function declaredRules(flowKey) {
+    const file = path.join(SOURCE_ROOT, 'flows', flowKey, 'flow-rules.json');
+    if (!fs.existsSync(file)) return [];
+    const declared = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(declared.rules) ? declared.rules : [];
+}
+
+/** Each declared rule's start: the previous lock's value when it has one, else `now`. */
+function ruleTimes(oldLock, ids, now) {
+    const recorded = (oldLock && oldLock.rules) || {};
+    return Object.fromEntries(ids.map((id) => [id, typeof recorded[id] === 'string' ? recorded[id] : now]));
+}
+
+function serializeLock({ flowKey, version, sourceCommit, rules, files }) {
     const sorted = {};
     for (const rel of [...files.keys()].sort()) sorted[rel] = entryFor(files.get(rel));
-    const lock = { flow: flowKey, version, source_commit: sourceCommit, files: sorted };
+    const lock = { flow: flowKey, version, source_commit: sourceCommit };
+    if (rules && Object.keys(rules).length > 0) lock.rules = rules;
+    lock.files = sorted;
     return `${JSON.stringify(lock, null, 2)}\n`;
 }
 
@@ -47,6 +66,8 @@ function sourceCommit(root = SOURCE_ROOT) {
 }
 
 module.exports = {
+    declaredRules,
+    ruleTimes,
     lockPath,
     readLock,
     serializeLock,

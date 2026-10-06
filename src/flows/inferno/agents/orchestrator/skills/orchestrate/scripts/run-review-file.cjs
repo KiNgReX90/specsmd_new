@@ -27,7 +27,7 @@ function reviewPath(intentId, itemId) {
 }
 
 function bad(rel, problem) {
-  return new RunError(`${rel}: ${problem}. Rewrite the file and run the same command again.`, 'BAD_REVIEW', 2);
+  return new RunError(`${rel}: ${problem}. send this back to the reviewer that wrote the file, then run the same command again.`, 'BAD_REVIEW', 2);
 }
 
 const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);

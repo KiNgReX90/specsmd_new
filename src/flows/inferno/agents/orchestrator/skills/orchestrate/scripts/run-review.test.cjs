@@ -1,13 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
-const { execFileSync, spawnSync } = require("node:child_process");
 
 const { nextActor, tierOf } = require("./run-review.cjs");
-
-const RUN = path.join(__dirname, "run.cjs");
+const { STATE, git, repo, run, write } = require("./review-fixture.cjs");
 
 // --- the ladder ------------------------------------------------------------
 // Complexity alone decides who builds first. Rejections then move the item up: cheap after
@@ -57,107 +54,6 @@ test("two rejections on the escalate builder go to the oracle, and every two aft
 });
 
 // --- the review step ---------------------------------------------------------
-
-const STATE = `project:
-  name: demo
-intents:
-  - id: alpha
-    title: "Alpha"
-    status: in_progress
-    base_branch: main
-    depends_on_intents: []
-    work_items:
-      - id: a-one
-        title: "A one"
-        kind: behavior
-        complexity: low
-        status: pending
-        depends_on: []
-      - id: a-two
-        title: "A two"
-        kind: docs-only
-        complexity: medium
-        status: pending
-        depends_on: [a-one]
-`;
-
-const CONFIG = `models:
-  strong: model-strong
-  cheap: model-cheap
-  escalate: model-escalate
-review:
-  model: model-review
-delivery:
-  base_branch: main
-`;
-
-function spec(id, editable, depends = []) {
-  return `---
-id: ${id}
-title: "${id}"
-intent: alpha
-status: pending
-depends_on: [${depends.join(", ")}]
----
-
-# Work Item: ${id}
-
-## Execution Manifest
-
-context:
-  required:
-    - path: src/a.ts
-      reason: why
-  patterns:
-    - path: src/b.ts
-      reason: why
-  tests:
-    - path: src/a.test.ts
-      reason: why
-ownership:
-  editable:
-${editable.map((p) => `    - ${p}`).join("\n")}
-`;
-}
-
-function write(root, rel, body) {
-  fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-  fs.writeFileSync(path.join(root, rel), body, "utf8");
-}
-
-function git(cwd, args) {
-  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-}
-
-function repo(options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-review-"));
-  const root = path.join(dir, "app");
-  fs.mkdirSync(root);
-  git(root, ["init", "-q", "-b", "main"]);
-  git(root, ["config", "user.email", "test@example.com"]);
-  git(root, ["config", "user.name", "Test"]);
-  write(root, "src/a.ts", "export const a = 1;\n");
-  write(root, "src/b.ts", "export const b = 2;\n");
-  write(root, "src/a.test.ts", "// proof\n");
-  write(root, "docs/b.md", "docs\n");
-  write(root, ".specs-inferno/state.yaml", options.state || STATE);
-  write(root, ".specs-inferno/config.yaml", options.config || CONFIG);
-  write(root, ".specs-inferno/intents/alpha/brief.md", "# Intent: Alpha\n");
-  write(root, ".specs-inferno/intents/alpha/work-items/a-one.md", spec("a-one", ["src/a.ts"]));
-  write(root, ".specs-inferno/intents/alpha/work-items/a-two.md", spec("a-two", ["docs/b.md"], ["a-one"]));
-  git(root, ["add", "-A"]);
-  git(root, ["commit", "-qm", "init"]);
-  return { root, cache: path.join(dir, "cache") };
-}
-
-function run(fixture, args) {
-  const result = spawnSync(process.execPath, [RUN, ...args], {
-    cwd: fixture.root,
-    encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
-  });
-  return { code: result.status, out: result.stdout || "", err: result.stderr || "" };
-}
 
 const REVIEW = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
 const ledger = (fixture) => fs.readFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), "utf8");
@@ -347,4 +243,158 @@ test("frontier holds the successor of an item completed without a clean review a
 
   assert.equal(result.code, 3, result.out + result.err);
   assert.match(result.out, /HELD a-one: completed with no clean item review, run run\.cjs review --item a-one --tree/);
+});
+
+// --- the schema refuses every slot it does not name ---------------------------------
+
+const refused = (fixture, body, pattern) => {
+  write(fixture.root, REVIEW, body);
+  const result = review(fixture);
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.err, pattern);
+  assert.doesNotMatch(ledger(fixture), /review:/);
+};
+
+test("a review that lists no files, or an empty list, is refused", () => {
+  const fixture = repo();
+  refused(fixture, "item: a-one\nverdict: clean\n", /BAD_REVIEW.*files must list/);
+  refused(fixture, "item: a-one\nverdict: clean\nfiles: []\n", /BAD_REVIEW.*files must list/);
+});
+
+test("a fix verdict with no finding and no surviving mutant is refused", () => {
+  refused(repo(), "item: a-one\nverdict: fix\nfiles: [src/a.ts]\nfindings: []\n", /BAD_REVIEW.*verdict fix with no finding/);
+});
+
+test("a key inside a finding that the schema does not name is refused", () => {
+  const body = FIX.replace("    fix: export 2\n", "    fix: export 2\n    residual: maybe later\n");
+  refused(repo(), body, /BAD_REVIEW.*unknown key residual in findings entry 1/);
+});
+
+test("a listed path that is not in the tree, or one in the ledger, is refused", () => {
+  const fixture = repo();
+  refused(fixture, CLEAN.replace("[src/a.ts]", "[src/gone.ts]"), /BAD_REVIEW.*src\/gone\.ts, which is not in the tree/);
+  refused(fixture, CLEAN.replace("[src/a.ts]", "[.specs-inferno/state.yaml]"), /BAD_REVIEW.*the ledger is never part/);
+});
+
+test("a refused review file goes back to the reviewer, never to the orchestrator's pen", () => {
+  const fixture = repo();
+  write(fixture.root, REVIEW, `${CLEAN}rest: x\n`);
+  const result = review(fixture);
+  assert.match(result.err, /send this back to the reviewer that wrote the file, then run the same command again/);
+  assert.doesNotMatch(result.err, /Rewrite the file/);
+});
+
+// --- binding and recording -----------------------------------------------------------
+
+test("a review binds exactly the paths it lists, never a same-named file in another folder", () => {
+  const fixture = repo({ files: { "index.ts": "export {};\n", "docs/index.ts": "export {};\n" } });
+  write(fixture.root, REVIEW, CLEAN.replace("[src/a.ts]", "[index.ts]"));
+  assert.equal(review(fixture).code, 0);
+  write(fixture.root, "docs/index.ts", "export const other = 1;\n");
+  git(fixture.root, ["commit", "-qam", "another item changed its own index"]);
+
+  const result = review(fixture);
+
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /clean for the current files/);
+});
+
+test("recording a review commits only the review and the ledger", () => {
+  const fixture = repo();
+  write(fixture.root, "docs/b.md", "another item's staged work\n");
+  git(fixture.root, ["add", "docs/b.md"]);
+  write(fixture.root, REVIEW, CLEAN);
+
+  assert.equal(review(fixture).code, 0);
+
+  const committed = git(fixture.root, ["show", "--name-only", "--format=", "HEAD"]).split("\n");
+  assert.deepEqual(committed.sort(), [".specs-inferno/intents/alpha/reviews/a-one.yaml", ".specs-inferno/state.yaml"]);
+  assert.match(git(fixture.root, ["diff", "--cached", "--name-only"]), /docs\/b\.md/);
+});
+
+test("a fix review is owed again once a later commit touches the item's own paths", () => {
+  const fixture = repo();
+  write(fixture.root, REVIEW, FIX);
+  review(fixture);
+  write(fixture.root, "src/a2.test.ts", "// the test the finding asked for\n");
+  git(fixture.root, ["add", "src/a2.test.ts"]);
+  git(fixture.root, ["commit", "-qm", "the fix adds a test"]);
+
+  const result = review(fixture);
+
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.match(result.out, /paths src\/a\.ts src\/a2\.test\.ts/);
+});
+
+test("after the oracle decides, the fix review counts on the warm escalate builder", () => {
+  const state = STATE.replace(
+    /(- id: a-one[\s\S]*?status: pending)/,
+    "$1\n        review: fix\n        review_tier: escalate\n        review_rejections: 2",
+  );
+  const fixture = repo({ state });
+  write(fixture.root, REVIEW, FIX);
+
+  const result = review(fixture);
+
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(ledger(fixture), /review_tier: escalate/);
+  assert.match(ledger(fixture), /review_rejections: 3/);
+  assert.match(result.out, /next escalate model-escalate specsmd-inferno-builder-escalate: send every finding to the warm builder/);
+});
+
+test("the warm fix line carries the loop: commit and run review again", () => {
+  const state = STATE.replace("        complexity: low\n", "        complexity: medium\n");
+  const fixture = repo({ state });
+  write(fixture.root, REVIEW, FIX);
+  assert.match(review(fixture).out, /warm builder of a-one as one correction, then commit and run review again/);
+});
+
+test("on a host whose config names roles, the next line names that host's agent and model", () => {
+  const codex = `roles:
+  builder_cheap:
+    agent: specsmd_inferno_builder_cheap
+    model: codex-cheap
+  builder_strong:
+    agent: specsmd_inferno_builder_strong
+    model: codex-strong
+  builder_escalate:
+    agent: specsmd_inferno_builder_escalate
+    model: codex-strong
+delivery:
+  base_branch: main
+`;
+  const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": codex } });
+  write(fixture.root, REVIEW, FIX);
+  const args = ["--config", ".specs-inferno/config.codex.yaml"];
+
+  assert.match(review(fixture, args).out, /next strong codex-strong specsmd_inferno_builder_strong:/);
+  const frontier = run(fixture, ["frontier", "alpha", ...args]).out;
+  assert.match(frontier, /^ready a-one low behavior strong codex-strong$/m);
+
+  const state = ledger(fixture).replace("review_tier: cheap", "review_tier: strong").replace("review_rejections: 1", "review_rejections: 2");
+  fs.writeFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
+  git(fixture.root, ["commit", "-qam", "two strong rejections"]);
+  assert.match(review(fixture, args).out, /next escalate codex-strong specsmd_inferno_builder_escalate: a fresh builder/);
+});
+
+// --- the cutover is per host -------------------------------------------------------------
+
+test("a host lock's review cutover exempts an item completed before it and holds one after", () => {
+  const completed = (at) => STATE.replace(
+    /(- id: a-one[\s\S]*?)status: pending/,
+    `$1status: completed\n        completed_at: ${at}\n        integrated_sha: abc1234`,
+  );
+  assert.equal(run(repo({ state: completed("2026-09-10T00:00:00Z") }), ["frontier", "alpha"]).code, 0);
+  assert.equal(run(repo({ state: completed("2026-09-30T00:00:00Z") }), ["frontier", "alpha"]).code, 3);
+});
+
+test("a host with no review cutover in its lock owes a review for every item and names a reinstall", () => {
+  const state = STATE.replace(
+    /(- id: a-one[\s\S]*?)status: pending/,
+    "$1status: completed\n        completed_at: 2026-01-01T00:00:00Z\n        integrated_sha: abc1234",
+  );
+  const result = run(repo({ state, lock: null }), ["frontier", "alpha"]);
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.match(result.out, /HELD a-one: completed with no clean item review/);
+  assert.match(result.out, /reinstall/);
 });

@@ -6,7 +6,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { reviewItem, completeItem } = require("./state-transition.cjs");
-const { REVIEW_RULE_LANDED } = require("./state-review.cjs");
+const { hostLock } = require("./review-fixture.cjs");
 
 const WRITER = path.join(__dirname, "state-transition.cjs");
 const HASH = "a".repeat(64);
@@ -30,11 +30,16 @@ const FIXTURE = `intents:
         depends_on: []
 `;
 
-function sandbox(content = FIXTURE) {
+/** A host root with a ledger and, unless `lock` is null, the install lock and its cutover. */
+function sandbox(content = FIXTURE, lock = "2026-09-20T00:00:00.000Z") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-review-writer-"));
   const file = path.join(dir, ".specs-inferno", "state.yaml");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
+  if (lock !== null) {
+    fs.mkdirSync(path.join(dir, ".specsmd", "inferno"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".specsmd", "inferno", "flow.lock"), hostLock(lock));
+  }
   return { file };
 }
 
@@ -116,9 +121,23 @@ test("complete-item completes an item whose review is clean", () => {
   assert.equal(result.changed, true);
 });
 
-test("complete-item still backfills the proof of an item completed before the review rule", () => {
-  assert.ok(Date.parse("2026-09-01T00:00:00Z") < REVIEW_RULE_LANDED);
-  const { file } = sandbox();
-  const result = completeItem({ file, intent: "alpha", item: "a-two", proof: "abc1234", now: NOW });
-  assert.equal(result.changed, true);
+const backfill = (file) => completeItem({ file, intent: "alpha", item: "a-two", proof: "abc1234", now: NOW });
+
+test("complete-item backfills the proof of an item completed before this host's review cutover", () => {
+  assert.equal(backfill(sandbox().file).changed, true);
+});
+
+test("complete-item holds an item completed after this host's review cutover to its review", () => {
+  const { file } = sandbox(FIXTURE, "2026-08-01T00:00:00.000Z");
+  assert.throws(() => backfill(file), (error) => error.code === "REVIEW_OWED");
+});
+
+test("an item completed with no completed_at predates the cutover", () => {
+  const { file } = sandbox(FIXTURE.replace("        completed_at: 2026-09-01T00:00:00Z\n", ""));
+  assert.equal(backfill(file).changed, true);
+});
+
+test("with no cutover in the host lock every item owes a review, and the refusal names a reinstall", () => {
+  const { file } = sandbox(FIXTURE, null);
+  assert.throws(() => backfill(file), (error) => error.code === "REVIEW_OWED" && /reinstall the flow/.test(error.message));
 });

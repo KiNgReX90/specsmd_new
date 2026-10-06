@@ -18,10 +18,10 @@ const scheduler = require('./team-scheduler.cjs');
 const ownership = require('./run-ownership.cjs');
 const probes = require('./run-probes.cjs');
 const { isComplete } = require('./state-transition.cjs');
-const { completedBeforeReviewRule } = require('./state-review.cjs');
+const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 // The tier and the ladder live with the review that moves an item up it, so frontier and
 // `run.cjs review --item` print the same actor.
-const { actorLabel, nextActor, nextLine, tierOf } = require('./run-review.cjs');
+const { actorLabel, hostActor, nextActor, nextLine, tierOf } = require('./run-review.cjs');
 
 /**
  * The hour the proof rule landed. Every ledger written before it carries completed items and
@@ -43,19 +43,21 @@ function itemProved(item) {
   return Number.isNaN(completed) || completed < PROOF_RULE_LANDED;
 }
 
-/** The same for the item review: owed by every item completed after the review rule landed. */
-function itemReviewed(item) {
-  return item.review === 'clean' || completedBeforeReviewRule(item.completed_at);
+/** The same for the item review: owed by every item completed after this host's cutover. */
+function itemReviewed(item, since) {
+  return item.review === 'clean' || completedBeforeReviewRule(item.completed_at, since);
 }
 
-function itemIntegrated(item) {
-  return isComplete(item.status) && itemProved(item) && itemReviewed(item);
+function itemIntegrated(item, since) {
+  return isComplete(item.status) && itemProved(item) && itemReviewed(item, since);
 }
 
-function heldLine(item, tree) {
-  return itemProved(item)
-    ? `HELD ${item.id}: completed with no clean item review, run run.cjs review --item ${item.id} --tree ${tree}, then integrate --item ${item.id}`
-    : `HELD ${item.id}: completed with no integration proof, run run.cjs integrate --item ${item.id} --tree ${tree} to prove it`;
+function heldLine(item, tree, since) {
+  if (!itemProved(item)) {
+    return `HELD ${item.id}: completed with no integration proof, run run.cjs integrate --item ${item.id} --tree ${tree} to prove it`;
+  }
+  return `HELD ${item.id}: completed with no clean item review, run run.cjs review --item ${item.id} --tree ${tree}, ` +
+    `then integrate --item ${item.id}${since === null ? `. ${REINSTALL}` : ''}`;
 }
 
 function loadItems(tree, intent) {
@@ -113,19 +115,21 @@ function frontier(intentId, options) {
   const ledger = lib.readLedger(tree);
   const intent = lib.findIntent(ledger, intentId);
   const items = loadItems(tree, intent);
-  const models = lib.readConfig(tree, options.config).models || {};
+  const config = lib.readConfig(tree, options.config);
+  const since = reviewRuleSince(tree);
+  const integrated = (item) => itemIntegrated(item, since);
 
   const errors = contractErrors(tree, items);
   if (errors.length > 0) {
     return { exit: 2, payload: { ok: false, errors }, out: errors.map((error) => `INVALID ${error}`) };
   }
 
-  const completedIds = new Set(intent.items.filter(itemIntegrated).map((item) => item.id));
+  const completedIds = new Set(intent.items.filter(integrated).map((item) => item.id));
   // A completed item is never re-validated and never re-dispatched, whatever its proof: its
   // manifest names the tree of the day it landed, and re-reading it fails on a file the item
   // itself deleted. Without a proof it holds its successors instead, until an integration
   // proves the tree it landed on (2026-09-09).
-  const held = intent.items.filter((item) => isComplete(item.status) && !itemIntegrated(item));
+  const held = intent.items.filter((item) => isComplete(item.status) && !integrated(item));
   const ready = items.filter((item) => item.depends_on.every((id) => completedIds.has(id)));
 
   // The evidence a corrective item was planned on, replayed on the tree it is about to be
@@ -169,12 +173,12 @@ function frontier(intentId, options) {
 
   const shape = (item) => {
     const { actor } = nextActor(item);
-    return { id: item.id, complexity: item.complexity, kind: item.kind, tier: actor, model: models[actor] || null };
+    return { id: item.id, complexity: item.complexity, kind: item.kind, tier: actor, model: hostActor(actor, config).model };
   };
-  const out = held.map((item) => heldLine(item, tree));
+  const out = held.map((item) => heldLine(item, tree, since));
   for (const item of ready) {
-    out.push(`ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${actorLabel(item, models)}`);
-    if (item.review === 'fix') out.push(nextLine(item.id, item, models));
+    out.push(`ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${actorLabel(item, config)}`);
+    if (item.review === 'fix') out.push(nextLine(item.id, item, config));
   }
   for (const item of waiting) out.push(`waiting ${item.id} on ${item.depends_on.join(', ')}`);
   for (const pair of serialize) out.push(`serialize ${pair.items.join(' + ')} (shares ${pair.shared.join(', ')})`);

@@ -62,7 +62,7 @@ Repeat until all items are completed or the run blocks or halts.
 5. Choose the custom builder by complexity alone, as `frontier` prints it:
    - `complexity: low` uses `specsmd_inferno_builder_cheap` on `gpt-5.6-terra` with `high` reasoning;
    - `medium` or `high` uses `specsmd_inferno_builder_strong` on `gpt-6.1-sol` with `xhigh` reasoning.
-   Item review rejections climb a ladder: one on cheap goes to a fresh strong builder, two on strong to a fresh `specsmd_inferno_builder_escalate`, each with every finding so far, and every two on escalate to the oracle, whose decision goes to that builder.
+   After a rejected item review, dispatch the builder its `next` line names.
 6. Use `spawn_agent` with `fork_turns: "none"` and the role's `agent_type` for the items or approved batches in the frontier, in one dispatch round. The prompt contains only:
    - intent and work-item ids, worktree and work-item spec paths, the spec to be read first;
    - the item's `context` manifest and `ownership.editable` verbatim, and `design_contract` verbatim when present;

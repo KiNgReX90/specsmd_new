@@ -1,0 +1,152 @@
+'use strict';
+
+/**
+ * Test fixtures for the item review: a throwaway host repository with one intent, and the
+ * helpers that record a clean review the way the reviewer and `run.cjs review` do.
+ *
+ * Shared by run-review.test.cjs, run-integrate-review.test.cjs and run.test.cjs, so the
+ * review the integrate tests need is written in one place.
+ */
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync, spawnSync } = require('node:child_process');
+
+const RUN = path.join(__dirname, 'run.cjs');
+const WRITER = path.join(__dirname, 'state-transition.cjs');
+
+/** The host's install record, with the review cutover well before every test timestamp now. */
+const LOCK_PATH = '.specsmd/inferno/flow.lock';
+const CUTOVER = '2026-09-20T00:00:00.000Z';
+const hostLock = (since = CUTOVER) => `${JSON.stringify({ flow: 'inferno', rules: { review: since }, files: {} })}\n`;
+
+const STATE = `project:
+  name: demo
+intents:
+  - id: alpha
+    title: "Alpha"
+    status: in_progress
+    base_branch: main
+    depends_on_intents: []
+    work_items:
+      - id: a-one
+        title: "A one"
+        kind: behavior
+        complexity: low
+        status: pending
+        depends_on: []
+      - id: a-two
+        title: "A two"
+        kind: docs-only
+        complexity: medium
+        status: pending
+        depends_on: [a-one]
+`;
+
+const CONFIG = `models:
+  strong: model-strong
+  cheap: model-cheap
+  escalate: model-escalate
+review:
+  model: model-review
+verification:
+  integrate:
+    - echo integrate ran
+delivery:
+  base_branch: main
+`;
+
+function spec(id, editable, depends = []) {
+  return `---
+id: ${id}
+title: "${id}"
+intent: alpha
+status: pending
+depends_on: [${depends.join(', ')}]
+---
+
+# Work Item: ${id}
+
+## Execution Manifest
+
+context:
+  required:
+    - path: src/a.ts
+      reason: why
+  patterns:
+    - path: src/b.ts
+      reason: why
+  tests:
+    - path: src/a.test.ts
+      reason: why
+ownership:
+  editable:
+${editable.map((p) => `    - ${p}`).join('\n')}
+`;
+}
+
+function write(root, rel, body) {
+  fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+  fs.writeFileSync(path.join(root, rel), body, 'utf8');
+}
+
+function git(cwd, args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+}
+
+/** A host repository on main: a ledger, a config, a brief, two item specs, the install lock. */
+function repo(options = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-review-'));
+  const root = path.join(dir, 'app');
+  fs.mkdirSync(root);
+  git(root, ['init', '-q', '-b', 'main']);
+  git(root, ['config', 'user.email', 'test@example.com']);
+  git(root, ['config', 'user.name', 'Test']);
+  write(root, 'src/a.ts', 'export const a = 1;\n');
+  write(root, 'src/b.ts', 'export const b = 2;\n');
+  write(root, 'src/a.test.ts', '// proof\n');
+  write(root, 'docs/b.md', 'docs\n');
+  for (const [rel, body] of Object.entries(options.files || {})) write(root, rel, body);
+  write(root, '.specs-inferno/state.yaml', options.state || STATE);
+  write(root, '.specs-inferno/config.yaml', options.config || CONFIG);
+  if (options.lock !== null) write(root, LOCK_PATH, hostLock(options.lock));
+  write(root, '.specs-inferno/intents/alpha/brief.md', '# Intent: Alpha\n');
+  write(root, '.specs-inferno/intents/alpha/work-items/a-one.md', spec('a-one', options.editable || ['src/a.ts', 'src/a2.test.ts']));
+  write(root, '.specs-inferno/intents/alpha/work-items/a-two.md', spec('a-two', ['docs/b.md', 'src/b.ts'], ['a-one']));
+  git(root, ['add', '-A']);
+  git(root, ['commit', '-qm', 'init']);
+  return { root, cache: path.join(dir, 'cache') };
+}
+
+function run(fixture, args, cwd = fixture.root) {
+  const result = spawnSync(process.execPath, [RUN, ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+  });
+  return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
+}
+
+/**
+ * Record a clean item review for each id through `run.cjs review`, so an integrate --item
+ * call meets the review it requires. `runner` is the caller's own CLI driver.
+ */
+function reviewed(runner, fixture, tree, ids, files = ['src/a.ts'], intent = 'alpha') {
+  for (const id of ids) {
+    write(tree, `.specs-inferno/intents/${intent}/reviews/${id}.yaml`, `item: ${id}\nverdict: clean\nfiles: [${files.join(', ')}]\n`);
+    const result = runner(fixture, ['review', '--item', id, '--tree', tree]);
+    assert.equal(result.code, 0, result.out + result.err);
+  }
+}
+
+/** Mark items reviewed clean straight through the writer, for a ledger a test completes by hand. */
+function markReviewed(state, ids, intent = 'alpha') {
+  for (const id of ids) {
+    execFileSync(process.execPath, [WRITER, 'review-item', '--intent', intent, '--item', id, '--file', state,
+      '--verdict', 'clean', '--files-hash', 'a'.repeat(64), '--tier', 'cheap', '--commit', 'abc1234']);
+  }
+}
+
+module.exports = { CONFIG, LOCK_PATH, STATE, git, hostLock, markReviewed, repo, reviewed, run, write };
