@@ -96,6 +96,34 @@ function matching(tree, rev, rules) {
     .map((blob) => blob.file);
 }
 
+/** How many new files the refusal names before it says how many more there are. */
+const LISTED = 20;
+
+/**
+ * The newest point of the base that HEAD contains. Integrate folds `origin/<base>` as well as
+ * the local base, so commits that reached origin and not the local base are the base's, never
+ * the branch's. No merge base at all is refused: counting against a tip would credit the
+ * branch with everything the base did since.
+ */
+function baseline(tree, base) {
+  if (base === lib.currentBranch(tree)) {
+    throw new RunError(
+      `doubles: the base branch resolves to ${base}, the branch being checked, so HEAD would be counted against itself. ` +
+        'Set delivery.base_branch in the config or pass --base <branch>.',
+      'BAD_CONFIG'
+    );
+  }
+  const refs = [base];
+  if (lib.git(tree, ['rev-parse', '--verify', '--quiet', `origin/${base}`], { tolerate: true })) refs.push(`origin/${base}`);
+  const points = refs.map((ref) => lib.git(tree, ['merge-base', 'HEAD', ref], { tolerate: true })).filter(Boolean);
+  if (points.length === 0) {
+    throw new RunError(`doubles: no merge base between HEAD and ${base}, so there is no count to hold the branch to.`, 'NO_MERGE_BASE');
+  }
+  return points.reduce((newest, point) =>
+    lib.git(tree, ['merge-base', '--is-ancestor', newest, point], { tolerate: true }) !== null ? point : newest
+  );
+}
+
 /**
  * Count at HEAD against the merge base. Integrate passes the config it read after the fold;
  * run alone, the check reads it here.
@@ -109,7 +137,7 @@ function checkDoubles(options, config) {
   }
   const rules = settings(read, label);
   const base = options.base || resolveBase(read, null, tree);
-  const before = matching(tree, gate.mergeBase(tree, base), rules);
+  const before = matching(tree, baseline(tree, base), rules);
   const now = matching(tree, 'HEAD', rules);
   const payload = { ok: now.length <= before.length, base: before.length, head: now.length };
   if (payload.ok) {
@@ -122,8 +150,9 @@ function checkDoubles(options, config) {
     payload,
     out: [
       `FAIL doubles ${before.length} -> ${now.length} against ${base}: more files match ${rules.pattern}.`,
-      ...payload.added.map((file) => `  new: ${file}`),
       RULE,
+      ...payload.added.slice(0, LISTED).map((file) => `  new: ${file}`),
+      ...(payload.added.length > LISTED ? [`  and ${payload.added.length - LISTED} more`] : []),
     ],
   };
 }

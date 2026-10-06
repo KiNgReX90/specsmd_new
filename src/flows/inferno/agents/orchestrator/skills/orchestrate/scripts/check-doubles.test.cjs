@@ -40,7 +40,7 @@ function git(cwd, args) {
 }
 
 /** A repo on main with `files`, then a feature branch checked out on top of it. */
-function repo(config, files) {
+function repo(config, files, options = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-doubles-"));
   const root = path.join(dir, "app");
   fs.mkdirSync(root);
@@ -52,6 +52,12 @@ function repo(config, files) {
   for (const [rel, body] of Object.entries(files)) write(root, rel, body);
   git(root, ["add", "-A"]);
   git(root, ["commit", "-qm", "init"]);
+  if (options.origin) {
+    const remote = path.join(dir, "remote.git");
+    git(dir, ["init", "--bare", "-q", remote]);
+    git(root, ["remote", "add", "origin", remote]);
+    git(root, ["push", "-qu", "origin", "main"]);
+  }
   git(root, ["checkout", "-qb", "feature"]);
   return { dir, root, cache: path.join(dir, "cache") };
 }
@@ -110,12 +116,14 @@ test("a config with no doubles key skips and says which config", () => {
 });
 
 test("an excluded contract file and a file outside the paths are not counted", () => {
-  const fixture = repo(SERVICE, { "e2e/contract.ts": "window.shopApi = makeFake();\n" });
+  const fixture = repo(SERVICE, { "e2e/contract.ts": "export const contract = 1;\n" });
   land(fixture, {
-    "e2e/contract.ts": "window.shopApi = makeFake();\nwindow.cartApi = makeFake();\n",
+    "e2e/contract.ts": "window.shopApi = makeFake();\n",
     "src/boot.ts": "window.shopApi = realApi();\n",
   });
-  assert.equal(run(fixture, CHECK, ["--tree", fixture.root]).code, 0);
+  const held = run(fixture, CHECK, ["--tree", fixture.root]);
+  assert.equal(held.code, 0, held.out);
+  assert.match(held.out, /PASS doubles 0 \(base 0\)/);
   land(fixture, { "e2e/cart.spec.ts": "window.cartApi = {};\n" });
   const result = run(fixture, CHECK, ["--tree", fixture.root]);
   assert.equal(result.code, 2, result.out);
@@ -131,14 +139,14 @@ test("a selected config inherits the doubles key from the default config", () =>
 });
 
 test("integrate refuses a rising count before any integrate command runs", () => {
-  const config = `${BRIDGE}verification:\n  integrate:\n    - echo integrate ran\n`;
+  const config = `${BRIDGE}verification:\n  integrate:\n    - echo ran > ../ran\n`;
   const fixture = repo(config, {});
   land(fixture, { "e2e/new.spec.ts": BRIDGED });
   const result = run(fixture, RUN, ["integrate", "--tree", fixture.root]);
   assert.equal(result.code, 2, result.out);
   assert.match(result.out, /e2e\/new\.spec\.ts/);
   assert.match(result.out, RULE);
-  assert.doesNotMatch(result.out, /integrate ran/);
+  assert.ok(!fs.existsSync(path.join(fixture.dir, "ran")), "no integrate command ran before the refusal");
 });
 
 test("integrate runs the check and then its commands when the count holds", () => {
@@ -149,4 +157,79 @@ test("integrate runs the check and then its commands when the count holds", () =
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /PASS doubles 1 \(base 1\)/);
   assert.match(result.out, /PASS \d+s echo integrate ran/);
+});
+
+test("a double the base gained after the fork is not credited to the branch", () => {
+  const fixture = repo(BRIDGE, {});
+  git(fixture.root, ["checkout", "-q", "main"]);
+  land(fixture, { "e2e/main-added.spec.ts": BRIDGED });
+  git(fixture.root, ["checkout", "-q", "feature"]);
+  land(fixture, { "e2e/branch-added.spec.ts": BRIDGED });
+  const result = run(fixture, RUN, ["doubles", "--tree", fixture.root]);
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, /0 -> 1/);
+  assert.match(result.out, /e2e\/branch-added\.spec\.ts/);
+});
+
+/** Move origin/main ahead of the local main by one commit, which integrate then folds in. */
+function originAhead(fixture, files, removed = []) {
+  git(fixture.root, ["checkout", "-q", "main"]);
+  land(fixture, files, removed);
+  git(fixture.root, ["push", "-q", "origin", "main"]);
+  git(fixture.root, ["reset", "-q", "--hard", "HEAD~1"]);
+  git(fixture.root, ["checkout", "-q", "feature"]);
+}
+
+test("a double that reached origin and not the local base is not credited to the branch", () => {
+  const config = `${BRIDGE}verification:\n  integrate:\n    - echo integrate ran\n`;
+  const fixture = repo(config, {}, { origin: true });
+  originAhead(fixture, { "e2e/other-machine.spec.ts": BRIDGED });
+  land(fixture, { "src/app.ts": "export const app = 5;\n" });
+  const result = run(fixture, RUN, ["integrate", "--tree", fixture.root]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /PASS doubles 1 \(base 1\)/);
+});
+
+test("doubles that origin removed do not hide a double the branch adds", () => {
+  const config = `${BRIDGE}verification:\n  integrate:\n    - echo integrate ran\n`;
+  const fixture = repo(config, { "e2e/one.spec.ts": BRIDGED, "e2e/two.spec.ts": BRIDGED }, { origin: true });
+  originAhead(fixture, {}, ["e2e/one.spec.ts", "e2e/two.spec.ts"]);
+  land(fixture, { "e2e/branch-added.spec.ts": BRIDGED });
+  const alone = run(fixture, RUN, ["doubles", "--tree", fixture.root]);
+  assert.equal(alone.code, 2, alone.out);
+  assert.match(alone.out, /2 -> 3/);
+  const result = run(fixture, RUN, ["integrate", "--tree", fixture.root]);
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, /0 -> 1/);
+  assert.match(result.out, /e2e\/branch-added\.spec\.ts/);
+});
+
+test("a long list of new files never pushes the rule out of the output", () => {
+  const fixture = repo(BRIDGE, {});
+  const files = {};
+  for (let i = 0; i < 40; i += 1) files[`e2e/n${i}.spec.ts`] = BRIDGED;
+  land(fixture, files);
+  const result = run(fixture, RUN, ["doubles", "--tree", fixture.root]);
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, RULE);
+  assert.match(result.out, /and 20 more/);
+});
+
+test("with no base configured the check refuses instead of comparing the branch with itself", () => {
+  const fixture = repo("doubles:\n  pattern: '__TAURI_INTERNALS__'\n  paths: ['e2e/**']\n", {});
+  land(fixture, { "e2e/new.spec.ts": BRIDGED });
+  const result = run(fixture, RUN, ["doubles", "--tree", fixture.root]);
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, /BAD_CONFIG/);
+  assert.match(result.out, /delivery\.base_branch/);
+});
+
+test("a base that shares no history with the branch is refused, never counted at its tip", () => {
+  const fixture = repo(BRIDGE, {});
+  git(fixture.root, ["checkout", "-q", "--orphan", "lonely"]);
+  git(fixture.root, ["rm", "-rqf", "."]);
+  land(fixture, { ".specs-inferno/config.yaml": BRIDGE.replace("main", "feature"), "e2e/x.spec.ts": BRIDGED });
+  const result = run(fixture, CHECK, ["--tree", fixture.root]);
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, /merge base/);
 });
