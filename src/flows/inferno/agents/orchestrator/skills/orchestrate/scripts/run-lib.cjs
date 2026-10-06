@@ -127,9 +127,15 @@ function validateVerification(config, file) {
   }
 }
 
-/** The host a config is written for, which decides the agent names the scripts print. */
-function validateHost(config, file) {
-  if (config.host === undefined || config.host === 'claude' || config.host === 'codex') return;
+/**
+ * The host a config is written for, which decides the agent names the scripts print. A
+ * declared `host` wins. Else config.codex.yaml, the file the Codex config role writes, is the
+ * Codex host's and any other file the Claude host's. A `roles` block names no host: the
+ * Claude config carries one for its pins too.
+ */
+function resolveHost(config, file) {
+  if (config.host === undefined) return path.basename(file) === 'config.codex.yaml' ? 'codex' : 'claude';
+  if (config.host === 'claude' || config.host === 'codex') return config.host;
   throw new RunError(`host in ${file} must be claude or codex, not ${String(config.host) || 'empty'}.`, 'BAD_CONFIG');
 }
 
@@ -152,7 +158,7 @@ function readConfig(root, selected) {
       }
     }
   }
-  validateHost(config, file);
+  config.host = resolveHost(config, file);
   validateVerification(config, file);
   return config;
 }

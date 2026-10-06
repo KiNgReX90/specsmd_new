@@ -66,7 +66,7 @@ knowledge:
 
 Allowed values:
 
-- `host`: `codex`. Without it `run.cjs` reads the file as a Claude host's and prints Claude agent names; with it, a role the file omits falls back to its Codex agent.
+- `host`: `codex`. `run.cjs` reads this file as the Codex host's by its name when the key is absent, and a role the file omits falls back to its Codex agent.
 - `autonomy.level`: `review` or `full`. Accepted for compatibility; the planner never pauses either way.
 - `delivery.mode`: `auto-close` or `merge-request`.
 - `verification.finalize`: ordered non-empty command strings when present.

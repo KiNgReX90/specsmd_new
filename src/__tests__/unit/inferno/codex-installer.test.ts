@@ -208,3 +208,25 @@ describe.sequential('CodexInstaller native bundle', () => {
     expect(existsSync('.specsmd/inferno/README.codex.md')).toBe(false);
   });
 });
+
+// The run scripts ship to the host without codex/, so the tests that hold them to the Codex
+// bundle live here, in the source tree.
+describe('the run scripts and the Codex bundle', () => {
+  const SCRIPTS = path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts');
+
+  it('falls back to the agents the Codex agent files define', () => {
+    const { hostActor } = require(path.join(SCRIPTS, 'run-review.cjs'));
+    for (const actor of ['cheap', 'strong', 'escalate', 'oracle']) {
+      const { agent } = hostActor(actor, { host: 'codex' });
+      const toml = readFileSync(path.join(INFERNO, 'codex/agents', `${agent}.toml`), 'utf8');
+      expect(tomlStrings(toml).name).toBe(agent);
+    }
+  });
+
+  it('reads the Codex config on every frontier and review call of the Codex procedure', () => {
+    const procedure = readFileSync(path.join(INFERNO, 'codex/skills/specsmd-inferno/references/procedure.md'), 'utf8');
+    const calls = procedure.match(/`run\.cjs (?:frontier|review) [^`]*`/g) || [];
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of calls) expect(call).toContain('--config .specs-inferno/config.codex.yaml');
+  });
+});

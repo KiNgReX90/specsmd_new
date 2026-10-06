@@ -3,8 +3,8 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { hostActor, nextActor, tierOf } = require("./run-review.cjs");
-const { STATE, git, repo, run, write } = require("./review-fixture.cjs");
+const { nextActor, tierOf } = require("./run-review.cjs");
+const { CONFIG, STATE, git, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // --- the ladder ------------------------------------------------------------
 // Complexity alone decides who builds first. Rejections then move the item up: cheap after
@@ -377,10 +377,10 @@ delivery:
   assert.match(review(fixture, args).out, /next escalate codex-strong specsmd_inferno_builder_escalate: a fresh builder/);
 });
 
-// A Codex host declares itself. A role its config leaves out falls back to the agent the
-// flow's own Codex agent file defines, never to a Claude agent name.
-const CODEX_HOST = `host: codex
-roles:
+// The host is the config's `host` key when it declares one. Else the file the Codex config
+// role writes, config.codex.yaml, is the Codex host's and any other file the Claude host's.
+// A role the config leaves out falls back to that host's own agent, in every tree.
+const ROLES_NO_HOST = `roles:
   builder_cheap:
     agent: specsmd_inferno_builder_cheap
     model: codex-cheap
@@ -390,24 +390,30 @@ roles:
 delivery:
   base_branch: main
 `;
+const CODEX_ARGS = ["--config", ".specs-inferno/config.codex.yaml"];
 
-test("a Codex host with no oracle or escalate role names the Codex agents on both rungs", () => {
-  const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": CODEX_HOST } });
-  const args = ["--config", ".specs-inferno/config.codex.yaml"];
-  const owed = review(fixture, args).out;
-  assert.match(owed, /^dispatch specsmd_inferno_reviewer item a-one$/m);
-  write(fixture.root, REVIEW, FIX);
-  review(fixture, args);
+/** Put the ladder of a-one at a rung by hand and commit it in the tree. */
+const atRung = (tree, tier, rejections) => {
+  const file = path.join(tree, ".specs-inferno/state.yaml");
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8")
+    .replace(/review_tier: \w+/, `review_tier: ${tier}`)
+    .replace(/review_rejections: \d+/, `review_rejections: ${rejections}`));
+  git(tree, ["commit", "-qam", `${tier} rejected ${rejections} time(s)`]);
+};
+
+test("a Codex config with no host key names the Codex agents on every rung, in a worktree", () => {
+  const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": ROLES_NO_HOST } });
+  const tree = worktree(fixture);
+  const inTree = (args) => run(fixture, [...args, "--tree", tree, ...CODEX_ARGS]);
+  const reviewTree = (extra = []) => inTree(["review", "--item", "a-one", ...extra]);
+  assert.match(reviewTree().out, /^dispatch specsmd_inferno_reviewer item a-one$/m);
+  write(tree, REVIEW, FIX);
+  reviewTree();
   const rung = (tier, rejections) => {
-    const state = ledger(fixture)
-      .replace(/review_tier: \w+/, `review_tier: ${tier}`)
-      .replace(/review_rejections: \d+/, `review_rejections: ${rejections}`);
-    fs.writeFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
-    git(fixture.root, ["commit", "-qam", `${tier} rejected ${rejections} time(s)`]);
-    const out = review(fixture, args).out + run(fixture, ["frontier", "alpha", ...args]).out;
-    const payload = JSON.parse(review(fixture, [...args, "--json"]).out);
+    atRung(tree, tier, rejections);
+    const out = reviewTree().out + inTree(["frontier", "alpha"]).out;
     assert.doesNotMatch(out, /specsmd-inferno-/);
-    return { out, agent: payload.next.agent };
+    return { out, agent: JSON.parse(reviewTree(["--json"]).out).next.agent };
   };
 
   const escalate = rung("strong", 2);
@@ -418,23 +424,25 @@ test("a Codex host with no oracle or escalate role names the Codex agents on bot
   assert.equal(oracle.agent, "specsmd_inferno_oracle");
 });
 
-test("the Codex fallback names are the agents the flow's own Codex agent files define", () => {
-  const agents = path.join(__dirname, "..", "..", "..", "..", "..", "codex", "agents");
-  for (const actor of ["cheap", "strong", "escalate", "oracle"]) {
-    const { agent } = hostActor(actor, { host: "codex" });
-    const toml = fs.readFileSync(path.join(agents, `${agent}.toml`), "utf8");
-    assert.match(toml, new RegExp(`^name = "${agent}"$`, "m"));
-  }
+test("a Claude config with a roles block and no host key keeps the Claude agents", () => {
+  const pins = "roles:\n  builder_strong:\n    model: pinned-strong\n  builder_escalate:\n    model: pinned-escalate\n";
+  const fixture = repo({ config: `${pins}${CONFIG}` });
+  assert.match(review(fixture).out, /^dispatch specsmd-inferno-reviewer model model-review item a-one$/m);
+  write(fixture.root, REVIEW, FIX);
+  review(fixture);
+  atRung(fixture.root, "strong", 2);
+  assert.match(review(fixture).out, /^next escalate model-escalate specsmd-inferno-builder-escalate: a fresh builder/m);
 });
 
-test("every frontier and review call in the Codex procedure reads the Codex config", () => {
-  const procedure = fs.readFileSync(
-    path.join(__dirname, "..", "..", "..", "..", "..", "codex", "skills", "specsmd-inferno", "references", "procedure.md"),
-    "utf8",
-  );
-  const calls = procedure.match(/`run\.cjs (?:frontier|review) [^`]*`/g) || [];
-  assert.ok(calls.length >= 2, calls.join("\n"));
-  for (const call of calls) assert.match(call, /--config \.specs-inferno\/config\.codex\.yaml/, call);
+test("a declared host wins over the file name", () => {
+  const fixture = repo({
+    files: {
+      ".specs-inferno/config.codex.yaml": `host: claude\n${ROLES_NO_HOST}`,
+      ".specs-inferno/fleet.yaml": `host: codex\n${ROLES_NO_HOST}`,
+    },
+  });
+  assert.match(review(fixture, CODEX_ARGS).out, /^dispatch specsmd-inferno-reviewer item a-one$/m);
+  assert.match(review(fixture, ["--config", ".specs-inferno/fleet.yaml"]).out, /^dispatch specsmd_inferno_reviewer item a-one$/m);
 });
 
 // --- the cutover is per host -------------------------------------------------------------
