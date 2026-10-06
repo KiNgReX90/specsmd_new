@@ -12,8 +12,17 @@ program
 
 program
     .command('install')
-    .description('Interactively install a specsmd flow')
-    .action(installer.install);
+    .description('Install a specsmd flow; interactive unless --flow and --tools are given')
+    .option('--flow <flow>', 'Flow to install without prompts (with --tools)')
+    .option('--tools <list>', 'Comma-separated tools, for example claude,codex (with --flow)')
+    .option('--force', 'Overwrite installed files the host edited')
+    .action(async (options) => {
+        if (options.flow || options.tools) {
+            process.exitCode = await installer.installScripted(options);
+            return;
+        }
+        await installer.install();
+    });
 
 program
     .command('uninstall')

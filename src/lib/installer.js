@@ -6,6 +6,9 @@ const CLIUtils = require('./cli-utils');
 const InstallerFactory = require('./InstallerFactory');
 const { FLOWS, LINKS } = require('./constants');
 const analytics = require('./analytics');
+const { stageFlow } = require('./install/stage');
+const { applyInstall, InstallError } = require('./install/transaction');
+const { sourceCommit } = require('./install/lock');
 
 // Use theme from CLIUtils for consistent styling
 const { theme } = CLIUtils;
@@ -31,28 +34,6 @@ function categorizeError(error) {
         return 'disk_space';
     }
     return 'unknown';
-}
-
-/**
- * Count files in a directory recursively
- * @param {string} dir - Directory path
- * @returns {Promise<number>} File count
- */
-async function countFiles(dir) {
-    let count = 0;
-    try {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            if (entry.isDirectory()) {
-                count += await countFiles(path.join(dir, entry.name));
-            } else {
-                count++;
-            }
-        }
-    } catch {
-        // Ignore errors (directory might not exist)
-    }
-    return count;
 }
 
 async function detectTools() {
@@ -194,109 +175,81 @@ async function install() {
     }
 
     CLIUtils.displayError(`Installation failed: ${error.message}`);
-    console.log(theme.dim('\nRolling back changes...'));
-    await rollback(selectedFlow, selectedToolKeys);
-    CLIUtils.displayStatus('', 'Installation rolled back', 'warning');
+    CLIUtils.displayStatus('', 'The previous state was restored', 'warning');
     process.exit(1);
   }
 }
 
-async function installFlow(flowKey, toolKeys) {
+/**
+ * Installs a flow for the given tools into options.root (default: the working directory).
+ * The whole install is staged first, then applied as one transaction against
+ * .specsmd/<flow>/flow.lock: a host edit of an installed file refuses the install unless
+ * options.force is set, files the old lock recorded and this install drops are removed,
+ * and any failure, the budget check included, restores the previous state.
+ * Returns the number of installed files.
+ */
+async function installFlow(flowKey, toolKeys, options = {}) {
+  if (!FLOWS[flowKey]) {
+    throw new InstallError(`unknown flow: ${flowKey}`, 'UNKNOWN_FLOW');
+  }
+  const unknownTools = toolKeys.filter((key) => !InstallerFactory.getInstaller(key));
+  if (unknownTools.length > 0) {
+    throw new InstallError(`unknown tool(s): ${unknownTools.join(', ')}`, 'UNKNOWN_TOOL', unknownTools);
+  }
+
+  const root = path.resolve(options.root || process.cwd());
   const flowPath = path.join(__dirname, '..', 'flows', FLOWS[flowKey].path);
+  const version = require('../package.json').version;
+  const staged = await stageFlow(flowPath, flowKey, toolKeys, root);
 
-  // Step 1: Install commands for each tool
-  // Pass empty config since config.yaml is removed
-  const dummyConfig = {};
-  for (const toolKey of toolKeys) {
-    const installer = InstallerFactory.getInstaller(toolKey);
-    if (installer) {
-      await installer.installCommands(flowPath, dummyConfig);
-    }
-  }
-
-  // Step 2: Install shared flow config
-  const specsmdDir = '.specsmd';
-  const targetFlowDir = path.join(specsmdDir, flowKey);
-
-  console.log(theme.dim(`  Installing flow resources to ${targetFlowDir}/...`));
-  await fs.ensureDir(targetFlowDir);
-
-  // Copy agents
-  await fs.copy(path.join(flowPath, 'agents'), path.join(targetFlowDir, 'agents'));
-
-  // Copy internal agent capabilities (legacy check)
-  if (await fs.pathExists(path.join(flowPath, 'agent-capabilities'))) {
-    await fs.copy(path.join(flowPath, 'agent-capabilities'), path.join(targetFlowDir, 'agent-capabilities'));
-  }
-
-  // Copy bolt-types if they exist (legacy check)
-  if (await fs.pathExists(path.join(flowPath, 'bolt-types'))) {
-    await fs.copy(path.join(flowPath, 'bolt-types'), path.join(targetFlowDir, 'bolt-types'));
-  }
-
-  // Copy skills, templates, shared (now at flow root level, not nested in .specsmd)
-  if (await fs.pathExists(path.join(flowPath, 'skills'))) {
-    await fs.copy(path.join(flowPath, 'skills'), path.join(targetFlowDir, 'skills'));
-  }
-  if (await fs.pathExists(path.join(flowPath, 'templates'))) {
-    await fs.copy(path.join(flowPath, 'templates'), path.join(targetFlowDir, 'templates'));
-  }
-  if (await fs.pathExists(path.join(flowPath, 'shared'))) {
-    await fs.copy(path.join(flowPath, 'shared'), path.join(targetFlowDir, 'shared'));
-  }
-  if (await fs.pathExists(path.join(flowPath, 'scripts'))) {
-    await fs.copy(path.join(flowPath, 'scripts'), path.join(targetFlowDir, 'scripts'));
-  }
-
-  // Copy config files
-  if (await fs.pathExists(path.join(flowPath, 'memory-bank.yaml'))) {
-    await fs.copy(path.join(flowPath, 'memory-bank.yaml'), path.join(targetFlowDir, 'memory-bank.yaml'));
-  }
-  if (await fs.pathExists(path.join(flowPath, 'context-config.yaml'))) {
-    await fs.copy(path.join(flowPath, 'context-config.yaml'), path.join(targetFlowDir, 'context-config.yaml'));
-  }
-  if (await fs.pathExists(path.join(flowPath, 'quick-start.md'))) {
-    await fs.copy(path.join(flowPath, 'quick-start.md'), path.join(targetFlowDir, 'quick-start.md'));
-  }
-
-  // Copy docs
-  await fs.copy(path.join(flowPath, 'README.md'), path.join(targetFlowDir, 'README.md'));
-  if (toolKeys.includes('codex') && await fs.pathExists(path.join(flowPath, 'README.codex.md'))) {
-    await fs.copy(
-      path.join(flowPath, 'README.codex.md'),
-      path.join(targetFlowDir, 'README.codex.md')
-    );
-  }
-
-  if (await fs.pathExists(path.join(flowPath, 'constitution.md'))) {
-    await fs.copy(path.join(flowPath, 'constitution.md'), path.join(targetFlowDir, 'constitution.md'));
-  }
-
-  CLIUtils.displayStatus('', 'Installed flow resources', 'success');
-
-  // NOTE: memory-bank/ is NOT created during installation
-  // It will be created when user runs project-init
-  // This allows us to detect if project is initialized by checking for memory-bank/standards/
-
-  // Step 3: Create manifest
   const manifest = {
     flow: flowKey,
-    version: require('../package.json').version,
+    version,
     installed_at: new Date().toISOString(),
     tools: toolKeys
   };
+  const extras = new Map([['.specsmd/manifest.yaml', yaml.dump(manifest)]]);
 
-  await fs.writeFile(
-    path.join(specsmdDir, 'manifest.yaml'),
-    yaml.dump(manifest),
-    'utf8'
-  );
+  const count = await applyInstall({
+    root,
+    flowKey,
+    staged,
+    extras,
+    force: Boolean(options.force),
+    version,
+    sourceCommit: sourceCommit(),
+    log: (line) => console.log(theme.warning(line)),
+  });
+  CLIUtils.displayStatus('', `Installed ${count} files and wrote .specsmd/${flowKey}/flow.lock`, 'success');
+  return count;
+}
 
-  CLIUtils.displayStatus('', 'Created installation manifest', 'success');
-
-  // Count files created for analytics
-  const filesCreated = await countFiles(specsmdDir);
-  return filesCreated;
+/**
+ * The non-interactive install: `specsmd install --flow <flow> --tools <a,b> [--force]`.
+ * Returns the process exit code. Telemetry follows the same opt-outs as the interactive
+ * install, DO_NOT_TRACK=1 among them.
+ */
+async function installScripted({ flow, tools, force } = {}) {
+  const toolKeys = String(tools || '').split(',').map((key) => key.trim()).filter(Boolean);
+  if (!flow || toolKeys.length === 0) {
+    CLIUtils.displayError('a scripted install needs both --flow and --tools');
+    return 1;
+  }
+  analytics.init();
+  const started = Date.now();
+  try {
+    const filesCreated = await installFlow(flow, toolKeys, { force });
+    for (const toolKey of toolKeys) {
+      analytics.trackInstallationCompleted(toolKey, flow, Date.now() - started, filesCreated);
+    }
+    return 0;
+  } catch (error) {
+    for (const toolKey of toolKeys) {
+      analytics.trackInstallationFailed(toolKey, categorizeError(error), flow);
+    }
+    CLIUtils.displayError(`Installation failed: ${error.message}`);
+    return 1;
+  }
 }
 
 async function cleanupToolInstallation(flowKey, toolKeys) {
@@ -321,15 +274,6 @@ async function cleanupToolInstallation(flowKey, toolKeys) {
         }
       }
     }
-  }
-}
-
-async function rollback(flowKey, toolKeys) {
-  await cleanupToolInstallation(flowKey, toolKeys);
-
-  // Remove .specsmd directory
-  if (await fs.pathExists('.specsmd')) {
-    await fs.remove('.specsmd');
   }
 }
 
@@ -405,6 +349,7 @@ module.exports = {
   install,
   uninstall,
   installFlow,
-  rollback,
+  installScripted,
+  InstallError,
   cleanupToolInstallation
 };

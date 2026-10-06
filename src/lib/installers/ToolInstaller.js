@@ -29,6 +29,16 @@ class ToolInstaller {
         throw new Error("Method 'detectPath' must be implemented.");
     }
 
+    /** Host files this tool reads while installing; staging copies them in first. */
+    get seedFiles() {
+        return [];
+    }
+
+    /** Shared host files where only a marked block belongs to the flow: [{ file, block: [start, end] }]. */
+    get managedBlocks() {
+        return [];
+    }
+
     async detect() {
         return await fs.pathExists(this.detectPath);
     }
