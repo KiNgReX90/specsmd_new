@@ -1,3 +1,5 @@
+const { overlaps } = require("./run-owned.cjs");
+
 const IMPLEMENTATION_KINDS_REQUIRING_PATTERNS = new Set([
   "architecture",
   "api",
@@ -92,8 +94,9 @@ function ownershipPaths(workItem) {
   return asArray(workItem && workItem.ownership && workItem.ownership.editable);
 }
 
-function overlapsAny(paths, claimedPaths) {
-  return paths.some((path) => claimedPaths.has(path));
+/** Ownership overlap through the one predicate verify-item also uses: folders, globs, aliases. */
+function overlapsAny(paths, claimedPaths, tree) {
+  return paths.some((path) => [...claimedPaths].some((claimed) => overlaps(path, claimed, tree)));
 }
 
 function selectDispatchableItems(items, options = {}) {
@@ -119,7 +122,7 @@ function selectDispatchableItems(items, options = {}) {
     }
 
     const paths = ownershipPaths(workItem);
-    if (overlapsAny(paths, claimedPaths)) {
+    if (overlapsAny(paths, claimedPaths, options.tree)) {
       continue;
     }
 

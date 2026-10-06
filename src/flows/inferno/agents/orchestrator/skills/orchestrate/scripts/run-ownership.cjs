@@ -148,7 +148,7 @@ function hitsOf(tree, keys, editable) {
 
   const carried = new Map();
   for (const hit of [...files].sort()) {
-    if (lib.ownedBy(hit, editable)) continue;
+    if (lib.ownedBy(hit, editable, tree)) continue;
     const body = read(tree, hit);
     const matched = [...keys].filter(([key, entry]) => carries(body, key, entry)).map(([key]) => key);
     if (matched.length > 0) carried.set(hit, matched);
@@ -190,7 +190,7 @@ function candidates(tree, items, open) {
         .sort((left, right) => right.length - left.length)[0];
       if (!via) continue;
       const other = (open || []).find(
-        (entry) => entry.id !== item.id && lib.ownedBy(hit, entry.ownership && entry.ownership.editable)
+        (entry) => entry.id !== item.id && lib.ownedBy(hit, entry.ownership && entry.ownership.editable, tree)
       );
       found.push({
         item: item.id,

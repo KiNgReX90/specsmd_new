@@ -1,19 +1,21 @@
 'use strict';
 
 /**
- * Intent-level steps of `run.cjs`: select, claim, unclaim, worktree and the dispatch log.
+ * Intent-level steps of `run.cjs`: select, claim, unclaim, worktree, the dispatch log and its acceptance.
  * Every ledger write goes through state-transition.cjs, the single writer.
  *
  * `frontier` is the sixth step and lives in run-frontier.cjs, which is the item graph rather
  * than the intent. It is re-exported here so `run.cjs` keeps one intent-level module.
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const writer = require('./state-transition.cjs');
+const dispatch = require('./run-dispatch.cjs');
 const { frontier, tierOf } = require('./run-frontier.cjs');
 const { archivePaths, archivedIds } = require('./state-archive.cjs');
 const { PARKED_VALUES } = require('./state-ledger.cjs');
@@ -324,19 +326,61 @@ function worktree(intentId, options) {
 // ---------------------------------------------------------------------------
 
 /**
- * The dispatch audit log the orchestrator keeps per run. It lives in the cache rather than
- * in the repo: it is a record of one run's dispatches, never work anyone builds from.
+ * The dispatch audit log the orchestrator keeps per run, plus the signed baseline of the tree
+ * the builder starts from (run-dispatch.cjs). Both live in the cache rather than in the repo:
+ * they are a record of one run's dispatches, never work anyone builds from.
  */
 function dispatchLog(intentId, options) {
-  if (!options.item || !options.tier || !options.agent) {
-    throw new RunError('dispatch-log requires --item, --tier and --agent', 'BAD_ARGS', 1);
+  const requested = options.items ? String(options.items).split(',').map((id) => id.trim()).filter(Boolean) : [options.item].filter(Boolean);
+  if (requested.length === 0 || !options.tier || !options.agent) {
+    throw new RunError('dispatch-log requires --item (or --items a,b for a chain one builder builds), --tier and --agent', 'BAD_ARGS', 1);
   }
   const root = lib.primaryRoot(options.cwd);
+  const tree = options.tree || lib.repoRoot(options.cwd);
+  // A correction of one item of a chain is logged for the whole chain its current record covers.
+  const items = dispatch.coveredItems(tree, intentId, requested);
+  const editable = new Set();
+  for (const id of items) {
+    const spec = lib.readItemSpec(tree, intentId, id);
+    for (const entry of (spec.manifest.ownership && spec.manifest.ownership.editable) || []) editable.add(entry);
+  }
+  const record = dispatch.recordDispatch(tree, {
+    intent: intentId,
+    items,
+    dispatch_id: options.dispatch_id || crypto.randomUUID(),
+    editable: [...editable],
+  });
   const log = path.join(lib.cacheDir(root), 'dispatch', `${intentId}.log`);
-  const line = [new Date().toISOString(), intentId, options.item, options.tier, options.agent, options.batch || ''].join('\t');
+  const batch = options.batch || (items.length > 1 ? items.join(',') : '');
+  // The seventh field, the dispatch id, tells this runner's line from the six of the runner before signed records.
+  const lines = items.map((id) => [new Date().toISOString(), intentId, id, options.tier, options.agent, batch, record.dispatchId].join('\t'));
   fs.mkdirSync(path.dirname(log), { recursive: true });
-  fs.appendFileSync(log, `${line}\n`, 'utf8');
-  return { exit: 0, payload: { log, line }, out: [`logged ${options.item} -> ${log}`] };
+  fs.appendFileSync(log, `${lines.join('\n')}\n`, 'utf8');
+  return {
+    exit: 0,
+    payload: { log, line: lines[0], dispatch_id: record.dispatchId, tree },
+    out: [`logged ${items.join(', ')} -> ${log}`, `dispatch ${record.dispatchId}`],
+  };
 }
 
-module.exports = { claim, dispatchLog, frontier, resolveBase, select, tierOf, unclaim, worktree };
+/** Freeze a builder's result against its dispatch: each reported path has to have changed. */
+function acceptDispatch(dispatchId, options) {
+  const tree = options.tree || lib.repoRoot(options.cwd);
+  let changed = options.changed_paths;
+  if (typeof changed === 'string') {
+    try {
+      changed = JSON.parse(changed);
+    } catch (error) {
+      throw new RunError('--changed-paths must be a JSON array of exact paths', 'BAD_ARGS', 1);
+    }
+  }
+  if (!Array.isArray(changed)) throw new RunError('accept-dispatch requires --changed-paths as a JSON array', 'BAD_ARGS', 1);
+  const record = dispatch.acceptDispatch(tree, { dispatch_id: dispatchId, changed_paths: changed });
+  return {
+    exit: 0,
+    payload: { dispatch_id: record.dispatchId, phase: record.phase, tree },
+    out: [`accepted dispatch ${record.dispatchId}`],
+  };
+}
+
+module.exports = { acceptDispatch, claim, dispatchLog, frontier, resolveBase, select, tierOf, unclaim, worktree };
