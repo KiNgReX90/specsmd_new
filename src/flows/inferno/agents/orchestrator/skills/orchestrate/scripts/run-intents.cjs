@@ -179,11 +179,20 @@ function select(options) {
 // claim / unclaim
 // ---------------------------------------------------------------------------
 
+/**
+ * Commit the ledger and the intent's own folder, and nothing else. The primary checkout's
+ * index is shared with every other session, so a plain `git commit` would carry whatever
+ * someone else had staged under a claim message. `--only` builds the commit from these
+ * paths alone and leaves every other staged and unstaged change exactly as it was.
+ */
 function stageAndCommit(root, intentId, message) {
   const paths = [path.join(lib.SPECS_DIR, 'state.yaml'), path.join(lib.SPECS_DIR, 'intents', intentId)]
     .filter((rel) => fs.existsSync(path.join(root, rel)));
   lib.git(root, ['add', '--', ...paths]);
-  lib.git(root, ['commit', '-q', '-m', message]);
+  // Exact files, so a deletion or an untracked file inside the folder is named the way
+  // `--only` needs it.
+  const files = lib.gitLines(root, ['diff', '--cached', '--name-only', '--no-renames', 'HEAD', '--', ...paths]);
+  if (files.length > 0) lib.git(root, ['commit', '--only', '-q', '-m', message, '--', ...files]);
   return lib.git(root, ['rev-parse', '--short', 'HEAD']);
 }
 

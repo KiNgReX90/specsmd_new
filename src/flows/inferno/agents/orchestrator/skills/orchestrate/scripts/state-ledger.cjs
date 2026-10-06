@@ -116,7 +116,10 @@ function loadState(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new TransitionError(`state file not found: ${filePath}`, 'STATE_MISSING');
   }
-  return fs.readFileSync(filePath, 'utf8').split('\n');
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+  // Required here, not at the top: the store needs TransitionError from this module.
+  require('./state-store.cjs').afterRead(filePath);
+  return lines;
 }
 
 /** Find the first `- id:` dash indent inside a block, or null when the block is empty. */
@@ -211,8 +214,9 @@ function nowIso(override) {
   return override || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
+/** Locked, generation-checked, atomic. The store owns how the bytes reach the disk. */
 function writeState(filePath, lines) {
-  fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+  require('./state-store.cjs').writeState(filePath, lines);
 }
 
 module.exports = {
