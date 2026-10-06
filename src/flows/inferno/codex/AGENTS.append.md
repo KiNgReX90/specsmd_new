@@ -11,8 +11,8 @@
 - Use `$specsmd-inferno-intents` to list current intents without selecting, claiming, or starting one.
 - Treat legacy slash-command wording as intent to invoke the matching Codex
   skill, never as a reason to read or execute another host's command file.
-- The orchestrator alone dispatches `specsmd_inferno_builder_strong` and
-  `specsmd_inferno_builder_cheap`. Never activate a builder without a complete
+- The orchestrator alone dispatches `specsmd_inferno_builder_strong`,
+  `specsmd_inferno_builder_cheap` and `specsmd_inferno_builder_escalate`. Never activate a builder without a complete
   assignment from its owning role, and never let a worker spawn nested agents.
 - Every INFERNO worker is a `spawn_agent` subagent of this session with
   `fork_turns: "none"`, never a separate Codex process or an Orca job.

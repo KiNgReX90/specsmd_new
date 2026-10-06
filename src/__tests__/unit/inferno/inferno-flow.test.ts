@@ -39,14 +39,14 @@ describe('inferno flow', () => {
     expect(stripFrontmatter(command)).toBe(stripFrontmatter(agent));
   });
 
-  it('cheap builder wrappers duplicate the strong builder procedure exactly', () => {
+  it.each(['builder-cheap', 'builder-escalate'])('%s wrappers duplicate the strong builder procedure exactly', (role) => {
     const strongCommand = readFileSync(path.join(INFERNO, 'commands/inferno-builder.md'), 'utf8');
-    const cheapCommand = readFileSync(path.join(INFERNO, 'commands/inferno-builder-cheap.md'), 'utf8');
+    const roleCommand = readFileSync(path.join(INFERNO, `commands/inferno-${role}.md`), 'utf8');
     const strongAgent = readFileSync(path.join(INFERNO, 'agents/builder/agent.md'), 'utf8');
-    const cheapAgent = readFileSync(path.join(INFERNO, 'agents/builder-cheap/agent.md'), 'utf8');
-    expect(stripFrontmatter(cheapCommand)).toBe(stripFrontmatter(strongCommand));
-    expect(stripFrontmatter(cheapAgent)).toBe(stripFrontmatter(strongAgent));
-    expect(stripFrontmatter(cheapCommand)).toBe(stripFrontmatter(cheapAgent));
+    const roleAgent = readFileSync(path.join(INFERNO, `agents/${role}/agent.md`), 'utf8');
+    expect(stripFrontmatter(roleCommand)).toBe(stripFrontmatter(strongCommand));
+    expect(stripFrontmatter(roleAgent)).toBe(stripFrontmatter(strongAgent));
+    expect(stripFrontmatter(roleCommand)).toBe(stripFrontmatter(roleAgent));
   });
 
   it('inferno-planner command body is identical to the canonical planner agent body', () => {
@@ -62,10 +62,12 @@ describe('inferno flow', () => {
     ['commands/inferno-planner.md', 'specsmd-inferno-planner'],
     ['commands/inferno-builder.md', 'specsmd-inferno-builder'],
     ['commands/inferno-builder-cheap.md', 'specsmd-inferno-builder-cheap'],
+    ['commands/inferno-builder-escalate.md', 'specsmd-inferno-builder-escalate'],
     ['commands/inferno-oracle.md', 'specsmd-inferno-oracle'],
     ['agents/planner/agent.md', 'inferno-planner-agent'],
     ['agents/builder/agent.md', 'inferno-builder-agent'],
     ['agents/builder-cheap/agent.md', 'inferno-builder-cheap-agent'],
+    ['agents/builder-escalate/agent.md', 'inferno-builder-escalate-agent'],
     ['agents/oracle/agent.md', 'inferno-oracle-agent'],
   ])('%s is named %s', (rel, name) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
@@ -102,11 +104,13 @@ describe('inferno flow', () => {
     ['commands/inferno-planner.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-builder.md', 'claude-opus-5-5', 'high'],
     ['commands/inferno-builder-cheap.md', 'claude-sonnet-5-5', 'high'],
+    ['commands/inferno-builder-escalate.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-config.md', 'claude-sonnet-5-5', 'high'],
     ['commands/inferno-oracle.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/planner/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/builder/agent.md', 'claude-opus-5-5', 'high'],
     ['agents/builder-cheap/agent.md', 'claude-sonnet-5-5', 'high'],
+    ['agents/builder-escalate/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));

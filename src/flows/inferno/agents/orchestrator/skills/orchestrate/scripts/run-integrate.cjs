@@ -25,6 +25,7 @@ const writer = require('./state-transition.cjs');
 const impact = require('./run-e2e-impact.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { checkDoubles } = require('./check-doubles.cjs');
+const { owedReviews } = require('./run-review.cjs');
 
 const { RunError } = lib;
 
@@ -116,6 +117,12 @@ function integrate(options) {
   const initial = lib.readConfig(tree, options.config);
   const base = options.base || resolveBase(initial, null, tree);
   const ids = itemIds(options);
+  // Every id first, before the fold and before any write: an item lands only over a clean
+  // review of the files as they stand, and a batch never lands half.
+  const owed = ids.length > 0 ? owedReviews(tree, lib.readLedger(tree), ids, options) : [];
+  if (owed.length > 0) {
+    throw new RunError(`item review owed, nothing integrated: ${owed.join('; ')}`, 'ITEM_REVIEW_OWED', 3);
+  }
   // Preserve the branch position before folding the base. Only the browser selection reads it,
   // so a project that configures none reads no git history for it.
   const anchor = impact.section(initial) ? impact.anchorFor(tree, base) : null;

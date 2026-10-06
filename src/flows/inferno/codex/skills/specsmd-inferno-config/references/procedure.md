@@ -7,6 +7,8 @@ Configure only `.specs-inferno/config.codex.yaml`. The parent conversation owns 
 All keys are optional except that a created file should include the fixed Codex role matrix. The orchestrator has no role entry: it is the session's main thread and runs on the session's own model and effort.
 
 ```yaml
+host: codex
+
 autonomy:
   level: review
 
@@ -19,6 +21,10 @@ roles:
     agent: specsmd_inferno_builder_strong
     model: gpt-6.1-sol
     reasoning_effort: xhigh
+  builder_escalate:
+    agent: specsmd_inferno_builder_escalate
+    model: gpt-6.1-sol
+    reasoning_effort: xhigh
   config:
     agent: specsmd_inferno_config
     model: gpt-5.6-terra
@@ -27,6 +33,10 @@ roles:
     agent: specsmd_inferno_builder_cheap
     model: gpt-5.6-terra
     reasoning_effort: high
+  oracle:
+    agent: specsmd_inferno_oracle
+    model: gpt-6-astra
+    reasoning_effort: xhigh
 
 verification:
   finalize:
@@ -56,6 +66,7 @@ knowledge:
 
 Allowed values:
 
+- `host`: `codex`. `run.cjs` reads this file as the Codex host's by its name when the key is absent, and a role the file omits falls back to its Codex agent.
 - `autonomy.level`: `review` or `full`. Accepted for compatibility; the planner never pauses either way.
 - `delivery.mode`: `auto-close` or `merge-request`.
 - `verification.finalize`: ordered non-empty command strings when present.
@@ -72,7 +83,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 1. Read applicable `AGENTS.md` instructions and the current Codex config if it exists.
 2. If absent, discover likely production build and full-test commands from project manifests and discover the repository default branch. Treat discoveries as proposals, not confirmed choices.
 3. Display effective settings in plain language:
-   - the five fixed role assignments;
+   - the fixed role assignments;
    - ordered final verification commands, and any path scopes that let one be skipped;
    - worktree bootstrap commands and the machine rules pasted into every dispatch;
    - delivery mode and proposed base branch;
@@ -87,7 +98,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 3. Preserve unknown top-level and nested keys, comments, and existing settings the user did not change.
 4. Use a focused `apply_patch`; do not rewrite the entire file when a local edit is sufficient.
 5. Write no file other than `.specs-inferno/config.codex.yaml`.
-6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
+6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that the file declares `host: codex`, that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
 7. Return:
 
 ```yaml

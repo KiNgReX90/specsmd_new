@@ -76,7 +76,7 @@ test('a ledger changed outside the lock is refused, not overwritten', (t) => {
 });
 
 test('concurrent completions preserve different item updates', async (t) => {
-  const { file } = fixture(t, 'intents:\n  - id: a\n    status: in_progress\n    work_items:\n      - id: first\n        status: pending\n      - id: second\n        status: pending\n');
+  const { file } = fixture(t, 'intents:\n  - id: a\n    status: in_progress\n    work_items:\n      - id: first\n        review: clean\n        status: pending\n      - id: second\n        review: clean\n        status: pending\n');
   const complete = (item) => new Promise((resolve) => {
     const code = `require(${JSON.stringify(runtime)}).completeItem({file:${JSON.stringify(file)},intent:'a',item:${JSON.stringify(item)},proof:'abc1234',afterRead(){Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,150)}})`;
     const worker = spawn(process.execPath, ['-e', code]);

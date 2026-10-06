@@ -30,6 +30,7 @@ const PROCEDURE_SKILLS = SKILLS.filter((skill) => skill !== 'specsmd-inferno-int
 const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_planner: ['gpt-5.6-sol', 'xhigh'],
   specsmd_inferno_builder_strong: ['gpt-6.1-sol', 'xhigh'],
+  specsmd_inferno_builder_escalate: ['gpt-6.1-sol', 'xhigh'],
   specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
@@ -93,7 +94,7 @@ describe.sequential('CodexInstaller native bundle', () => {
 
     const installedAgentFiles = readdirSync('.codex/agents')
       .filter((file) => file.startsWith('specsmd_') && file.endsWith('.toml'));
-    expect(installedAgentFiles).toHaveLength(5);
+    expect(installedAgentFiles).toHaveLength(Object.keys(AGENTS).length);
     const seen = new Set<string>();
     for (const file of installedAgentFiles) {
       const source = readFileSync(path.join('.codex/agents', file), 'utf8');
@@ -205,5 +206,27 @@ describe.sequential('CodexInstaller native bundle', () => {
     await installFlow('inferno', ['claude']);
     expect(existsSync('.specsmd/inferno/README.md')).toBe(true);
     expect(existsSync('.specsmd/inferno/README.codex.md')).toBe(false);
+  });
+});
+
+// The run scripts ship to the host without codex/, so the tests that hold them to the Codex
+// bundle live here, in the source tree.
+describe('the run scripts and the Codex bundle', () => {
+  const SCRIPTS = path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts');
+
+  it('falls back to the agents the Codex agent files define', () => {
+    const { hostActor } = require(path.join(SCRIPTS, 'run-review.cjs'));
+    for (const actor of ['cheap', 'strong', 'escalate', 'oracle']) {
+      const { agent } = hostActor(actor, { host: 'codex' });
+      const toml = readFileSync(path.join(INFERNO, 'codex/agents', `${agent}.toml`), 'utf8');
+      expect(tomlStrings(toml).name).toBe(agent);
+    }
+  });
+
+  it('reads the Codex config on every frontier and review call of the Codex procedure', () => {
+    const procedure = readFileSync(path.join(INFERNO, 'codex/skills/specsmd-inferno/references/procedure.md'), 'utf8');
+    const calls = procedure.match(/`run\.cjs (?:frontier|review) [^`]*`/g) || [];
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of calls) expect(call).toContain('--config .specs-inferno/config.codex.yaml');
   });
 });

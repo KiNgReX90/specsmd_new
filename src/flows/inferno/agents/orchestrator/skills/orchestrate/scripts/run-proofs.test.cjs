@@ -78,3 +78,15 @@ test('scope hashes include additions, deletions, renames, modes and symlink targ
   fs.symlinkSync('../missing.txt', path.join(dir, 'src/link'));
   assert.notEqual(hash(), before);
 });
+
+test('an exact scope hashes the literal paths only, never a same-named file in another folder', (t) => {
+  const dir = hashTree(t);
+  fs.writeFileSync(path.join(dir, 'src/outside.txt'), 'nested\n');
+  hashCommit(dir);
+  const exact = () => proofs.scopeHash(dir, ['outside.txt'], { exact: true });
+  const before = exact();
+  fs.writeFileSync(path.join(dir, 'src/outside.txt'), 'moved\n');
+  assert.equal(exact(), before);
+  fs.writeFileSync(path.join(dir, 'outside.txt'), 'moved\n');
+  assert.notEqual(exact(), before);
+});

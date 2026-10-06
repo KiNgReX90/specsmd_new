@@ -188,6 +188,19 @@ test("a verification block that is not a map of command lists is refused with th
   );
 });
 
+test("a config declares its host as claude or codex, and any other host is refused", () => {
+  const dir = tempdir("inferno-lib-host-");
+  fs.mkdirSync(path.join(dir, ".specs-inferno"));
+  const file = path.join(dir, ".specs-inferno", "config.yaml");
+  fs.writeFileSync(file, "host: codex\n", "utf8");
+  assert.equal(lib.readConfig(dir).host, "codex");
+  fs.writeFileSync(file, "host: gemini\n", "utf8");
+  assert.throws(
+    () => lib.readConfig(dir),
+    (error) => error.code === "BAD_CONFIG" && /host in .* must be claude or codex, not gemini/.test(error.message),
+  );
+});
+
 test("an integrate list holding something other than commands is refused", () => {
   const dir = tempdir("inferno-lib-badlist-");
   fs.mkdirSync(path.join(dir, ".specs-inferno"));

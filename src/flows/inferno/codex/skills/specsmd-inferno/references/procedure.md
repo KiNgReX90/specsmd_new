@@ -9,7 +9,7 @@ This procedure adapts the canonical INFERNO lifecycle to Codex. The canonical sc
 - Intent artifacts: `.specs-inferno/intents/<intent-id>/`
 - Work items: `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`
 - Halt notes: `.specs-inferno/halt-notes/`
-- Run script, one subcommand per mechanical step: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs` (exit 0 ok, 1 usage, 2 failure, 3 gate needed)
+- Run script, one subcommand per mechanical step: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs` (exit 0 ok, 1 usage, 2 failure, 3 a step is owed first)
 - Ledger writer: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs`
 - Selection template: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/templates/intent-selection.md.hbs`
 - Codex gate plan: `node scripts/specs-inferno-codex-gate.mjs <worktree>` prints the gate's commands and scopes without running them
@@ -38,7 +38,7 @@ Continue in this thread from here.
 
 1. In one batched read, load the applicable `AGENTS.md` files, state, Codex config, every pending work-item spec for this intent, the halt flag, UTC time, the worktree list and branch status.
 2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close` and the discovered build and full tests for final verification. `verification.finalize_scopes` narrows a gate command to the paths worth running it on, `worktree.bootstrap` runs in a fresh worktree, and `dispatch.constraints` is pasted verbatim into every dispatch.
-3. Validate every pending work item before creating a worktree with `run.cjs frontier <intent-id> --tree <path>`. It checks the manifest fields and the dependency graph and names the exact missing field; hand a manifest defect to the planner skill for a bounded repair and never claim or dispatch an invalid item.
+3. Validate every pending work item before creating a worktree with `run.cjs frontier <intent-id> --tree <path> --config .specs-inferno/config.codex.yaml`. It checks the manifest fields and the dependency graph and names the exact missing field; hand a manifest defect to the planner skill for a bounded repair and never claim or dispatch an invalid item.
 4. For recovery, inspect the intent branch's commits and run:
 
    ```sh
@@ -59,10 +59,10 @@ Repeat until all items are completed or the run blocks or halts.
 2. Before each frontier, compare the base branch since the merge base across the frontier's editable and required paths. Merge it in before dispatch when relevant changes landed and no work is in flight; when work is in flight, hold only the affected items.
 3. Check the configured halt flag before every frontier; a future `resets_at` stops new dispatch.
 4. Batch a few consecutive low or medium items only when a serial dependency chain or a shared compile tree prevents parallelism, keeping combined required context near six files. Never batch high-complexity work, different worker tiers, or across a point where disjoint work can run in parallel.
-5. Choose the custom builder deterministically:
-   - `kind: config-only`, `kind: docs-only`, `kind: test`, or `complexity: low` uses `specsmd_inferno_builder_cheap` on `gpt-5.6-terra` with `high` reasoning;
-   - other `complexity: medium` or `high` work uses `specsmd_inferno_builder_strong` on `gpt-6.1-sol` with `xhigh` reasoning.
-   Kind-based cheap routing takes precedence; never down-tier medium or high work by intuition. A cheap build that fails integration review once is re-dispatched to the strong role with the findings, never corrected twice on the cheap role.
+5. Choose the custom builder by complexity alone, as `frontier` prints it:
+   - `complexity: low` uses `specsmd_inferno_builder_cheap` on `gpt-5.6-terra` with `high` reasoning;
+   - `medium` or `high` uses `specsmd_inferno_builder_strong` on `gpt-6.1-sol` with `xhigh` reasoning.
+   After a rejected item review, dispatch the builder its `next` line names.
 6. Use `spawn_agent` with `fork_turns: "none"` and the role's `agent_type` for the items or approved batches in the frontier, in one dispatch round. The prompt contains only:
    - intent and work-item ids, worktree and work-item spec paths, the spec to be read first;
    - the item's `context` manifest and `ownership.editable` verbatim, and `design_contract` verbatim when present;
@@ -88,7 +88,7 @@ A builder is stuck when any one of these holds:
 Then climb this ladder, asking nobody:
 
 1. First stall: `interrupt_agent`, then one `followup_task` naming what the worktree holds and setting a bound: return the envelope, `ready` or `blocked` with the cause and the failing line.
-2. No envelope by the bound, or a second stall on the same item: interrupt for good and read the worktree diff. Finish the remaining slice in this thread when the diff and the spec make it clear, otherwise dispatch one fresh builder for that slice only, naming what the tree holds and the failure that stopped its predecessor. Never both, never a third builder on one slice.
+2. No envelope by the bound, or a second stall on the same item: interrupt for good and read the worktree diff. Finish the remaining slice in this thread when the diff and the spec make it clear, otherwise dispatch one fresh builder for that slice only, naming what the tree holds and the failure that stopped its predecessor. Never both; a further builder on one slice comes only from the review ladder.
 3. A dead turn is retried once with the same call; a second death takes step 2. Two defensible readings of the spec go to the oracle once, and its decision rides in the followup or fresh dispatch.
 
 Read the machine before reading a red gate or integrate step. The result is void when `/proc/pressure/memory` shows `some avg60` above 25 or `/proc/loadavg` a one-minute load above 8, and the failures share one launch or timeout signature across files different items own. Wait in one bounded shell command until the pressure is under 25, then run it once more.
@@ -109,7 +109,7 @@ Process ready results one at a time.
 
 1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path>` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only on evidence that the assigned change requires it.
 2. `verify-item` and `integrate` confirm the builder's checks; do not replay a focused check by hand. For a `design_contract`, require verification against the cited source. A note naming a defect the builder saw and left, a residual or a product call is postponed work: send it back with `followup_task` before integrating, never into the ledger, the report or the user's lap.
-3. Stage only that item's changed files, never the entire tree, and commit directly on the intent branch for `auto-close`.
+3. Stage only that item's changed files, never the entire tree, and commit directly on the intent branch for `auto-close`. Then `run.cjs review --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` prints the reviewer dispatch line (exit 3); after the reviewer writes its file, run it again: 0 clean, 2 findings and the `next` builder, who fixes before you commit and review again.
 4. Then run:
 
    ```sh

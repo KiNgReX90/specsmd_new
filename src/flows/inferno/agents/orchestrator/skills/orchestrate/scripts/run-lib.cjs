@@ -127,6 +127,37 @@ function validateVerification(config, file) {
   }
 }
 
+/**
+ * The host a config is written for, which decides the agent names the scripts print. A
+ * declared `host` wins. Else config.codex.yaml, the file the Codex config role writes, is the
+ * Codex host's and any other file the Claude host's. A `roles` block names no host: the
+ * Claude config carries one for its pins too.
+ */
+function resolveHost(config, file) {
+  if (config.host === undefined) return path.basename(file) === 'config.codex.yaml' ? 'codex' : 'claude';
+  if (config.host === 'claude' || config.host === 'codex') return config.host;
+  throw new RunError(`host in ${file} must be claude or codex, not ${String(config.host) || 'empty'}.`, 'BAD_CONFIG');
+}
+
+/**
+ * A Codex role entry names the agent it pins, and the installer pins the role's model on
+ * `specsmd_inferno_<role>` alone. An entry naming any other agent would dispatch one agent
+ * on another role's pin, so it is refused.
+ */
+function validateRoles(config, file) {
+  if (config.host !== 'codex' || !config.roles || typeof config.roles !== 'object') return;
+  for (const [role, entry] of Object.entries(config.roles)) {
+    if (!entry || typeof entry !== 'object' || entry.agent === undefined) continue;
+    const agent = `specsmd_inferno_${role.replace(/-/g, '_')}`;
+    if (entry.agent !== agent) {
+      throw new RunError(
+        `roles.${role}.agent in ${file} must be ${agent}, the agent this role installs, not ${String(entry.agent) || 'empty'}.`,
+        'BAD_CONFIG'
+      );
+    }
+  }
+}
+
 function readConfig(root, selected) {
   const defaultFile = path.resolve(root, SPECS_DIR, 'config.yaml');
   const file = path.resolve(root, selected || defaultFile);
@@ -147,6 +178,8 @@ function readConfig(root, selected) {
       }
     }
   }
+  config.host = resolveHost(config, file);
+  validateRoles(config, file);
   validateVerification(config, file);
   return config;
 }
@@ -184,6 +217,15 @@ function readLedger(root) {
       // whether that item predates the rule.
       integrated_sha: field(lines, item, 'integrated_sha'),
       completed_at: field(lines, item, 'completed_at'),
+      // The item review state-review.cjs writes: the verdict, the hash of the files it bound,
+      // the commit it read, the tier that built that version and how often that tier was
+      // sent back. integrate, frontier and review read this one shape.
+      review: field(lines, item, 'review'),
+      review_hash: field(lines, item, 'review_hash'),
+      review_commit: field(lines, item, 'review_commit'),
+      review_tier: field(lines, item, 'review_tier'),
+      review_rejections: Number(field(lines, item, 'review_rejections')) || 0,
+      reviewed_at: field(lines, item, 'reviewed_at'),
       depends_on: listValues(lines, item, 'depends_on'),
     })),
   }));

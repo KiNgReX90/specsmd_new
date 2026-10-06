@@ -15,6 +15,7 @@ const USAGE = `INFERNO state.yaml single-writer
   node state-transition.cjs unblock-intent --intent <id>
   node state-transition.cjs complete-item --intent <id> --item <id> --proof <sha>
   node state-transition.cjs close-intent  --intent <id>
+  node state-transition.cjs review-item --intent <id> --item <id> --verdict clean|fix --files-hash <hex> --tier cheap|strong|escalate --commit <sha>
   node state-transition.cjs archive-intent [--intent <id>] [--sweep]
   node state-transition.cjs check [--intent <id>]
 
@@ -42,7 +43,8 @@ them from the remaining intents' depends_on_intents, and refuses anything not co
 --sweep adds every other completed intent except one another session is still shipping.
 complete-item refuses an item with no integration proof. run.cjs integrate --item <id> runs the
 checks on the committed tree and passes the sha they proved, so nothing is marked verified that
-nothing verified. close-intent refuses while any work item is still open; complete each item first.
+nothing verified. It also refuses an item whose review is not clean. review-item records that
+verdict, and run.cjs review --item is its one caller. close-intent refuses while any work item is still open; complete each item first.
 check exits 1 when the ledger drifts from its work items, when a one-item intent does not say on
 an INTENT. line why one builder could not do it directly, when .specs-inferno/quick-fixes.md
 exists beside it (nothing builds from a parking file).`;
@@ -71,7 +73,7 @@ function parseArgs(argv) {
 function main(argv, commands) {
   const {
     claimIntent, unclaimIntent, blockIntent, unblockIntent, completeItem, closeIntent,
-    archiveIntent, check,
+    archiveIntent, check, reviewItem,
   } = commands;
   const { command, options } = parseArgs(argv);
 
@@ -142,6 +144,20 @@ function main(argv, commands) {
           `integrated ${result.integrated_sha}${result.markdown ? ` + synced ${result.markdown}` : ''}\n`
       );
     } else process.stdout.write(`${result.item} already completed. no change\n`);
+    return 0;
+  }
+
+  if (command === 'review-item') {
+    if (!options.intent || !options.item) {
+      throw new TransitionError('review-item requires --intent and --item', 'BAD_ARGS');
+    }
+    const result = reviewItem(options);
+    if (options.json) process.stdout.write(`${JSON.stringify(result)}\n`);
+    else {
+      process.stdout.write(
+        `reviewed ${result.item} ${result.verdict} (${result.tier}, ${result.rejections} rejection(s)) at ${result.reviewed_at}\n`
+      );
+    }
     return 0;
   }
 

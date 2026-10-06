@@ -1,6 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
-const { lockPath, readLock, serializeLock, entryHash, blockText } = require('./lock');
+const { declaredRules, lockPath, readLock, ruleTimes, serializeLock, entryHash, blockText } = require('./lock');
 const { checkBudget } = require('./budget');
 
 class InstallError extends Error {
@@ -194,7 +194,8 @@ async function applyInstall({ root, flowKey, staged, extras, force, version, sou
         }
 
         for (const [rel, content] of extras) await journal.write(rel, content);
-        await journal.write(lockPath(flowKey), serializeLock({ flowKey, version, sourceCommit, files }));
+        const rules = ruleTimes(oldLock, declaredRules(flowKey), new Date().toISOString());
+        await journal.write(lockPath(flowKey), serializeLock({ flowKey, version, sourceCommit, rules, files }));
 
         const refusal = checkBudget(root, { flowKey, log });
         if (refusal && refusal.code === 'BUDGET_MISSING') throw new InstallError(`the flow text budget cannot run: ${refusal.message}`, refusal.code);

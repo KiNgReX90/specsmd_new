@@ -30,7 +30,7 @@ Paths: state `.specs-inferno/state.yaml`, intents `.specs-inferno/intents/{id}/`
 
 Read the brief once and each item spec once. Never re-read a file you hold unless something changed it, and never read a file back after your own edit. Batch independent calls into one round, starting with `run.cjs select`, `.specs-inferno/config.yaml`, `date -u` and the halt flag. Give each destructive or outward step its own round, precondition checked first. A status transition is never deferred: a ledger write left to the end of a run dies with the run.
 
-`.specs-inferno/config.yaml` keeps this file portable, `run.cjs` reads it for its own steps, and every key is optional. You use `models.strong` and `models.cheap` for the builder tiers, and `dispatch.constraints` for lines pasted verbatim into every dispatch. `verification.finalize` with `finalize_scopes`, `verification.integrate`, `worktree.bootstrap`, `delivery.*` and `halt.*` steer the scripts; `config.example.yaml` documents them all.
+`.specs-inferno/config.yaml` keeps this file portable, `run.cjs` reads it for its own steps, and every key is optional. You use `models.*` for the builder tiers, and `dispatch.constraints` for lines pasted verbatim into every dispatch. `verification.finalize` with `finalize_scopes`, `verification.integrate`, `worktree.bootstrap`, `delivery.*` and `halt.*` steer the scripts; `config.example.yaml` documents them all.
 
 ## The run
 
@@ -55,9 +55,7 @@ A builder is cold and loads none of your skills, so every dispatch carries all o
 - **The verification budget, small and explicit.** The one spec, test file or command this item changes, plus the project's cheap checks. Full suites are yours at the gate, and a builder never runs one or polls for one.
 - **The result contract**, with no slot for "residual risks", the slot a builder fills by parking a defect.
 - **Reader-facing text.** An item writing a string a reader sees follows the project's copy discipline and reads the reader profile it names.
-- **Model.** `models.strong` or `models.cheap` verbatim as the dispatch override, never your own idea of a strong or cheap model. Effort comes from the builder's frontmatter, and no config means no tiering.
-
-Tier by the rule the planner grades against: cheap when complexity is low or kind is test, docs-only, config-only or config; strong otherwise. A cheap build that fails integration review once is re-dispatched to the strong tier with the findings, never corrected twice on the cheap tier.
+- **Model.** The model `frontier` prints beside the tier, verbatim as the dispatch override, never your own idea of a model. Effort comes from the agent's frontmatter.
 
 Never dispatch two items whose `ownership.editable` overlaps, and serialize items sharing a compile tree even when their files are disjoint. Never dispatch a builder that will have to hand back a file the frontier already named as its candidate. The unit of cost is the dispatch, so collapse a serial chain of small items into one dispatch of two to four, verified once at the end. A chain that applies one mechanism to several surfaces (one rule on three screens, one swap in four components) is one dispatch whatever its grade, on the tier of its highest item, because a second cold builder re-learns what the first settled. Never batch items whose mechanisms differ when one is high, never two tiers, and never across a point where a disjoint item could run in parallel.
 
@@ -67,14 +65,15 @@ A builder returns one YAML block per item, in dependency order for a batch: `wor
 
 Review a `ready` result from three things: the result block, `run.cjs verify-item {item-id} --tree {path}` (the item's check plus any file changed outside its ownership, exit 2 on either; a batch you dispatched as one is reviewed as one with `verify-item --items {a,b}`, whose ownership is the union of its items), and `git diff --stat`. Open a changed file only when one of those raises a question, then read the mechanism rather than every line. A diff size that does not fit the task, an invariant the builder claims, and an API it called are questions until you have grepped them or read that API's own doc comment, where the real catches live.
 
-Read `notes` as corrections rather than facts. A defect the builder saw and left, a "residual" or a "product call" is postponed work, and that builder's context is still warm. Send it back to the SAME builder with a message, never a cold re-dispatch and never a hand-patch: the defect with its evidence, the structural fix you want, the minimal ownership extension, what to re-verify. Two defensible answers go to the oracle first and come back as its decision.
+Read `notes` as corrections rather than facts. A defect the builder saw and left, a "residual" or a "product call" is postponed work, and that builder's context is still warm. Send it back to the SAME builder with a message, never a cold re-dispatch a review `next` line did not name and never a hand-patch: the defect with its evidence, the structural fix you want, the minimal ownership extension, what to re-verify. Two defensible answers go to the oracle first and come back as its decision.
 
 Then integrate, in this order:
 
 1. Stage this item's files, never `git add -A`, and commit on the intent branch. In `merge-request` mode the item lands through `inferno-item/{intent-id}/{item-id}` and a non-blocking merge request.
-2. `run.cjs integrate --item {item-id} --tree {path}`, or `--items {a,b}` for a chain you dispatched as one. It folds the base branch in, runs `verification.integrate` and only then completes the item with the sha those checks proved and commits that ledger line. No browser run happens per item: the browser suite is in `verification.finalize` and runs once per intent, because a selection cost as much as the whole suite and the gate ran the whole suite again anyway. Exit 2 names the failing command and its log: that red goes back to the builder whose item is on the tree as a correction, warm, and the item's next commit closes it. A fold conflict is named and yours to resolve so both sides' goals survive.
-3. Never complete an item by hand. `complete-item` refuses without the proof integrate passes it, so a run interrupted between the commit and the checks releases no successor and the frontier holds the chain where it stopped.
-4. Run `run.cjs frontier` again and dispatch what it unblocked.
+2. `run.cjs review --item {item-id} --tree {path}`: the item's cold review, before integrate.
+3. `run.cjs integrate --item {item-id} --tree {path}`, or `--items {a,b}` for a chain you dispatched as one. It folds the base branch in, runs `verification.integrate` and only then completes the item with the sha those checks proved and commits that ledger line. No browser run happens per item: the browser suite is in `verification.finalize` and runs once per intent, because a selection cost as much as the whole suite and the gate ran the whole suite again anyway. Exit 2 names the failing command and its log: that red goes back to the builder whose item is on the tree as a correction, warm, and the item's next commit closes it. A fold conflict is named and yours to resolve so both sides' goals survive.
+4. Never complete an item by hand. `complete-item` refuses without the proof integrate passes it, so a run interrupted between the commit and the checks releases no successor and the frontier holds the chain where it stopped.
+5. Run `run.cjs frontier` again and dispatch what it unblocked.
 
 Report one line per landing in plain language: what it means for the product, what runs next.
 

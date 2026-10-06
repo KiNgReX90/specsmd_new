@@ -15,10 +15,15 @@ function gitFields(tree, args) {
   return result.stdout.split('\0').filter(Boolean);
 }
 
-/** Hash the effective code contents under a command's globs. */
-function scopeHash(tree, scope) {
+/**
+ * Hash the effective code contents under a command's globs. With `exact`, the scope is a list
+ * of literal paths instead, which is how an item review binds exactly the files it read: a
+ * glob without a slash would match the same name in every folder.
+ */
+function scopeHash(tree, scope, options = {}) {
+  const inScope = (file) => (options.exact ? scope.includes(file) : lib.matchesAny(file, scope));
   const included = (file) => file !== lib.SPECS_DIR && !file.startsWith(`${lib.SPECS_DIR}/`) &&
-    (!scope || lib.matchesAny(file, scope));
+    (!scope || inScope(file));
   const entries = new Map();
   for (const row of gitFields(tree, ['ls-tree', '-rz', 'HEAD'])) {
     const separator = row.indexOf('\t');
