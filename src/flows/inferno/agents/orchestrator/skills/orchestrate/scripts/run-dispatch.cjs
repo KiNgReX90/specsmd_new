@@ -3,9 +3,10 @@
 /**
  * Dispatch records. `dispatch-log` records a snapshot of the tree immediately before a builder
  * starts, and `accept-dispatch` freezes the result the orchestrator accepted. verify-item
- * attributes every changed path against them (run-attribute.cjs, run-peers.cjs). Without them a
- * parallel round showed every sibling's uncommitted edit as outside the item under review, and
- * nothing tied a builder's reported files to what it actually changed.
+ * attributes every changed path against them (run-attribute.cjs, run-peers.cjs), and the
+ * snapshots are taken in run-snapshot.cjs. Without them a parallel round showed every sibling's
+ * uncommitted edit as outside the item under review, and nothing tied a builder's reported files
+ * to what it actually changed.
  *
  * One record may cover a serial chain (`--items a,b`): one builder builds the chain in order,
  * so files its items share are no overlap. A correction or a re-dispatch gets its own record that
@@ -21,43 +22,11 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync } = require('child_process');
 
 const lib = require('./run-lib.cjs');
-const { atomicWrite, withStateLock } = require('./state-store.cjs');
+const snapshots = require('./run-snapshot.cjs');
 
-const { RunError } = lib;
-
-function stable(value) {
-  if (Array.isArray(value)) return value.map(stable);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-  }
-  return value;
-}
-
-function hash(value) {
-  return crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(stable(value))).digest('hex');
-}
-
-function refuse(message) {
-  return new RunError(message, 'DISPATCH_PROOF');
-}
-
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
-    return null;
-  }
-}
-
-function gitNames(tree, args) {
-  const out = execFileSync('git', [...args, '-z'], {
-    cwd: tree, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return out.split('\0').filter(Boolean);
-}
+const { dispatchDirectory, hash, readJson, refuse, sequencedSnapshot, snapshotDelta, stable } = snapshots;
 
 function key(tree, create = false) {
   const file = path.join(lib.cacheDir(tree), 'proof-key');
@@ -80,97 +49,6 @@ function signature(body, secret) {
   return crypto.createHmac('sha256', secret).update(JSON.stringify(stable(body))).digest('hex');
 }
 
-/** One path's identity: a file by content, a link by target, a submodule by its commit. */
-function entryOf(target) {
-  let stat;
-  try {
-    stat = fs.lstatSync(target);
-  } catch (error) {
-    if (error.code === 'ENOENT') return null;
-    throw error;
-  }
-  if (stat.isSymbolicLink()) return { kind: 'symlink', hash: hash(fs.readlinkSync(target)), executable: false };
-  if (stat.isFile()) {
-    const content = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
-    return { kind: 'file', hash: content, executable: Boolean(stat.mode & 0o111) };
-  }
-  if (stat.isDirectory()) {
-    const head = fs.existsSync(path.join(target, '.git')) ? lib.git(target, ['rev-parse', 'HEAD'], { tolerate: true }) : null;
-    return { kind: 'commit', hash: head || null, executable: false };
-  }
-  throw refuse(`cannot snapshot ${target}: not a file, a link or a submodule`);
-}
-
-/** `info/exclude` as git names it: shared by every worktree of the repository. */
-const excludeFile = (tree) => lib.git(tree, ['rev-parse', '--git-path', 'info/exclude']);
-
-/**
- * The untracked paths `info/exclude` hides, by identity, a folder it hides whole as `folder/`.
- * git also lists a folder whose only contents are hidden files, beside those files: that folder
- * entry is dropped.
- */
-function hiddenPaths(tree) {
-  const exclude = path.resolve(tree, excludeFile(tree));
-  const hidden = {};
-  if (!fs.existsSync(exclude)) return hidden;
-  const listed = gitNames(tree, ['ls-files', '--others', '--ignored', '--directory', `--exclude-from=${exclude}`]);
-  for (const file of listed) {
-    if (!file.endsWith('/')) hidden[file] = entryOf(path.join(tree, file));
-    else if (!listed.some((other) => other !== file && other.startsWith(file))) hidden[file] = { kind: 'folder' };
-  }
-  return hidden;
-}
-
-/**
- * Every tracked and untracked path by identity, so uncommitted builder output is captured too,
- * and apart from them the paths `info/exclude` hides, so a line added there hides nothing.
- */
-function captureSnapshot(tree) {
-  const files = {};
-  for (const file of [...new Set(gitNames(tree, ['ls-files', '--cached', '--others', '--exclude-standard']))].sort()) {
-    files[file] = entryOf(path.join(tree, file));
-  }
-  return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files), hidden: hiddenPaths(tree) };
-}
-
-/**
- * A snapshot a record stores, numbered from the tree's sequence under the ledger's lock, so
- * the snapshots of every dispatch of one tree line up in the order they were taken.
- */
-function sequencedSnapshot(tree) {
-  const file = path.join(dispatchDirectory(tree), 'sequence');
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  return withStateLock(file, () => {
-    const seq = (Number.parseInt(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '0', 10) || 0) + 1;
-    atomicWrite(file, `${seq}\n`);
-    return { ...captureSnapshot(tree), seq };
-  });
-}
-
-/** A path's identity in a snapshot, read from the hidden paths when `info/exclude` hid it. */
-const entryIn = (snapshot, file) => snapshot.files[file] || (snapshot.hidden || {})[file] || null;
-const identity = (snapshot, file) => {
-  const entry = entryIn(snapshot, file);
-  return entry ? `${entry.kind} ${entry.hash} ${entry.executable ? 'x' : '-'}` : 'none';
-};
-const same = (left, right, file) => identity(left, file) === identity(right, file);
-
-function checkSnapshot(snapshot) {
-  if (!snapshot || snapshot.version !== 1 || !snapshot.files || snapshot.digest !== hash(snapshot.files) ||
-      !/^[a-f0-9]{40,64}$/.test(snapshot.head_sha || '')) {
-    throw refuse('dispatch baseline or accepted snapshot is missing or changed');
-  }
-  return snapshot;
-}
-
-/** Paths whose identity differs between two snapshots, the snapshots checked first unless `checked`. */
-function snapshotDelta(before, after, checked = false) {
-  if (!checked) [before, after].forEach(checkSnapshot);
-  return [...new Set([...Object.keys(before.files), ...Object.keys(after.files)])]
-    .filter((file) => !same(before, after, file))
-    .sort();
-}
-
 function exactPaths(paths) {
   const exact = (file) => typeof file === 'string' && !path.posix.isAbsolute(file) &&
     path.posix.normalize(file) === file && !file.startsWith('../') && !file.includes('\\');
@@ -182,9 +60,6 @@ function claimedPaths(record) {
   return exactPaths(record.completion && record.completion.filesModified);
 }
 
-function dispatchDirectory(tree) {
-  return path.join(lib.cacheDir(tree), 'dispatch', hash(fs.realpathSync(tree)));
-}
 function recordFile(tree, id) {
   return path.join(dispatchDirectory(tree), `${hash(id)}.json`);
 }
@@ -361,24 +236,16 @@ function currentRecords(tree) {
 }
 
 module.exports = {
+  ...snapshots,
   acceptDispatch,
-  captureSnapshot,
-  checkSnapshot,
   claimedPaths,
   coveredItems,
   currentRecords,
   effective,
-  entryIn,
-  excludeFile,
-  hash,
-  identity,
   itemsOf,
   lineage,
   loadDispatch,
   recordDispatch,
   recordFile,
-  refuse,
-  same,
-  snapshotDelta,
   validateDispatch,
 };

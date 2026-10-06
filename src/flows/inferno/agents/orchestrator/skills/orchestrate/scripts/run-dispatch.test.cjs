@@ -150,3 +150,40 @@ test('a baseline records a submodule by its commit', (t) => {
   const record = accept(f, 'a', []);
   assert.deepEqual(verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['vendor/lib']);
 });
+
+test('a dispatch snapshot waits while another of the same tree holds the sequence, and names the holder when it gives up', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  const lock = path.join(proof.dispatchDirectory(f.tree), 'sequence.lock');
+  const hold = () => {
+    fs.mkdirSync(path.dirname(lock), { recursive: true });
+    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: null, since: 'a moment ago', token: 'holder' }));
+  };
+  hold();
+  let polls = 0;
+  const snapshot = proof.sequencedSnapshot(f.tree, { sleep: () => { polls += 1; if (polls === 3) fs.rmSync(lock); } });
+  assert.equal(polls, 3);
+  assert.equal(snapshot.seq, 1);
+  const gone = require('node:child_process').spawnSync(process.execPath, ['-e', '']).pid;
+  fs.writeFileSync(lock, JSON.stringify({ pid: gone, start: null, since: 'a moment ago', token: 'gone' }));
+  assert.equal(proof.sequencedSnapshot(f.tree, { wait: 0, sleep: () => {} }).seq, 2);
+  if (fs.existsSync('/proc/self/stat')) {
+    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: 'an earlier process', since: 'a moment ago', token: 'reused' }));
+    assert.equal(proof.sequencedSnapshot(f.tree, { wait: 0, sleep: () => {} }).seq, 3);
+  }
+  hold();
+  assert.throws(() => proof.sequencedSnapshot(f.tree, { wait: 0, sleep: () => {} }),
+    new RegExp(`sequence lock ${lock.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} is held by pid ${process.pid}[\\s\\S]*run this step again`));
+});
+
+test('a warm snapshot takes an unchanged file from the tree\'s index and reads a changed one again', (t) => {
+  const f = fixture(t); const proof = require('./run-dispatch.cjs');
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+  proof.sequencedSnapshot(f.tree);
+  const index = path.join(proof.dispatchDirectory(f.tree), 'index.json');
+  const stored = JSON.parse(fs.readFileSync(index, 'utf8'));
+  stored['src/a.ts'].hash = 'from the index';
+  fs.writeFileSync(index, JSON.stringify(stored));
+  assert.equal(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');
+  f.write('src/a.ts', 'changed');
+  assert.notEqual(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');
+});

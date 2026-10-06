@@ -26,8 +26,8 @@ function seqOf(snapshot) {
 /**
  * The windows the attempts of a peer lineage ran in. An accepted attempt runs from its baseline
  * to its acceptance and claims what it changed. An attempt nobody accepted runs until the next
- * attempt started and claims nothing itself. A path an attempt carried is claimed by every
- * attempt before it in the lineage.
+ * attempt started, and claims what the attempts after it claim, back to the nearest accepted
+ * one. A path an attempt carried is claimed by every attempt before it in the lineage.
  */
 function windows(tree, peer) {
   const members = dispatch.lineage(tree, peer);
@@ -35,6 +35,16 @@ function windows(tree, peer) {
   const next = new Map();
   for (const member of members) for (const id of member.previous || []) next.set(id, member);
   const claims = new Map(members.map((member) => [member, new Set(member.phase === 'accepted' ? dispatch.claimedPaths(member) : [])]));
+  for (const member of members.filter((entry) => entry.phase === 'accepted')) {
+    const reported = [...dispatch.claimedPaths(member), ...(member.completion.carried || [])];
+    const queue = [...(member.previous || [])];
+    while (queue.length > 0) {
+      const prior = byId.get(queue.shift());
+      if (!prior || prior.phase === 'accepted') continue;
+      for (const file of reported) claims.get(prior).add(file);
+      queue.push(...(prior.previous || []));
+    }
+  }
   for (const member of members.filter((entry) => entry.phase === 'accepted' && (entry.completion.carried || []).length)) {
     const queue = [...(member.previous || [])];
     const seen = new Set();

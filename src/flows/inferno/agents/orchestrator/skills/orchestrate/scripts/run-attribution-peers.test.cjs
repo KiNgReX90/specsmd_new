@@ -348,3 +348,56 @@ test('an attempt nobody accepted claims what its successor carried only until th
   assert.equal(result.code, 2, result.out);
   assert.deepEqual(result.data.outside, ['a.test.cjs']);
 });
+
+test('a retry that edits again what a blocked attempt wrote keeps a sibling\'s review clean', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
+  f.start('--item', 'a');
+  const two = f.start('--item', 'b');
+  f.write('f.cjs', 'partial\n');
+  f.write('a.cjs', 'first attempt\n');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.accepted(two, ['b.cjs']);
+  const retry = f.start('--item', 'a');
+  f.write('f.cjs', 'module.exports = 1;\n');
+  f.write('a.cjs', 'retry\n');
+  f.accepted(retry, ['a.cjs', 'f.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(result.data.outside, []);
+  const g = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
+  const first = g.start('--item', 'a');
+  const other = g.start('--item', 'b');
+  g.write('f.cjs', 'partial\n');
+  g.write('a.cjs', 'first attempt\n');
+  g.accepted(first, ['a.cjs']);
+  g.write('b.cjs', 'module.exports = 2;\n');
+  g.accepted(other, ['b.cjs']);
+  const fix = g.start('--item', 'a');
+  g.write('f.cjs', 'module.exports = 1;\n');
+  g.accepted(fix, ['f.cjs']);
+  assert.deepEqual(g.verify('b').data.outside, ['f.cjs']);
+  g.accepted(g.start('--item', 'a'), ['a.cjs', 'f.cjs']);
+  assert.deepEqual(g.verify('b').data.outside, []);
+});
+
+test('an escape a peer built on and that is later written back is still named', (t) => {
+  const f = fixture(t, { p: ['p.cjs', 'f.cjs'], b: ['b.cjs'] });
+  const one = f.start('--item', 'p');
+  const two = f.start('--item', 'b');
+  f.write('p.cjs', 'p1\n');
+  f.accepted(one, ['p.cjs']);
+  f.write('b.cjs', 'b\n');
+  f.write('f.cjs', 'escape by b\n');
+  f.accepted(two, ['b.cjs']);
+  const fix = f.start('--item', 'p');
+  f.write('f.cjs', 'escape by b\np2\n');
+  f.accepted(fix, ['f.cjs']);
+  f.land('p.cjs', 'f.cjs', 'b.cjs');
+  const later = f.start('--item', 'b');
+  f.write('b.cjs', 'b fixed\n');
+  f.write('f.cjs', 'module.exports = 1;\n');
+  f.accepted(later, ['b.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['f.cjs']);
+});
