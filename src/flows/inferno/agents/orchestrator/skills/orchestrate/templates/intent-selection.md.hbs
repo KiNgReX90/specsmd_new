@@ -30,6 +30,12 @@ Blocked (waiting on prerequisites, not selectable):
   - {{id}} · waits on: {{waits_on}}
 {{/each}}
 {{/if}}
+{{#if parked}}
+Parked (blocked until someone unblocks it, not selectable):
+{{#each parked}}
+  - {{id}} · waits on: {{reason}}
+{{/each}}
+{{/if}}
 {{#if single}}
 Run this intent with the orchestrator? [Y/n]
 {{else}}

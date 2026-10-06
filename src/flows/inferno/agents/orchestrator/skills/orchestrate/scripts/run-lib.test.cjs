@@ -231,3 +231,14 @@ test('the shell builtin test is a probe, never a heavy command for the wrapper q
   assert.equal(lib.isHeavy('node --test scripts/x.test.mjs'), true);
   assert.equal(lib.isHeavy('test -f src/a.ts && npm run build'), true);
 });
+
+test('an ownership entry written as a folder with a trailing slash owns the files under it', () => {
+  // verify-item held `src/scan/` against `src/scan/mod.rs` as outside ownership, because its
+  // own copy of this check tested for `src/scan//`.
+  assert.equal(lib.ownedBy('src/scan/mod.rs', ['src/scan/']), true);
+  assert.equal(lib.ownedBy('src/scan/deep/a.rs', ['src/scan']), true);
+  assert.equal(lib.ownedBy('src/scan', ['src/scan']), true);
+  assert.equal(lib.ownedBy('src/scanner.rs', ['src/scan/']), false);
+  assert.equal(lib.ownedBy('src/scanner.rs', ['src/scan']), false);
+  assert.equal(lib.ownedBy('src/a.rs', undefined), false);
+});

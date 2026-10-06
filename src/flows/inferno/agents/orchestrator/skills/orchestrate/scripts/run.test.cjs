@@ -662,7 +662,8 @@ test("gate refuses a dirty tree", () => {
 test("a ledger-only commit keeps the tree green, a code commit does not", () => {
   const fixture = repo();
   const { tree } = opened(fixture);
-  run(fixture, ["gate", "--tree", tree]);
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 0, gate.out + gate.err);
   fs.appendFileSync(path.join(tree, ".specs-inferno/state.yaml"), "# bookkeeping\n");
   git(tree, ["commit", "-qam", "bookkeeping"]);
   assert.equal(run(fixture, ["green", "--tree", tree]).code, 0);
@@ -716,19 +717,28 @@ test("gate --detach starts the gate in its own process and --wait reports it gre
   assert.equal(run(fixture, ["green", "--tree", tree]).code, 0);
 });
 
+// The gate's command waits for the test to let it go rather than for a clock: two seconds of
+// sleep ran out before the early --wait on a loaded box, so the gate had finished and the
+// "still running" answer never came.
 test("gate --wait exits 4 while the gate still runs, refuses a second start, and finishes on the next call", () => {
-  const fixture = repo({ config: SLOW });
+  const release = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "inferno-hold-")), "release");
+  const held = `until [ -f ${release} ]; do sleep 0.1; done; echo held`;
+  const fixture = repo({ config: CONFIG.replace("    - echo always", `    - ${held}`) });
   const { tree } = opened(fixture);
-  assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
-  const second = run(fixture, ["gate", "--tree", tree, "--detach"]);
-  assert.equal(second.code, 2);
-  assert.match(second.out + second.err, /already running/);
-  const early = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.01"]);
-  assert.equal(early.code, 4, early.out + early.err);
-  assert.match(early.out, /still running pid \d+/);
+  try {
+    assert.equal(run(fixture, ["gate", "--tree", tree, "--detach"]).code, 0);
+    const second = run(fixture, ["gate", "--tree", tree, "--detach"]);
+    assert.equal(second.code, 2);
+    assert.match(second.out + second.err, /already running/);
+    const early = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.01"]);
+    assert.equal(early.code, 4, early.out + early.err);
+    assert.match(early.out, /still running pid \d+/);
+  } finally {
+    fs.writeFileSync(release, "");
+  }
   const done = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]);
   assert.equal(done.code, 0, done.out + done.err);
-  assert.match(done.out, /PASS \d+s sleep 2; echo slow/);
+  assert.match(done.out, /PASS \d+s until .*; echo held/);
 });
 
 test("gate --wait reports a red gate with the failing command and its log", () => {
@@ -829,7 +839,8 @@ test("ship refuses an intent that is not closed", () => {
 test("ship refuses when the primary checkout is not on the base branch", () => {
   const fixture = repo();
   const { tree } = closed(fixture);
-  run(fixture, ["gate", "--tree", tree]);
+  const gate = run(fixture, ["gate", "--tree", tree]);
+  assert.equal(gate.code, 0, gate.out + gate.err);
   git(fixture.root, ["checkout", "-q", "-b", "sidetrack"]);
   const result = run(fixture, ["ship", "alpha", "--tree", tree]);
   assert.equal(result.code, 2);

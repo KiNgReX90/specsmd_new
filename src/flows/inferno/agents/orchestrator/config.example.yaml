@@ -23,6 +23,8 @@ verification:
     - npm run check
     - cargo test --workspace
     - npm run test:e2e
+  integrate:                      # optional: the cheap checks, run by `run.cjs integrate` after every item lands, on the committed tree with the base folded in; a red goes back to the warm builder instead of waiting for the gate
+    - npm run check
   finalize_scopes:                # optional: a listed command runs only when the diff since the merge base touches a matching path, an unlisted command always runs
     "cargo test --workspace": ["src-tauri/**", "Cargo.*"]
     "npm run test:e2e": ["src/**", "src-tauri/**", "e2e/**", "package.json", "package-lock.json", "playwright.config.*"]
