@@ -17,7 +17,8 @@ const writer = require('./state-transition.cjs');
 const { frontier, tierOf } = require('./run-frontier.cjs');
 const { archivePaths, archivedIds } = require('./state-archive.cjs');
 const { PARKED_VALUES } = require('./state-ledger.cjs');
-const { branchesFor, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
+const { bootstrap, branchesFor, intentOf, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
+const { recordOwnership } = require('./run-processes.cjs');
 const { ownership } = require('./run-owner.cjs');
 const { resolveBudget } = require('./run-budget.cjs');
 
@@ -287,41 +288,35 @@ function worktree(intentId, options) {
   const ledger = lib.readLedger(root);
   const intent = lib.findIntent(ledger, intentId);
 
+  // An existing worktree is a resume: it still runs the bootstrap phases a failed or
+  // interrupted setup left owed, and skips the ones that completed.
   const open = worktreeFor(root, intentId);
-  if (open) {
-    return {
-      exit: 0,
-      payload: { created: false, path: open.path, branch: open.branch },
-      out: [`resume ${open.path}`, `branch ${open.branch}`],
-    };
+  // A claimed branch is adopted only when it names this intent's run; otherwise the tree gets
+  // a stamped branch of its own, which the ownership record can recognise.
+  const claimed = intentOf(intent.claimed_by) === intentId ? intent.claimed_by : null;
+  const branch = open ? open.branch : claimed || `inferno-intent/${intentId}-${lib.stamp()}`;
+  const target = open ? open.path : options.path || path.join(path.dirname(root), `${path.basename(root)}-inferno-${intentId}`);
+  if (!open) {
+    if (fs.existsSync(target)) throw new RunError(`refusing to open ${target}: the path already exists`, 'PATH_TAKEN');
+    const exists = lib.git(root, ['rev-parse', '--verify', '--quiet', branch], { tolerate: true });
+    lib.git(root, exists ? ['worktree', 'add', target, branch] : ['worktree', 'add', target, '-b', branch]);
   }
+  recordOwnership(target, { intent: intentId, run_id: intent.claimed_by || branch });
 
-  const claimed = intent.claimed_by && intent.claimed_by.startsWith('inferno-intent/') ? intent.claimed_by : null;
-  const branch = claimed || `inferno-intent/${intentId}-${lib.stamp()}`;
-  const target = options.path || path.join(path.dirname(root), `${path.basename(root)}-inferno-${intentId}`);
-  if (fs.existsSync(target)) throw new RunError(`refusing to open ${target}: the path already exists`, 'PATH_TAKEN');
-
-  const exists = lib.git(root, ['rev-parse', '--verify', '--quiet', branch], { tolerate: true });
-  lib.git(root, exists ? ['worktree', 'add', target, branch] : ['worktree', 'add', target, '-b', branch]);
-
-  const out = [`worktree ${target}`, `branch ${branch}`];
-  const bootstrap = (config.worktree && config.worktree.bootstrap) || [];
-  for (const [index, command] of bootstrap.entries()) {
-    const log = path.join(lib.cacheDir(root), 'bootstrap', `${intentId}-${index}.log`);
-    const result = lib.runShell(command, target, log, { wrap: false });
-    out.push(`bootstrap ${result.code === 0 ? 'PASS' : 'FAIL'} ${result.seconds}s ${command}`);
-    if (result.code !== 0) {
-      out.push(...lib.tail(log, 5));
-      return { exit: 2, payload: { created: true, path: target, branch, bootstrap: 'failed', log }, out };
-    }
+  const out = [`${open ? 'resume' : 'worktree'} ${target}`, `branch ${branch}`];
+  const commands = (config.worktree && config.worktree.bootstrap) || [];
+  const result = bootstrap(target, intentId, commands, { root, runShell: options.runShell });
+  for (const run of result.results) out.push(`bootstrap ${run.code === 0 ? 'PASS' : 'FAIL'} ${run.seconds}s ${run.command}`);
+  const payload = { created: !open, path: target, branch, bootstrap: result.ok ? 'complete' : 'failed' };
+  if (result.log) {
+    out.push(...lib.tail(result.log, 5));
+    return { exit: 2, payload: { ...payload, log: result.log }, out };
   }
-
-  const dirty = lib.dirtyPaths(target);
-  if (dirty.length > 0) {
-    out.push(`dirty after bootstrap: ${dirty.slice(0, 5).join(', ')}`);
-    return { exit: 2, payload: { created: true, path: target, branch, dirty }, out };
+  if (result.dirty) {
+    out.push(`dirty after bootstrap: ${result.dirty.slice(0, 5).join(', ')}`);
+    return { exit: 2, payload: { ...payload, dirty: result.dirty }, out };
   }
-  return { exit: 0, payload: { created: true, path: target, branch }, out };
+  return { exit: 0, payload, out };
 }
 
 // ---------------------------------------------------------------------------
