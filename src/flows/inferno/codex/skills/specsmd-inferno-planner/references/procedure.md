@@ -82,15 +82,22 @@ ownership:
   editable:
     - src/app/foo.ts
     - src/app/foo.spec.ts
-probes:               # optional, read-only measurements the plan depends on
+probes:               # optional
   - run: "git grep -c 'border-radius' src/lib/board/tile.css"
     shows: "4"
-reads:                # optional, only when the surface draws a value the backend owns
+reads:                # optional
   - path: src/app/foo.ts
     source: the backend command, store row or event behind the value
     when: every moment the surface reads it again
     stale: what the user sees on screen if it never reads again
-diagnosis:            # required on a corrective ui or behavior item
+provides:             # optional, kind command, table or event
+  - kind: command
+    name: save_item
+consumes:             # optional, seam required for command and event
+  - kind: command
+    name: save_item
+    seam: e2e/save.spec.ts
+diagnosis:            # required on corrective items
   claim: "the shelf foot adds 104 px under the board at 960"
   probe: "npx playwright test e2e/dashboard.spec.ts -g 'the board fits'"
   shows: "1 failed"
@@ -101,7 +108,7 @@ Also decide id, title, kind, complexity, acceptance criteria, `depends_on`, exac
 ### Contract rules
 
 - `context.required` and `ownership.editable` are always non-empty. Patterns are required for behavior, architecture, UI and API work. Tests are required unless the item is explicitly docs-only or config-only.
-- `reads:` is optional. An item whose surface draws a value the backend owns carries one entry per value, each with a non-empty `path`, `source`, `when` and `stale`; an item drawing nothing from the backend omits the field. The `stale` sentence names what the user sees when the surface never reads again, because that is what the builder's first failing test asserts.
+- `reads:` is optional. An item whose surface draws a value the backend owns carries one entry per value; an item drawing nothing from the backend omits the field. The `stale` sentence names what the user sees when the surface never reads again, because that is what the builder's first failing test asserts.
 - `probes:` is optional. Every number the plan depends on becomes a probe on the item that depends on it. `run` is one read-only shell line, never a suite and never a write; `shows` is the exact trimmed stdout that was seen. Both are double-quoted. A probe is never an acceptance criterion: the orchestrator reruns it with `run.cjs probes <item-id> --tree <dir>` and hands the drift to the builder.
 - `diagnosis:` is required on a ui or behavior item that exists because something is wrong on the screen today. `claim` is the cause in one sentence, `probe` the bare command that shows it, `shows` the line it printed. A pixel or position claim comes from browser geometry, never from adding up declarations. `run.cjs frontier` replays it and blocks the dispatch on a missing block, a failing probe or output that no longer matches.
 - Dependencies are known and acyclic.

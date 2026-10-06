@@ -114,19 +114,26 @@ context:
 ownership:
   editable:
     - src/app/foo.ts
-reads:                        # optional, only when the surface draws a value the backend owns
+reads:                        # optional
   - path: src/app/foo.ts
     source: the backend call, store row, file or event behind the value
     when: every moment the surface reads it again
     stale: what the user sees on screen if it never reads again
-probes:                       # optional, read-only measurements the plan depends on
+provides:                     # optional, command, table or event
+  - kind: command
+    name: save_item
+consumes:                     # optional, seam required for command and event
+  - kind: command
+    name: save_item
+    seam: e2e/save.spec.ts
+probes:                       # optional
   - run: "git grep -c 'border-radius' src/lib/board/tile.css"
     shows: "4"
-diagnosis:                    # required on a corrective ui or behavior item
+diagnosis:                    # required on corrective items
   claim: "the shelf foot adds 104 px under the board at 960"
   probe: "npx playwright test e2e/dashboard.spec.ts -g 'the board fits'"
   shows: "1 failed"
-design_contract:              # optional, only when the item reproduces a design source
+design_contract:              # optional
   - path: mockups/foo.html
     reason: authoritative design, match every value exactly
 finalize_check: "<one-line invariant the orchestrator runs>"   # optional

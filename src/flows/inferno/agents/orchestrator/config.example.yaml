@@ -54,6 +54,12 @@ doubles:                          # optional: refuses a branch that raises the c
   paths: ['e2e/**']
   exclude: ['e2e/contract.ts']
 
+wiring:                           # optional: per kind (command, table or event), the host file that registers it; frontier refuses an item that consumes one no item of its intent provides and this file does not register; a --config file inherits it
+  command:
+    file: src-tauri/src/commands/mod.rs
+    within: 'generate_handler!\[([\s\S]*?)\]'   # a regex in single quotes; its last group is the registering block
+    name: '(?:\w+::)*(\w+)'                     # a regex run over that block; its last group is one registered name
+
 worktree:
   bootstrap:                      # optional: commands run inside a fresh intent worktree before the first dispatch
     - npm ci
