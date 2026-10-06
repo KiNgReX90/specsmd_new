@@ -115,16 +115,31 @@ function reviewCommand(tree, options) {
 /**
  * The gate's refusal after its fold, or null when the review holds. `before` is HEAD before
  * the fold: when the fold moved the tree, the reviewer reads the base delta from there.
+ * `shown` are the lines the gate printed so far.
  */
-function gateRefusal(tree, config, intentId, options, before, folded) {
+function gateRefusal(tree, config, intentId, options, before, shown) {
   const state = intentReviewState(tree, config, intentId);
   if (state.owed.length === 0) return null;
-  const out = [...folded, ...state.owed.map((reason) => `intent review owed: ${reason}`)];
-  if (lib.git(tree, ['rev-parse', 'HEAD']) !== before) {
+  const out = [...shown, ...state.owed.map((reason) => `intent review owed: ${reason}`)];
+  const moved = lib.git(tree, ['rev-parse', 'HEAD']) !== before;
+  if (moved) {
     out.push(`the fold moved the tree from ${lib.git(tree, ['rev-parse', '--short', before])}; the reviewer reads the base delta from there`);
   }
   out.push(`run ${reviewCommand(tree, options)} first, then gate again`);
-  return { exit: 3, payload: { ok: false, tree, owed: ['review'], reasons: state.owed, folded: folded.length > 0 }, out };
+  return { exit: 3, payload: { ok: false, tree, owed: ['review'], reasons: state.owed, folded: moved }, out };
+}
+
+/**
+ * Whether an evidence path exists. A path inside the intent's own dir is found wherever the
+ * intent lives now: both hosts archive that dir before they merge.
+ */
+function evidenceExists(tree, intentId, rel) {
+  const live = `${lib.SPECS_DIR}/intents/${intentId}/`;
+  const archived = `${lib.SPECS_DIR}/archive/intents/${intentId}/`;
+  const candidates = [rel];
+  if (rel.startsWith(live)) candidates.push(archived + rel.slice(live.length));
+  if (rel.startsWith(archived)) candidates.push(live + rel.slice(archived.length));
+  return candidates.some((candidate) => fs.existsSync(path.join(tree, candidate)));
 }
 
 /**
@@ -141,7 +156,7 @@ function mergeOwed(tree, config, intentId) {
     out.push(...state.owed.map((reason) => `intent review owed: ${reason}`));
   }
   const missing = state.review
-    ? state.review.criteria.filter((entry) => entry.proof === 'external' && !fs.existsSync(path.join(tree, entry.evidence)))
+    ? state.review.criteria.filter((entry) => entry.proof === 'external' && !evidenceExists(tree, intentId, entry.evidence))
     : [];
   if (missing.length > 0) {
     owed.push('evidence');

@@ -125,3 +125,25 @@ test("a restore that fails exits 2 and names the file", (t) => {
   assert.equal(result.code, 2, result.out + result.err);
   assert.match(result.out + result.err, /restore.*src\/m\.js|src\/m\.js.*restore/);
 });
+
+test("a second mutate refuses while a live run holds its mutant, and the live run keeps its verdict", async (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.tree, "src/n.js"), "module.exports = 3;\n");
+  git(f.tree, "add", "-A");
+  git(f.tree, "commit", "-qm", "n");
+  const release = path.join(f.dir, "release");
+  const holdThenCheck = `until [ -f ${release} ]; do sleep 0.05; done; ${CHECK}`;
+  const child = spawn(process.execPath, args(f, holdThenCheck), { cwd: f.tree, env: env(f), stdio: ["ignore", "pipe", "ignore"] });
+  let out = "";
+  child.stdout.on("data", (chunk) => { out += chunk; });
+  const done = new Promise((resolve) => child.on("close", resolve));
+  for (let i = 0; i < 200 && content(f) === ORIGINAL; i += 1) await new Promise((r) => setTimeout(r, 25));
+  const second = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", "src/n.js", "--line", "1",
+    "--replace", "module.exports = 4;", "--test", "true"], { cwd: f.tree, encoding: "utf8", env: env(f) });
+  fs.writeFileSync(release, "");
+  await done;
+  assert.equal(second.status, 2, second.stdout + second.stderr);
+  assert.match(second.stderr, /another mutate/);
+  assert.match(out, /^caught yes$/m);
+  assert.equal(content(f), ORIGINAL);
+});

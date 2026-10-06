@@ -18,10 +18,26 @@ const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
+const { recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
 
 const short = (tree, ref) => lib.git(tree, ['rev-parse', '--short', ref]);
+
+/**
+ * The tree the reviewer was dispatched on. A record binds that tree, so a commit that lands
+ * between the dispatch and the record is never recorded as read.
+ */
+const dispatchPath = (tree) => path.join(lib.cacheDir(tree), lib.currentBranch(tree), 'intent-review-dispatch.json');
+
+function readDispatch(tree, intent) {
+  try {
+    const entry = JSON.parse(fs.readFileSync(dispatchPath(tree), 'utf8'));
+    return entry && entry.intent === intent ? entry : null;
+  } catch (error) {
+    return null;
+  }
+}
 
 function scanRefusal(tree, context, folded) {
   return {
@@ -41,6 +57,9 @@ function dispatch(tree, context, reasons, from, folded) {
   const specs = path.join(dir, 'work-items');
   const scan = owed.scanPath(tree, intent);
   const scanned = fs.existsSync(path.join(tree, scan));
+  fs.mkdirSync(path.dirname(dispatchPath(tree)), { recursive: true });
+  const at = { intent, head: lib.git(tree, ['rev-parse', 'HEAD']), hash: proofs.scopeHash(tree) };
+  fs.writeFileSync(dispatchPath(tree), `${JSON.stringify(at)}\n`);
   return {
     exit: 3,
     payload: {
@@ -87,16 +106,16 @@ function verdict(tree, context, review, head) {
   };
 }
 
-function record(tree, context) {
+function record(tree, context, commit, restored) {
   const { intent, rel } = context;
   const review = owed.parseFor(tree, rel, intent, false);
-  const commit = lib.git(tree, ['rev-parse', 'HEAD']);
   const abs = path.join(tree, rel);
   const text = fs.readFileSync(abs, 'utf8');
   fs.appendFileSync(abs, `${text.endsWith('\n') ? '' : '\n'}tree: ${proofs.scopeHash(tree)}\ncommit: ${commit}\n`);
   lib.git(tree, ['add', '--', rel]);
   lib.git(tree, ['commit', '-q', '-m', `specsmd(${intent}): intent review ${review.verdict}`, '--', rel]);
-  return verdict(tree, context, review, `intent review ${review.verdict}, recorded at ${short(tree, commit)}`);
+  const result = verdict(tree, context, review, `intent review ${review.verdict}, recorded at ${short(tree, commit)}`);
+  return { ...result, out: [...restored, ...result.out] };
 }
 
 function reviewIntent(options) {
@@ -109,6 +128,7 @@ function reviewIntent(options) {
   const pending = fs.existsSync(path.join(tree, rel)) && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   if (pending) {
     // The reviewer read this tree as it stands; folding now would bind content it never read.
+    const restored = recoverInterrupted(tree);
     const dirty = lib.dirtyPaths(tree).filter((file) => file !== rel);
     if (dirty.length > 0) {
       throw new RunError(
@@ -117,13 +137,23 @@ function reviewIntent(options) {
         'DIRTY'
       );
     }
-    if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, []);
-    return record(tree, context);
+    if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, restored);
+    const sent = readDispatch(tree, intent);
+    if (!sent || sent.hash !== proofs.scopeHash(tree)) {
+      const since = sent ? `moved since the dispatch at ${sent.head.slice(0, 7)}` : 'has no dispatch on record';
+      return {
+        exit: 3,
+        payload: { ok: false, intent, owed: 'dispatch', dispatched: sent && sent.head },
+        out: [...restored, `the code ${since}, so ${rel} reads another tree; nothing recorded`,
+          `discard the unrecorded ${rel}, then run ${owed.reviewCommand(tree, options)} for a fresh dispatch of the delta`],
+      };
+    }
+    return record(tree, context, sent.head, restored);
   }
 
-  gate.refuseDirty(tree);
+  const restored = gate.refuseDirty(tree);
   const base = options.base || resolveBase(config, null, tree);
-  const folded = gate.foldBase(tree, base);
+  const folded = [...restored, ...gate.foldBase(tree, base)];
   if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, folded);
   const state = owed.intentReviewState(tree, config, intent);
   const current = state.review && state.review.tree === proofs.scopeHash(tree);

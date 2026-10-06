@@ -26,7 +26,20 @@ function journalPath(tree) {
   return path.join(lib.cacheDir(tree), lib.currentBranch(tree), 'mutate-journal.json');
 }
 
-/** Put back a mutant an earlier run left behind when it was killed before its restore. */
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+/**
+ * Put back a mutant an earlier run left behind when it was killed before its restore. A run
+ * that is still alive owns its mutant, so the tree is refused instead of reverted under it.
+ * Every step that refuses a dirty tree calls this first, so a leftover is never committed.
+ */
 function recoverInterrupted(tree) {
   const journal = journalPath(tree);
   if (!fs.existsSync(journal)) return [];
@@ -35,6 +48,12 @@ function recoverInterrupted(tree) {
     entry = JSON.parse(fs.readFileSync(journal, 'utf8'));
   } catch (error) {
     entry = null;
+  }
+  if (entry && Number.isInteger(entry.pid) && entry.pid !== process.pid && alive(entry.pid)) {
+    throw new RunError(
+      `another mutate (pid ${entry.pid}) is running on ${entry.file}; wait for it, then run this again`,
+      'MUTATE_RUNNING'
+    );
   }
   const out = [];
   const abs = entry && path.join(tree, entry.file);
@@ -98,7 +117,7 @@ function mutate(options) {
   const { rel, abs, n, original, mutant } = target(tree, options);
   const journal = journalPath(tree);
   fs.mkdirSync(path.dirname(journal), { recursive: true });
-  fs.writeFileSync(journal, `${JSON.stringify({ file: rel, mutant: sha(mutant) })}\n`);
+  fs.writeFileSync(journal, `${JSON.stringify({ file: rel, mutant: sha(mutant), pid: process.pid })}\n`);
   // A listener replaces the default action, so a signal now waits for the restore below.
   const hold = () => {};
   for (const signal of SIGNALS) process.on(signal, hold);
@@ -106,7 +125,7 @@ function mutate(options) {
   let failed = null;
   try {
     fs.writeFileSync(abs, mutant);
-    run = lib.runShell(options.test, tree, path.join(path.dirname(journal), `mutate-${lib.stamp()}.log`));
+    run = lib.runShell(options.test, tree, path.join(path.dirname(journal), `mutate-${lib.stamp()}-${process.pid}.log`));
   } finally {
     failed = restore(tree, rel, abs, original);
     if (!failed) fs.rmSync(journal, { force: true });
@@ -126,4 +145,4 @@ function mutate(options) {
   };
 }
 
-module.exports = { mutate };
+module.exports = { mutate, recoverInterrupted };

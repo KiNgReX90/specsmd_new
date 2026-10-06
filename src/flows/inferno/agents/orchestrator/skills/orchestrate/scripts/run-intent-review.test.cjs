@@ -16,6 +16,8 @@ function opened(options) {
   const tree = worktree(fixture, INTENT_TREE);
   write(tree, "src/a.ts", "export const a = 3;\n");
   git(tree, ["commit", "-qam", "the work"]);
+  // The dispatch the reviewer answers: a record binds the tree it was dispatched on.
+  run(fixture, ["review", "--tree", tree]);
   return { fixture, tree };
 }
 
@@ -230,4 +232,33 @@ test("a mixed item owes every criterion, and a cargo mutant that names one cover
   write(tree, REVIEW, `verdict: clean\n${mutantList([["a crosses the bridge", "cargo test bridge"]])}`);
   const recorded = review(fixture, tree);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
+});
+
+test("a commit landing between the dispatch and the record is not recorded as reviewed", () => {
+  const { fixture, tree } = opened();
+  write(tree, "src/a.ts", "export const a = 5;\n");
+  git(tree, ["commit", "-qam", "landed after the dispatch"]);
+  const before = head(tree);
+  write(tree, REVIEW, "verdict: clean\n");
+  const result = review(fixture, tree);
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.match(result.out, /moved since the dispatch/);
+  assert.equal(head(tree), before);
+});
+
+test("in the intent review a number names a criterion only with its own item", () => {
+  const { fixture, tree } = covered({ "a-one": [["a is three", "a is exported"], ["src/a.test.ts"]], "a-two": [["b"], []] });
+  for (const names of [["a-two:1", "a-two:2"], ["1", "2"]]) {
+    write(tree, REVIEW, `verdict: clean\n${mutantList(names.map((name) => [name, "node --test src/a.test.ts"]))}`);
+    const refused = review(fixture, tree);
+    assert.equal(refused.code, 2, refused.out + refused.err);
+    assert.match(refused.err, /a-one owes a caught mutant for criteria 1 "a is three", 2 "a is exported"/);
+  }
+});
+
+test("an item with no test path owes no mutant", () => {
+  const { fixture, tree } = covered({ "a-one": [["a is three", "a is exported"], []], "a-two": [[], []] });
+  write(tree, REVIEW, "verdict: clean\n");
+  const result = review(fixture, tree);
+  assert.equal(result.code, 0, result.out + result.err);
 });

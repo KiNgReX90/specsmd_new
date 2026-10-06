@@ -94,3 +94,39 @@ test("green waits for the evidence of an external criterion", () => {
   assert.equal(done.code, 0, done.out + done.err);
   assert.ok(fs.existsSync(path.join(tree, evidence)));
 });
+
+test("green finds the evidence where the archive moved the intent", () => {
+  const { fixture, tree } = opened();
+  const evidence = ".specs-inferno/intents/alpha/evidence/by-hand.txt";
+  write(tree, evidence, "seen\n");
+  git(tree, ["add", "-A"]);
+  git(tree, ["commit", "-qm", "evidence"]);
+  intentReviewed(tree, "alpha", `verdict: clean\ncriteria:\n  - criterion: c\n    proof: external\n    where: by hand\n    evidence: ${evidence}\n`);
+  assert.equal(gate(fixture, tree).code, 0);
+  fs.mkdirSync(path.join(tree, ".specs-inferno/archive/intents"), { recursive: true });
+  git(tree, ["mv", ".specs-inferno/intents/alpha", ".specs-inferno/archive/intents/alpha"]);
+  git(tree, ["commit", "-qm", "archive"]);
+  const result = green(fixture, tree);
+  assert.equal(result.code, 0, result.out + result.err);
+});
+
+test("a mutant a killed mutate left behind is restored before the gate's dirty check", async () => {
+  const { spawn } = require("node:child_process");
+  const { fixture, tree } = opened();
+  intentReviewed(tree);
+  const release = path.join(fixture.cache, "..", "release");
+  const child = spawn(process.execPath, [path.join(__dirname, "run.cjs"), "mutate", "--tree", tree, "--file", "src/a.ts",
+    "--line", "1", "--replace", "export const a = 99;", "--test", `until [ -f ${release} ]; do sleep 0.05; done`],
+  { cwd: tree, env: { ...process.env, XDG_CACHE_HOME: fixture.cache }, stdio: "ignore" });
+  const file = path.join(tree, "src/a.ts");
+  for (let i = 0; i < 200 && !fs.readFileSync(file, "utf8").includes("99"); i += 1) await new Promise((r) => setTimeout(r, 25));
+  const done = new Promise((resolve) => child.on("close", resolve));
+  child.kill("SIGKILL");
+  await done;
+  fs.writeFileSync(release, "");
+  assert.match(fs.readFileSync(file, "utf8"), /99/);
+  const result = gate(fixture, tree);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /restored src\/a\.ts from an interrupted mutate/);
+  assert.equal(fs.readFileSync(file, "utf8"), "export const a = 3;\n");
+});
