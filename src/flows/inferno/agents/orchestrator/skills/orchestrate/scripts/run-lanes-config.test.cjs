@@ -94,7 +94,7 @@ test('a live lane job owns the tree for select, like the gate job', { skip: !LIN
   try {
     const jobFile = path.join(dir, 'cache', 'specsmd-inferno', 'app', branch, 'lane-windows-job.json');
     fs.mkdirSync(path.dirname(jobFile), { recursive: true });
-    fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: '2026-09-10T12:47:11Z' }));
+    fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
     assert.equal(owner.gateJobAlive(root).pid, child.pid);
     assert.equal(owner.ownership(root).lane, 'windows');
   } finally {
@@ -102,4 +102,18 @@ test('a live lane job owns the tree for select, like the gate job', { skip: !LIN
     if (before === undefined) delete process.env.XDG_CACHE_HOME;
     else process.env.XDG_CACHE_HOME = before;
   }
+});
+
+test('select names a live lane job in its running line', { skip: !LINUX }, async (t) => {
+  const { INTENT_TREE, repo, run, worktree } = require('./review-fixture.cjs');
+  const fixture = repo();
+  t.after(() => fs.rmSync(path.dirname(fixture.root), { recursive: true, force: true }));
+  worktree(fixture, INTENT_TREE);
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 15000)', 'run.cjs'], { stdio: 'ignore' });
+  t.after(() => child.kill('SIGKILL'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const jobFile = path.join(fixture.cache, 'specsmd-inferno', 'app', `inferno-intent/${INTENT_TREE}`, 'lane-windows-job.json');
+  fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+  fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
+  assert.match(run(fixture, ['select']).out, new RegExp(`running alpha {2}windows lane pid ${child.pid} still running since`));
 });

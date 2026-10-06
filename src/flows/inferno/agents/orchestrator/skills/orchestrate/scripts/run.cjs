@@ -82,7 +82,7 @@ Options
   --lane <name>     gate: run one configured lane in this process, as gate --detach starts it
   --harness-fix <sha> smoke|windows --accept: the harness fix on the base branch the instrument red is accepted against
 
-Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, or an item completed with no integration proof or review), 4 gate or a lane still running.`;
+Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, a lane accept, the smoke lane, or an item completed with no integration proof or review), 4 gate or a lane still running.`;
 
 function required(value, usage) {
   if (!value) throw new RunError(`usage: node run.cjs ${usage}`, 'BAD_ARGS', 1);

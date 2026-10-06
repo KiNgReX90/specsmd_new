@@ -26,6 +26,8 @@ const PRODUCT_RED = 10;
 const ACCEPTED = '.instrument-red';
 /** gate --wait's exit when every job ended and a lane is instrument red with no accepted harness fix. */
 const UNBOUNDED_EXIT = 3;
+/** run.cjs prints at most this many human lines. */
+const MAX_LINES = 30;
 
 /** A lane's proof is keyed like a finalize command's, by its command, its config and its own scope. */
 function laneProof(tree, selected, lane) {
@@ -39,12 +41,19 @@ function writeRecord(file, record) {
   fs.renameSync(pending, file);
 }
 
-/** The accepted instrument red for exactly this proof's inputs, or null. */
-function readAccepted(proof) {
+/**
+ * The accepted instrument red for exactly this proof's inputs, or null. A record binds the one
+ * run it accepted: it holds only while the lane's latest result is that same instrument-red
+ * run, so any later run of the lane, red or green, retires it.
+ */
+function readAccepted(tree, name, proof) {
   const record = jobs.readJson(`${proof.file}${ACCEPTED}`);
-  return record && record.command === proof.command && record.config === proof.config && record.hash === proof.hash &&
-    typeof record.harness_fix === 'string' ? record : null;
+  const latest = jobs.readJson(jobs.jobPaths(tree, name).result);
+  const matches = record && record.command === proof.command && record.config === proof.config && record.hash === proof.hash &&
+    typeof record.harness_fix === 'string' && typeof record.run === 'string';
+  return matches && latest && latest.run === record.run ? record : null;
 }
+
 
 function touched(lane, changed) {
   return changed.some((file) => lib.matchesAny(file, lane.scope));
@@ -69,7 +78,7 @@ function startLanes(tree, options, config, changed) {
     }
     const proof = laneProof(tree, options.config, lane);
     const green = !options.force && proofs.readProof(proof);
-    const accepted = !options.force && readAccepted(proof);
+    const accepted = !options.force && readAccepted(tree, lane.name, proof);
     if (green) out.push(`GREEN lane ${lane.name} (unchanged since ${green.stamp})`);
     else if (accepted) out.push(`ACCEPTED lane ${lane.name} instrument red, harness fix ${accepted.harness_fix.slice(0, 7)}`);
     if (green || accepted) continue;
@@ -88,6 +97,7 @@ function laneNow(options) {
   const lane = laneOf(lib.readConfig(tree, options.config), options.lane, options.config);
   const proof = laneProof(tree, options.config, lane);
   fs.rmSync(proof.file, { force: true });
+  const runId = `${lib.stamp()}-${process.pid}`;
   const log = path.join(lib.cacheDir(tree), lib.currentBranch(tree), `lane-${lane.name}-${lib.stamp()}.log`);
   const run = lib.runShell(lane.command, tree, log);
   const moved = laneProof(tree, options.config, laneOf(lib.readConfig(tree, options.config), lane.name)).file !== proof.file;
@@ -99,7 +109,7 @@ function laneNow(options) {
     const { file, ...identity } = proof;
     writeRecord(file, { ...identity, stamp: new Date().toISOString(), seconds: run.seconds, branch: lib.currentBranch(tree) });
   }
-  const payload = { lane: lane.name, result, code: run.code, seconds: run.seconds, log, hash: proof.hash };
+  const payload = { lane: lane.name, run: runId, result, code: run.code, seconds: run.seconds, log, hash: proof.hash };
   return { exit: result === 'green' ? 0 : 2, payload, out: [`${result} lane ${lane.name} exit ${run.code} -> ${log}`] };
 }
 
@@ -128,7 +138,7 @@ function describeLane(tree, selected, config, entry) {
   }
   if (entry.state === 'moved') return { verdict: 'red', out: [`RED lane ${entry.lane}: the code changed while the lane ran. Re-run the gate.`] };
   if (entry.state === 'died') return { verdict: 'red', out: [`lane ${entry.lane} process ${entry.pid} ended without a result -> ${entry.log}`, ...lib.tail(entry.log, 5)] };
-  const accepted = readAccepted(laneProof(tree, selected, laneOf(config, entry.lane, selected)));
+  const accepted = readAccepted(tree, entry.lane, laneProof(tree, selected, laneOf(config, entry.lane, selected)));
   if (accepted) return { verdict: 'hold', out: [`ACCEPTED lane ${entry.lane} instrument red, harness fix ${accepted.harness_fix.slice(0, 7)}`] };
   return {
     verdict: 'unbounded',
@@ -149,16 +159,19 @@ function waitAll(job, options, deadline, gateResult) {
     // An unbounded lane prints last, so its accept line is the last line of the wait.
     const laneOut = [...lanes.filter((entry) => entry.verdict !== 'unbounded'), ...lanes.filter((entry) => entry.verdict === 'unbounded')]
       .flatMap((entry) => entry.out);
+    // The gate block gives way to the lane lines, so the 30-line cap never cuts an accept line.
+    const fit = (gateOut, tail = []) =>
+      [...lib.capLines(gateOut, Math.max(1, MAX_LINES - laneOut.length - tail.length)), ...laneOut, ...tail];
     const lanePayload = { lanes: (job.lanes || []).map((name) => laneState(tree, name)) };
     if ((gate && gate.exit !== 0) || lanes.some((entry) => entry.verdict === 'red')) {
       const gateOut = gate ? gate.out : [`gate still running pid ${job.pid}`];
-      return { exit: 2, payload: { ...(gate ? gate.payload : { ok: false }), ok: false, ...lanePayload }, out: [...gateOut, ...laneOut] };
+      return { exit: 2, payload: { ...(gate ? gate.payload : { ok: false }), ok: false, ...lanePayload }, out: fit(gateOut) };
     }
     const running = !gate || lanes.some((entry) => entry.verdict === 'running');
     if (!running) {
       const owed = lanes.filter((entry) => entry.verdict === 'unbounded').map((entry) => entry.name);
-      if (owed.length > 0) return { exit: UNBOUNDED_EXIT, payload: { ...gate.payload, ok: false, owed, ...lanePayload }, out: [...gate.out, ...laneOut] };
-      return { exit: 0, payload: { ...gate.payload, ...lanePayload }, out: [...gate.out, ...laneOut] };
+      if (owed.length > 0) return { exit: UNBOUNDED_EXIT, payload: { ...gate.payload, ok: false, owed, ...lanePayload }, out: fit(gate.out) };
+      return { exit: 0, payload: { ...gate.payload, ...lanePayload }, out: fit(gate.out) };
     }
     if (Date.now() >= deadline) {
       const elapsed = Math.round((Date.now() - Date.parse(job.started)) / 60000);
@@ -166,7 +179,7 @@ function waitAll(job, options, deadline, gateResult) {
       return {
         exit: 4,
         payload: { running: true, ...job, elapsed_minutes: elapsed, ...lanePayload },
-        out: [...gateOut, ...laneOut, 'call gate --wait again'],
+        out: fit(gateOut, ['call gate --wait again']),
       };
     }
     jobs.sleepSync(500);
@@ -189,11 +202,11 @@ function accept(name, options) {
   }
   const proof = laneProof(tree, options.config, lane);
   const last = jobs.readJson(jobs.jobPaths(tree, name).result);
-  if (!last || last.result !== 'instrument-red' || last.hash !== proof.hash) {
+  if (!last || last.lane !== name || last.result !== 'instrument-red' || last.hash !== proof.hash || typeof last.run !== 'string') {
     throw new RunError(`no instrument red of the ${name} lane on this tree to accept: run gate --detach, then gate --wait.`, 'NOTHING_TO_ACCEPT');
   }
   const { file, ...identity } = proof;
-  writeRecord(`${file}${ACCEPTED}`, { ...identity, harness_fix: sha, code: last.code, stamp: new Date().toISOString(), branch: lib.currentBranch(tree) });
+  writeRecord(`${file}${ACCEPTED}`, { ...identity, harness_fix: sha, run: last.run, code: last.code, stamp: new Date().toISOString(), branch: lib.currentBranch(tree) });
   return {
     exit: 0,
     payload: { accepted: true, lane: name, harness_fix: sha, hash: proof.hash },
@@ -211,7 +224,7 @@ function smokeOwed(tree, config, selected, changed) {
   if (!touched(lane, changed)) return { owed: [], out: ['SKIP smoke (no path in scope changed)'] };
   const proof = laneProof(tree, selected, lane);
   if (proofs.readProof(proof)) return { owed: [], out: [] };
-  const accepted = readAccepted(proof);
+  const accepted = readAccepted(tree, 'smoke', proof);
   if (accepted) return { owed: [], out: [`ACCEPTED smoke instrument red, harness fix ${accepted.harness_fix.slice(0, 7)}`] };
   return { owed: ['smoke'], out: ['smoke owed: no green or accepted instrument-red smoke run for this tree; run gate --detach, then gate --wait'] };
 }

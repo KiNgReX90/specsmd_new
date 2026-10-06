@@ -1,97 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
 
-const RUN = path.join(__dirname, 'run.cjs');
-const { reviewBefore } = require('./review-fixture.cjs');
-
-const BRANCH = 'inferno-intent/demo-00000000T000000Z';
-const DEFAULT = '.specs-inferno/config.yaml';
-const whole = 'node proof.cjs whole';
-const red = 'node proof.cjs red';
-
-function write(tree, file, body) {
-  fs.mkdirSync(path.dirname(path.join(tree, file)), { recursive: true });
-  fs.writeFileSync(path.join(tree, file), body);
-}
-
-function git(tree, ...args) {
-  return execFileSync('git', args, { cwd: tree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-}
-
-function commit(tree, message = 'change') {
-  git(tree, 'add', '-A');
-  git(tree, 'commit', '-qm', message);
-}
-
-/** A config whose lanes are stub commands: `node lane.cjs <name> <exit code | wait>`. */
-function config(lanes = { smoke: '0' }, finalize = [whole], scope = ['src/**']) {
-  const blocks = Object.entries(lanes).map(([name, code]) =>
-    `  ${name}:\n    command: node lane.cjs ${name} ${code}\n    scope: ${JSON.stringify(scope)}\n`).join('');
-  return `delivery:\n  base_branch: main\nverification:\n  finalize:\n${finalize.map((c) => `    - ${c}\n`).join('')}${blocks}`;
-}
-
-function fixture(t, source = config()) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-lanes-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const tree = path.join(dir, 'app');
-  const release = path.join(dir, 'release');
-  fs.mkdirSync(tree);
-  git(tree, 'init', '-q', '-b', 'main');
-  git(tree, 'config', 'user.email', 'test@example.com');
-  git(tree, 'config', 'user.name', 'Test');
-  write(tree, '.gitignore', '.runs\n.lane-runs\n');
-  write(tree, 'src/input.txt', 'one\n');
-  write(tree, 'docs/readme.txt', 'one\n');
-  write(tree, DEFAULT, source.replace(/ wait\n/g, ` wait ${release}\n`));
-  write(tree, 'proof.cjs', `const fs = require('node:fs');
-fs.appendFileSync('.runs', process.argv[2] + '\\n');
-if (process.argv[2] === 'red') process.exit(1);
-`);
-  write(tree, 'lane.cjs', `const fs = require('node:fs');
-const [name, code, release] = process.argv.slice(2);
-fs.appendFileSync('.lane-runs', name + '\\n');
-if (code === 'wait') {
-  while (!fs.existsSync(release)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
-  process.exit(0);
-}
-process.exit(Number(code));
-`);
-  commit(tree, 'fixture');
-  git(tree, 'checkout', '-qb', BRANCH);
-  return { tree, release, cache: path.join(dir, 'cache') };
-}
-
-function run(f, ...args) {
-  reviewBefore(args, f.tree);
-  const result = spawnSync(process.execPath, [RUN, ...args], {
-    cwd: f.tree, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: f.cache },
-  });
-  return { code: result.status, out: result.stdout, err: result.stderr };
-}
-
-function passed(result) {
-  assert.equal(result.code, 0, result.out + result.err);
-}
-
-function laneRuns(f) {
-  const file = path.join(f.tree, '.lane-runs');
-  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n') : [];
-}
-
-function touch(f, file = 'src/input.txt') {
-  write(f.tree, file, `${Date.now()}-${Math.random()}\n`);
-  commit(f.tree);
-}
-
-/** Detach the gate and wait it out; returns the wait's result. */
-function gated(f, ...extra) {
-  passed(run(f, 'gate', '--detach', ...extra));
-  return run(f, 'gate', '--wait', '--minutes', '0.5', ...extra);
-}
+const {
+  BRANCH, acceptLine, commit, config, fixture, gated, git, harnessFix, laneRuns, passed, red, run, touch, write,
+} = require('./run-lanes-fixture.cjs');
 
 test('a lane starts only when the branch touched its scope', (t) => {
   const f = fixture(t);
@@ -101,6 +15,9 @@ test('a lane starts only when the branch touched its scope', (t) => {
   assert.match(started.out, /SKIP smoke \(no path in scope changed\)/);
   passed(run(f, 'gate', '--wait', '--minutes', '0.5'));
   assert.deepEqual(laneRuns(f), []);
+  const skipped = run(f, 'green');
+  passed(skipped);
+  assert.match(skipped.out, /SKIP smoke \(no path in scope changed\)/);
   touch(f);
   const again = run(f, 'gate', '--detach');
   passed(again);
@@ -220,19 +137,6 @@ test('a lane proof is keyed by the lane scope, so an edit outside it keeps the l
   assert.deepEqual(laneRuns(f), ['smoke', 'smoke']);
 });
 
-/** A harness fix committed on main and folded into the branch; returns its sha. */
-function harnessFix(f) {
-  git(f.tree, 'checkout', '-q', 'main');
-  write(f.tree, 'harness.txt', `${Date.now()}\n`);
-  commit(f.tree, 'harness fix');
-  const fix = git(f.tree, 'rev-parse', 'HEAD');
-  git(f.tree, 'checkout', '-q', BRANCH);
-  git(f.tree, 'merge', '-q', '--no-edit', 'main');
-  return fix;
-}
-
-const acceptLine = (lane) => new RegExp(`^land the harness fix on main, then: node \\S+run\\.cjs ${lane} --accept --harness-fix <sha> --tree \\S+$`);
-
 test('an unaccepted instrument red exits 3, owes its lane and prints the accept line last', (t) => {
   const f = fixture(t, config({ smoke: '11' }));
   touch(f);
@@ -270,4 +174,40 @@ test('each lane accepts only its own instrument red', (t) => {
   assert.match(result.out, /INSTRUMENT RED lane windows/);
   assert.doesNotMatch(result.out, /INSTRUMENT RED lane smoke/);
   assert.match(result.out.trim().split('\n').pop(), acceptLine('windows'));
+});
+
+test('an accepted instrument red never outlives the run it accepted', (t) => {
+  const f = fixture(t, config({ smoke: 'file' }));
+  fs.writeFileSync(f.code, '11');
+  touch(f);
+  const fix = harnessFix(f);
+  assert.equal(gated(f).code, 3);
+  passed(run(f, 'smoke', '--accept', '--harness-fix', fix));
+  fs.writeFileSync(f.code, '10');
+  const rerun = gated(f, '--force');
+  assert.equal(rerun.code, 2, rerun.out + rerun.err);
+  assert.match(rerun.out, /RED lane smoke: product red \(exit 10\)/);
+  const verdict = run(f, 'green', '--json');
+  assert.equal(verdict.code, 3, verdict.out + verdict.err);
+  assert.deepEqual(JSON.parse(verdict.out).owed, ['smoke']);
+  // A new instrument red on the same tree is a new run, and the old acceptance does not cover it.
+  fs.writeFileSync(f.code, '11');
+  const again = gated(f, '--force');
+  assert.equal(again.code, 3, again.out + again.err);
+  assert.match(again.out, /INSTRUMENT RED lane smoke \(exit 11\)/);
+  assert.equal(run(f, 'green').code, 3);
+});
+
+test('smoke --accept binds only the tree the instrument red ran on', (t) => {
+  const f = fixture(t, config({ smoke: '11' }));
+  touch(f);
+  const fix = harnessFix(f);
+  assert.equal(gated(f).code, 3);
+  touch(f);
+  const refused = run(f, 'smoke', '--accept', '--harness-fix', fix);
+  assert.equal(refused.code, 2, refused.out + refused.err);
+  assert.match(refused.err, /no instrument red of the smoke lane on this tree to accept/);
+  const verdict = run(f, 'green', '--json');
+  assert.equal(verdict.code, 3);
+  assert.deepEqual(JSON.parse(verdict.out).owed, ['smoke']);
 });
