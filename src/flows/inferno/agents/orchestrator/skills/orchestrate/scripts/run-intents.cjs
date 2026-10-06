@@ -331,12 +331,14 @@ function worktree(intentId, options) {
  * they are a record of one run's dispatches, never work anyone builds from.
  */
 function dispatchLog(intentId, options) {
-  const items = options.items ? String(options.items).split(',').map((id) => id.trim()).filter(Boolean) : [options.item].filter(Boolean);
-  if (items.length === 0 || !options.tier || !options.agent) {
+  const requested = options.items ? String(options.items).split(',').map((id) => id.trim()).filter(Boolean) : [options.item].filter(Boolean);
+  if (requested.length === 0 || !options.tier || !options.agent) {
     throw new RunError('dispatch-log requires --item (or --items a,b for a chain one builder builds), --tier and --agent', 'BAD_ARGS', 1);
   }
   const root = lib.primaryRoot(options.cwd);
   const tree = options.tree || lib.repoRoot(options.cwd);
+  // A correction of one item of a chain is logged for the whole chain its current record covers.
+  const items = dispatch.coveredItems(tree, intentId, requested);
   const editable = new Set();
   for (const id of items) {
     const spec = lib.readItemSpec(tree, intentId, id);

@@ -1,97 +1,113 @@
 'use strict';
 
 /**
- * Which of an item's changed paths other dispatches explain, for verify-item.
+ * Who made each change since an item's baseline, for verify-item.
  *
- * Every accepted attempt is one step per path it changed, from the bytes it started on to the
- * bytes it left. A path an attempt carried steps back to the attempt before it. A path is
- * explained when such steps lead from what it holds now back to the item's baseline. Only a
- * step that started at or after that baseline counts. A step never jumps from a lineage's latest
- * bytes to its first baseline, so bytes that changed between two attempts are nobody's. A step
- * never ends on bytes another step later built on, so a rolled back patch never explains the
- * same bytes coming back.
+ * Every snapshot a dispatch record stores carries the number the tree's sequence gave it, so
+ * the records of one tree line up on one timeline: the item's first baseline, every later
+ * snapshot of the item and of its peers, then the tree now. Between two neighbouring snapshots a
+ * changed path is a peer's when one of the peer's attempts ran across that stretch and claims the
+ * path. It is the item's when the item claims it, and nobody's otherwise. A run of nobody's
+ * changes that leaves a path on other bytes than it found is flagged. The run is bounded by
+ * claimed changes or the ends of the timeline.
  */
 
 const lib = require('./run-lib.cjs');
 const dispatch = require('./run-dispatch.cjs');
 
-/** Whether a baseline at `head` started at or after one at `ancestor`: the same commit or a later one. */
-function startsFrom(tree, ancestor, head) {
-  return ancestor === head || lib.git(tree, ['merge-base', '--is-ancestor', ancestor, head], { tolerate: true }) !== null;
-}
-
-const claimsOf = (attempt) => [...dispatch.claimedPaths(attempt), ...(attempt.completion.carried || [])];
-
-/**
- * The steps one lineage took. A carried path steps from the attempt that carried it back to the
- * attempt before, and on through attempts that did not claim it. It never steps across bytes that
- * changed after an accepted attempt and before the next one started.
- */
-function lineageSteps(tree, record) {
-  const members = dispatch.lineage(tree, record);
-  const byId = new Map(members.map((member) => [member.dispatchId, member]));
-  const steps = [];
-  const seen = new Set();
-  const carry = (attempt, file) => {
-    for (const prior of (attempt.previous || []).map((id) => byId.get(id)).filter(Boolean)) {
-      const key = JSON.stringify([prior.dispatchId, attempt.dispatchId, file]);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (prior.phase === 'accepted' && (claimsOf(prior).includes(file) ||
-          !dispatch.same(prior.acceptedSnapshot, attempt.beforeSnapshot, file))) continue;
-      steps.push({ file, from: prior.beforeSnapshot, to: attempt.beforeSnapshot });
-      carry(prior, file);
-    }
-  };
-  for (const attempt of members.filter((member) => member.phase === 'accepted')) {
-    for (const file of dispatch.claimedPaths(attempt)) steps.push({ file, from: attempt.beforeSnapshot, to: attempt.acceptedSnapshot });
-    for (const file of attempt.completion.carried || []) carry(attempt, file);
+function seqOf(snapshot) {
+  if (!snapshot || !Number.isInteger(snapshot.seq)) {
+    throw dispatch.refuse('a dispatch snapshot carries no sequence number: run dispatch-log for its item again, ' +
+      'then accept-dispatch the result');
   }
-  return steps.filter((step) => !dispatch.same(step.from, step.to, step.file));
+  return snapshot.seq;
 }
 
 /**
- * Whether the steps lead from `now` back to `baseline`, newest step first. Another step that
- * started on the bytes a step left must be the one taken just before it in the walk, or one
- * taken after it, which came earlier. Any other means those bytes were built on and are back.
+ * The windows the attempts of a peer lineage ran in. An accepted attempt runs from its baseline
+ * to its acceptance and claims what it changed. An attempt nobody accepted runs until the next
+ * attempt started and claims nothing itself. A path an attempt carried is claimed by every
+ * attempt before it in the lineage.
  */
-function leadsBack(steps, now, baseline) {
-  const valid = (walk) => walk.every((step, k) => steps.every((other) =>
-    other === step || other.start !== step.end || other === walk[k - 1] || walk.indexOf(other) > k));
-  const search = (state, walk) => (walk.length > 0 && state === baseline && valid(walk)) ||
-    steps.some((step) => !walk.includes(step) && step.end === state && search(step.start, [...walk, step]));
-  return search(now, []);
+function windows(tree, peer) {
+  const members = dispatch.lineage(tree, peer);
+  const byId = new Map(members.map((member) => [member.dispatchId, member]));
+  const next = new Map();
+  for (const member of members) for (const id of member.previous || []) next.set(id, member);
+  const claims = new Map(members.map((member) => [member, new Set(member.phase === 'accepted' ? dispatch.claimedPaths(member) : [])]));
+  for (const member of members.filter((entry) => entry.phase === 'accepted' && (entry.completion.carried || []).length)) {
+    const queue = [...(member.previous || [])];
+    const seen = new Set();
+    while (queue.length > 0) {
+      const prior = byId.get(queue.shift());
+      if (!prior || seen.has(prior)) continue;
+      seen.add(prior);
+      for (const file of member.completion.carried) claims.get(prior).add(file);
+      queue.push(...(prior.previous || []));
+    }
+  }
+  return members.map((member) => {
+    const end = member.phase === 'accepted' ? member.acceptedSnapshot : (next.get(member.dispatchId) || {}).beforeSnapshot;
+    return { peer, member, start: seqOf(member.beforeSnapshot), end: end ? seqOf(end) : Infinity, claims: claims.get(member) };
+  });
+}
+
+/** A peer's change must lie inside its own ownership and outside this item's. */
+function checkPeerChange(tree, run, file, own, editable) {
+  const { peer } = run;
+  if (!lib.ownedBy(file, peer.assignment.ownership.editable, tree)) {
+    throw dispatch.refuse(`dispatch ${peer.dispatchId} for ${dispatch.itemsOf(peer).join(', ')} claims ${file} outside its ` +
+      'ownership: review that item first, its verify-item names the file');
+  }
+  if (own.claimed.includes(file) || lib.ownedBy(file, editable, tree)) {
+    throw dispatch.refuse(`dispatch ownership overlaps at ${file} with dispatch ${peer.dispatchId}: ` +
+      'a serial chain one builder builds takes one dispatch-log --items a,b');
+  }
 }
 
 /**
- * The changed paths the peers' accepted attempts explain. A peer step on a path this item claims
- * or owns is an overlap, and a peer step on a path its own ownership does not cover is refused.
+ * The paths that nobody's changes since the item's first baseline leave on other bytes. `now`
+ * is the tree as verify-item reads it, and `folded` the paths the fold of the base brought in.
  */
-function explainedByPeers(tree, own, editable, peers, current) {
-  const identity = (snapshot, file) => dispatch.hash(dispatch.entryIn(snapshot, file));
-  const starts = new Map();
-  const startsHere = (head) => {
-    if (!starts.has(head)) starts.set(head, startsFrom(tree, own.before.head_sha, head));
-    return starts.get(head);
-  };
-  const steps = [];
+function unexplainedChanges(tree, own, editable, peers, now, folded) {
+  const root = seqOf(dispatch.checkSnapshot(own.before));
+  const runs = [];
   for (const peer of peers) {
     dispatch.validateDispatch(tree, peer);
-    if (own.ids.has(peer.dispatchId)) continue;
-    for (const step of lineageSteps(tree, peer)) {
-      const { file } = step;
-      if (!current.changed.includes(file) || !startsHere(step.from.head_sha)) continue;
-      if (!lib.ownedBy(file, peer.assignment.ownership.editable, tree)) throw dispatch.refuse('peer dispatch claims an unowned path');
-      const end = identity(step.to, file);
-      if (end !== identity(own.before, file) && (own.claimed.includes(file) || lib.ownedBy(file, editable, tree))) {
-        throw dispatch.refuse(`dispatch ownership overlaps at ${file} with dispatch ${peer.dispatchId}: ` +
-          'a serial chain one builder builds takes one dispatch-log --items a,b');
-      }
-      steps.push({ file, start: identity(step.from, file), end });
+    if (!own.ids.has(peer.dispatchId)) runs.push(...windows(tree, peer).filter((run) => run.end > root));
+  }
+  const snapshots = new Map([[root, own.before]]);
+  for (const member of [...own.members, ...runs.map((run) => run.member)]) {
+    for (const snapshot of [member.beforeSnapshot, member.acceptedSnapshot]) {
+      if (snapshot && seqOf(snapshot) > root) snapshots.set(snapshot.seq, dispatch.checkSnapshot(snapshot));
     }
   }
-  return new Set(current.changed.filter((file) => leadsBack(steps.filter((step) => step.file === file),
-    identity(current.snapshot, file), identity(own.before, file))));
+  const timeline = [...[...snapshots.keys()].sort((left, right) => left - right).map((seq) => snapshots.get(seq)), now];
+  const flagged = new Set();
+  const stretches = new Map();
+  const close = (file) => {
+    const stretch = stretches.get(file);
+    if (stretch && stretch.found !== stretch.left) flagged.add(file);
+    stretches.delete(file);
+  };
+  for (let index = 1; index < timeline.length; index += 1) {
+    const [before, after] = [timeline[index - 1], timeline[index]];
+    for (const file of dispatch.snapshotDelta(before, after, true)) {
+      const claimed = own.claimed.includes(file);
+      if (folded.has(file) && !claimed) continue;
+      const run = runs.find((entry) => entry.start <= before.seq && after.seq <= entry.end && entry.claims.has(file));
+      if (run) checkPeerChange(tree, run, file, own, editable);
+      if (run || claimed) {
+        close(file);
+        continue;
+      }
+      const stretch = stretches.get(file) || { found: dispatch.identity(before, file) };
+      stretch.left = dispatch.identity(after, file);
+      stretches.set(file, stretch);
+    }
+  }
+  for (const file of [...stretches.keys()]) close(file);
+  return flagged;
 }
 
-module.exports = { explainedByPeers, startsFrom };
+module.exports = { unexplainedChanges };

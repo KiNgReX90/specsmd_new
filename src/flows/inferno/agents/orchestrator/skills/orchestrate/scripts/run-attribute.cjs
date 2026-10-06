@@ -12,10 +12,15 @@ const path = require('path');
 
 const lib = require('./run-lib.cjs');
 const dispatch = require('./run-dispatch.cjs');
-const { explainedByPeers, startsFrom } = require('./run-peers.cjs');
+const { unexplainedChanges } = require('./run-peers.cjs');
 
 const { RunError } = lib;
 const refuse = dispatch.refuse;
+
+/** Whether a baseline at `head` started at or after one at `ancestor`: the same commit or a later one. */
+function startsFrom(tree, ancestor, head) {
+  return ancestor === head || lib.git(tree, ['merge-base', '--is-ancestor', ancestor, head], { tolerate: true }) !== null;
+}
 
 /** Dispatches started at or after this item's first baseline whose results were never accepted. */
 function openDispatches(tree, own) {
@@ -63,10 +68,11 @@ function newlyHidden(tree, before, now) {
 }
 
 /**
- * Every path changed since the item's first baseline, sorted into the item's own, `unreported`
- * (owned by the spec and the record, changed, but missing from changed_files) and `outside`. A
- * path the fold of `options.base` brought in is the base's. Any other commit since the baseline,
- * a sibling's landing or a builder's own, is attributed like an uncommitted change.
+ * The item's claimed paths outside its ownership, and the changes since its first baseline that
+ * no dispatch claims (run-peers.cjs), as `unreported` when owned by the spec and the record and
+ * as `outside` otherwise. A path the fold of `options.base` brought in is the base's. Any other
+ * commit since the baseline, a sibling's landing or a builder's own, counts like an uncommitted
+ * change.
  */
 function verifyDispatch(tree, record, editable, options = {}) {
   dispatch.validateDispatch(tree, record);
@@ -76,7 +82,7 @@ function verifyDispatch(tree, record, editable, options = {}) {
     const missing = dispatch.claimedPaths(entry).filter((file) => !patch.includes(file));
     if (missing.length > 0) throw refuse(`accepted paths have no dispatch patch: ${missing.join(', ')}`);
   }
-  const snapshot = dispatch.captureSnapshot(tree);
+  const snapshot = { ...dispatch.captureSnapshot(tree), seq: Infinity };
   const hidden = newlyHidden(tree, own.before, snapshot);
   if (hidden.length > 0) {
     throw refuse(`${dispatch.excludeFile(tree)} hides ${hidden.slice(0, 5).join(', ')}, new or changed since the dispatch baseline: ` +
@@ -89,22 +95,20 @@ function verifyDispatch(tree, record, editable, options = {}) {
     }
   }
   const folded = foldedSince(tree, own.before.head_sha, options.base);
-  const changed = [...new Set([...dispatch.snapshotDelta(own.before, record.acceptedSnapshot), ...dispatch.snapshotDelta(own.before, snapshot)])]
-    .filter((file) => own.claimed.includes(file) || !folded.has(file))
-    .sort();
   const peers = options.peers || dispatch.currentRecords(tree).filter((entry) => entry.phase === 'accepted');
-  const explained = explainedByPeers(tree, own, editable, peers, { snapshot, changed });
+  const flagged = unexplainedChanges(tree, own, editable, peers, snapshot, folded);
   const owned = (file) => lib.ownedBy(file, editable, tree) && lib.ownedBy(file, record.assignment.ownership.editable, tree);
-  const outside = [];
+  const outside = own.claimed.filter((file) => !owned(file));
   const unreported = [];
-  for (const file of changed) {
-    if (own.claimed.includes(file)) {
-      if (!owned(file)) outside.push(file);
-    } else if (!explained.has(file)) {
-      (owned(file) ? unreported : outside).push(file);
-    }
-  }
-  return { since: own.before.head_sha, head_sha: record.acceptedSnapshot.head_sha, dispatch_id: record.dispatchId, changed: own.claimed, outside, unreported };
+  for (const file of flagged) (owned(file) ? unreported : outside).push(file);
+  return {
+    since: own.before.head_sha,
+    head_sha: record.acceptedSnapshot.head_sha,
+    dispatch_id: record.dispatchId,
+    changed: own.claimed,
+    outside: [...new Set(outside)].sort(),
+    unreported: unreported.sort(),
+  };
 }
 
 /** The dispatch records verify-item may consult as peers: every accepted one, or `--peers`. */

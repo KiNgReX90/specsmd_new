@@ -231,3 +231,120 @@ test('re-logging an item and accepting its full list clears a sibling\'s review,
   g.accepted(g.start('--item', 'a'), ['a.cjs', 'a2.cjs']);
   assert.deepEqual(g.verify('b').data.outside, ['a2.cjs']);
 });
+
+test('a late correction that writes a sibling\'s landed file back to the first baseline is named outside', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
+  const one = f.start('--item', 'a');
+  const two = f.start('--item', 'b');
+  f.write('a.cjs', 'a\n');
+  f.write('f.cjs', 'changed by a\n');
+  f.write('b.cjs', 'b\n');
+  f.accepted(one, ['a.cjs', 'f.cjs']);
+  f.accepted(two, ['b.cjs']);
+  f.land('a.cjs', 'f.cjs', 'b.cjs');
+  const fix = f.start('--item', 'b');
+  f.write('b.cjs', 'b fixed\n');
+  f.write('f.cjs', 'module.exports = 1;\n');
+  f.accepted(fix, ['b.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['f.cjs']);
+});
+
+test('an only attempt that writes back a file a sibling landed while it was open is named outside', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
+  const two = f.start('--item', 'b');
+  f.moveBase('other.cjs', 'moved on the base\n');
+  f.git('merge', '-q', '--no-edit', 'main');
+  const one = f.start('--item', 'a');
+  f.write('a.cjs', 'a\n');
+  f.write('f.cjs', 'changed by a\n');
+  f.accepted(one, ['a.cjs', 'f.cjs']);
+  f.land('a.cjs', 'f.cjs');
+  f.write('b.cjs', 'b\n');
+  f.write('f.cjs', 'module.exports = 1;\n');
+  f.accepted(two, ['b.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['f.cjs']);
+});
+
+test('sixteen sibling corrections that toggle a file are read in order, and a write back after them is named', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
+  const two = f.start('--item', 'b');
+  for (let i = 0; i < 16; i += 1) {
+    const toggle = f.start('--item', 'a');
+    f.write('f.cjs', i % 2 === 0 ? 'toggled\n' : 'module.exports = 1;\n');
+    f.accepted(toggle, ['f.cjs']);
+  }
+  f.write('b.cjs', 'b\n');
+  f.write('f.cjs', 'toggled\n');
+  f.accepted(two, ['b.cjs']);
+  const started = Date.now();
+  const result = f.verify('b');
+  const took = Date.now() - started;
+  assert.ok(took < 2000, `verify-item took ${took} ms`);
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['f.cjs']);
+});
+
+test('a correction logged for one item of a chain covers the whole chain', (t) => {
+  const f = fixture(t, { a: ['shared.cjs', 'a.cjs'], b: ['shared.cjs', 'b.cjs'] });
+  const chain = f.start('--items', 'a,b');
+  for (const file of ['shared.cjs', 'a.cjs', 'b.cjs']) f.write(file, 'module.exports = 2;\n');
+  f.accepted(chain, ['shared.cjs', 'a.cjs', 'b.cjs']);
+  const fix = f.start('--item', 'a');
+  f.write('a.cjs', 'module.exports = 3;\n');
+  f.accepted(fix, ['a.cjs']);
+  for (const selector of [['a'], ['b'], ['--items', 'a,b']]) {
+    const result = f.verify(...selector);
+    assert.equal(result.code, 0, result.out);
+    assert.deepEqual(result.data.outside, []);
+  }
+});
+
+test('verify-item waits for a correction of a landed item that started after its own baseline', (t) => {
+  const f = fixture(t, { b: ['b.cjs'], c: ['c.cjs'] });
+  const two = f.start('--item', 'b');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.accepted(two, ['b.cjs']);
+  f.land('b.cjs');
+  const later = f.start('--item', 'c');
+  f.write('c.cjs', 'module.exports = 2;\n');
+  f.accepted(later, ['c.cjs']);
+  const fix = f.start('--item', 'b');
+  const result = f.verify('c');
+  assert.equal(result.code, 2, result.out);
+  assert.match(result.out, new RegExp(`dispatch ${fix} for b is still open`));
+});
+
+test('a file nobody claims that is written and put back before the review is no change', (t) => {
+  const f = fixture(t, { a: ['a.cjs'], b: ['b.cjs'] });
+  const two = f.start('--item', 'b');
+  const one = f.start('--item', 'a');
+  f.write('other.cjs', 'scratch of the builder of b\n');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.accepted(one, ['a.cjs']);
+  f.write('other.cjs', 'other\n');
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.accepted(two, ['b.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(result.data.outside, []);
+});
+
+test('an attempt nobody accepted claims what its successor carried only until that successor started', (t) => {
+  const f = fixture(t, { a: ['a.cjs', 'a.test.cjs'], b: ['b.cjs'] });
+  const two = f.start('--item', 'b');
+  f.start('--item', 'a');
+  f.write('a.test.cjs', 'written before the builder stopped\n');
+  const retry = f.start('--item', 'a');
+  f.write('a.cjs', 'module.exports = 2;\n');
+  f.accepted(retry, ['a.cjs', 'a.test.cjs']);
+  f.write('b.cjs', 'module.exports = 2;\n');
+  f.write('a.test.cjs', 'written by the builder of b\n');
+  f.accepted(two, ['b.cjs']);
+  const result = f.verify('b');
+  assert.equal(result.code, 2, result.out);
+  assert.deepEqual(result.data.outside, ['a.test.cjs']);
+});

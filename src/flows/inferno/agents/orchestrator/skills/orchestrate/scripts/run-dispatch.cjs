@@ -24,6 +24,7 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const lib = require('./run-lib.cjs');
+const { atomicWrite, withStateLock } = require('./state-store.cjs');
 
 const { RunError } = lib;
 
@@ -132,17 +133,39 @@ function captureSnapshot(tree) {
   return { version: 1, head_sha: lib.git(tree, ['rev-parse', 'HEAD']), files, digest: hash(files), hidden: hiddenPaths(tree) };
 }
 
+/**
+ * A snapshot a record stores, numbered from the tree's sequence under the ledger's lock, so
+ * the snapshots of every dispatch of one tree line up in the order they were taken.
+ */
+function sequencedSnapshot(tree) {
+  const file = path.join(dispatchDirectory(tree), 'sequence');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  return withStateLock(file, () => {
+    const seq = (Number.parseInt(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '0', 10) || 0) + 1;
+    atomicWrite(file, `${seq}\n`);
+    return { ...captureSnapshot(tree), seq };
+  });
+}
+
 /** A path's identity in a snapshot, read from the hidden paths when `info/exclude` hid it. */
 const entryIn = (snapshot, file) => snapshot.files[file] || (snapshot.hidden || {})[file] || null;
-const same = (left, right, file) => hash(entryIn(left, file)) === hash(entryIn(right, file));
+const identity = (snapshot, file) => {
+  const entry = entryIn(snapshot, file);
+  return entry ? `${entry.kind} ${entry.hash} ${entry.executable ? 'x' : '-'}` : 'none';
+};
+const same = (left, right, file) => identity(left, file) === identity(right, file);
 
-function snapshotDelta(before, after) {
-  for (const snapshot of [before, after]) {
-    if (!snapshot || snapshot.version !== 1 || !snapshot.files || snapshot.digest !== hash(snapshot.files) ||
-        !/^[a-f0-9]{40,64}$/.test(snapshot.head_sha || '')) {
-      throw refuse('dispatch baseline or accepted snapshot is missing or changed');
-    }
+function checkSnapshot(snapshot) {
+  if (!snapshot || snapshot.version !== 1 || !snapshot.files || snapshot.digest !== hash(snapshot.files) ||
+      !/^[a-f0-9]{40,64}$/.test(snapshot.head_sha || '')) {
+    throw refuse('dispatch baseline or accepted snapshot is missing or changed');
   }
+  return snapshot;
+}
+
+/** Paths whose identity differs between two snapshots, the snapshots checked first unless `checked`. */
+function snapshotDelta(before, after, checked = false) {
+  if (!checked) [before, after].forEach(checkSnapshot);
   return [...new Set([...Object.keys(before.files), ...Object.keys(after.files)])]
     .filter((file) => !same(before, after, file))
     .sort();
@@ -265,8 +288,21 @@ function recordDispatch(tree, options) {
     phase: 'started',
     assignment: { intent: options.intent, items, ownership: { editable: options.editable } },
     previous: [...previous].sort(),
-    beforeSnapshot: captureSnapshot(tree),
+    beforeSnapshot: sequencedSnapshot(tree),
   });
+}
+
+/**
+ * The items a dispatch-log for `items` covers: every item their current records cover, to a
+ * fixpoint, so a correction of one item of a chain is logged for the whole chain.
+ */
+function coveredItems(tree, intent, items) {
+  const covered = [...items];
+  for (let index = 0; index < covered.length; index += 1) {
+    const current = readJson(currentFile(tree, intent, covered[index]));
+    for (const item of current ? itemsOf(current) : []) if (!covered.includes(item)) covered.push(item);
+  }
+  return covered;
 }
 
 /**
@@ -286,7 +322,7 @@ function acceptDispatch(tree, options) {
     throw refuse(`dispatch ${record.dispatchId} is already accepted with ${record.completion.reported.join(', ') || 'no paths'}: ` +
       'a correction takes a fresh dispatch-log');
   }
-  const snapshot = captureSnapshot(tree);
+  const snapshot = sequencedSnapshot(tree);
   const changed = snapshotDelta(record.beforeSnapshot, snapshot);
   const view = effective(tree, record);
   const earlier = new Set([...view.claimed, ...snapshotDelta(view.before, snapshot)]);
@@ -327,12 +363,15 @@ function currentRecords(tree) {
 module.exports = {
   acceptDispatch,
   captureSnapshot,
+  checkSnapshot,
   claimedPaths,
+  coveredItems,
   currentRecords,
   effective,
   entryIn,
   excludeFile,
   hash,
+  identity,
   itemsOf,
   lineage,
   loadDispatch,

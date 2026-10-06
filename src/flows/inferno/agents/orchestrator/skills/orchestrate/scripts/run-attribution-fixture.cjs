@@ -48,7 +48,7 @@ function fixture(t, items) {
   const cache = path.join(directory, 'cache');
   function call(...args) {
     const result = spawnSync(process.execPath, [RUN, ...args, '--json'], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache },
+      cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache }, timeout: 60000,
     });
     let data = null;
     try { data = JSON.parse(result.stdout); } catch (error) { data = null; }
