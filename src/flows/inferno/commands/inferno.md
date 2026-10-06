@@ -24,7 +24,7 @@ It is the complete, self-contained procedure: intent selection menu (never auto-
 
 ## Per-Project Config
 
-Optional `.specs-inferno/config.yaml`: builder and tester model tiers, the finalize gate and its path scopes, worktree bootstrap commands, the dispatch constraints pasted into every builder prompt, and the delivery mode. Template: `.specsmd/inferno/agents/orchestrator/config.example.yaml`. Create it interactively with `/specsmd-inferno-config`.
+Optional `.specs-inferno/config.yaml`: builder model tiers, the finalize gate and its path scopes, worktree bootstrap commands, the dispatch constraints pasted into every builder prompt, and the delivery mode. Template: `.specsmd/inferno/agents/orchestrator/config.example.yaml`. Create it interactively with `/specsmd-inferno-config`.
 
 ---
 

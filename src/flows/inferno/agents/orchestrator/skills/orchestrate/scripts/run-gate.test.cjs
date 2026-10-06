@@ -21,11 +21,13 @@ function git(tree, ...args) {
   return execFileSync('git', args, { cwd: tree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-function config(commands = [scoped, whole], integrate = [], scopes = { [scoped]: ['src/**'] }) {
+function config(commands = [scoped, whole], integrate = [], scopes = { [scoped]: ['src/**'] }, reruns = {}) {
   const list = (values) => values.length ? `\n${values.map((value) => `    - ${value}`).join('\n')}` : ' []';
   return `delivery:\n  base_branch: main\nverification:\n  finalize:${list(commands)}\n  integrate:${list(integrate)}\n` +
     `  finalize_scopes: ${Object.keys(scopes).length ? '\n' + Object.entries(scopes).map(([command, patterns]) =>
-      `    "${command}": ${JSON.stringify(patterns)}`).join('\n') : '{}'}\n`;
+      `    "${command}": ${JSON.stringify(patterns)}`).join('\n') : '{}'}\n` +
+    (Object.keys(reruns).length ? `  flake_rerun:\n${Object.entries(reruns).map(([command, rerun]) =>
+      `    ${JSON.stringify(command)}: ${JSON.stringify(rerun)}`).join('\n')}\n` : '');
 }
 
 function fixture(t, source = config()) {
@@ -44,6 +46,11 @@ function fixture(t, source = config()) {
 const name = process.argv[2];
 fs.appendFileSync('.runs', name + '\\n');
 if (name.startsWith('red') && fs.readFileSync('scripts/fix.txt', 'utf8').trim() === 'red') process.exit(1);
+if (name === 'flaky') {
+  process.stdout.write('  2 failed\\n    [chromium] › e2e/one.spec.ts:12:2 › first case\\n    [chromium] › e2e/two.spec.ts:34:2 › second case\\n  7 passed\\n');
+  process.exit(1);
+}
+if (name === 'flaky-rerun-red') process.exit(1);
 `);
   commit(tree);
   git(tree, 'checkout', '-qb', 'intent');
@@ -57,7 +64,7 @@ function commit(tree) {
 
 function run(f, ...args) {
   const result = spawnSync(process.execPath, [RUN, ...args], {
-    cwd: f.tree, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: f.cache },
+    cwd: f.tree, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: f.cache, ...f.env },
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
@@ -104,6 +111,51 @@ test('a fix after a red reruns the red and unscoped commands and reuses unaffect
   assert.match(retry.out, /GREEN \d+s node proof.cjs scoped/);
   assert.deepEqual(ran(f), ['scoped', 'whole', 'red', 'whole', 'red']);
   passed(run(f, 'green'));
+});
+
+test('a wall clock that steps back while a command runs still leaves the proof green reads', (t) => {
+  // A WSL host steps its wall clock back now and then. Here every reading of it is two
+  // seconds earlier than the one before, so a duration taken on it comes out negative.
+  const f = fixture(t);
+  const steps = path.join(path.dirname(f.tree), 'clock-steps-back.cjs');
+  fs.writeFileSync(steps, 'const real = Date.now;\nlet reads = 0;\nDate.now = () => real() - 2000 * reads++;\n');
+  f.env = { NODE_OPTIONS: `--require ${steps}` };
+  passed(run(f, 'gate'));
+  assert.deepEqual(ran(f), ['scoped', 'whole']);
+  passed(run(f, 'green'));
+});
+
+test('gate accepts one green flake rerun, names every failed case and mints the command proof', (t) => {
+  const flaky = 'node proof.cjs flaky';
+  const rerun = 'node proof.cjs flaky-rerun-green';
+  const f = fixture(t, config([flaky], [], { [flaky]: ['src/**'] }, { [flaky]: rerun }));
+  const result = run(f, 'gate');
+  passed(result);
+  assert.match(result.out, /FLAKE \d+s node proof\.cjs flaky/);
+  assert.match(result.out, /e2e\/one\.spec\.ts:12:2 › first case/);
+  assert.match(result.out, /e2e\/two\.spec\.ts:34:2 › second case/);
+  assert.deepEqual(ran(f), ['flaky', 'flaky-rerun-green']);
+  passed(run(f, 'green'));
+  passed(run(f, 'gate'));
+  assert.deepEqual(ran(f), ['flaky', 'flaky-rerun-green']);
+});
+
+test('gate stays red when the one configured flake rerun fails', (t) => {
+  const flaky = 'node proof.cjs flaky';
+  const f = fixture(t, config([flaky], [], { [flaky]: ['src/**'] }, { [flaky]: 'node proof.cjs flaky-rerun-red' }));
+  const result = run(f, 'gate');
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.deepEqual(ran(f), ['flaky', 'flaky-rerun-red']);
+  assert.equal(run(f, 'green').code, 3);
+});
+
+test('gate does not rerun a failed command without a flake entry', (t) => {
+  const flaky = 'node proof.cjs flaky';
+  const f = fixture(t, config([flaky]));
+  const result = run(f, 'gate');
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.deepEqual(ran(f), ['flaky']);
+  assert.equal(run(f, 'green').code, 3);
 });
 
 test('a change inside a scope reruns that command and ledger changes preserve its proof', (t) => {

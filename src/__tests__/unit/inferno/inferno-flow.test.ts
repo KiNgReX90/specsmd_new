@@ -157,8 +157,8 @@ describe('inferno flow', () => {
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*cheap:\s*claude-opus-5-5\b/m);
-    expect(config).toMatch(/^\s*tester:\s*claude-opus-5-5\b/m);
-    expect(config).toMatch(/^\s*tester_high:\s*claude-fable-5-1\b/m);
+    // No run dispatches a tester, so the example offers no tester tier.
+    expect(config).not.toMatch(/^\s*tester(?:_high)?:/m);
     // The planner writes its own work items, so the scribe tier is gone.
     expect(config).not.toMatch(/^\s*writer:/m);
     expect(config).not.toMatch(/gpt[- ]?5(?:\.| )?5|gpt-5\.6/i);

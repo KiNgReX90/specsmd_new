@@ -69,10 +69,6 @@ function foldBase(tree, base) {
 // verify-item
 // ---------------------------------------------------------------------------
 
-function ownedBy(file, editable) {
-  return editable.some((entry) => file === entry || file.startsWith(`${entry}/`));
-}
-
 /** The items under review: one id, or the explicitly batched chain in `--items a,b`. */
 function reviewed(ledger, itemId, options) {
   const ids = options.items
@@ -111,7 +107,7 @@ function verifyItem(itemId, options) {
   // it named every file an earlier item in the same intent had already landed (2026-09-05).
   const since = options.since || 'HEAD';
   const outside = changedPaths(tree, since).filter(
-    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !ownedBy(file, editable)
+    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !lib.ownedBy(file, editable)
   );
 
   const out = [];
@@ -160,12 +156,43 @@ function describe(results) {
     if (entry.result === 'skip') out.push(`SKIP ${entry.command} (no path in scope changed)`);
     else if (entry.result === 'green') out.push(`GREEN ${entry.seconds}s ${entry.command} (unchanged since ${entry.stamp})`);
     else if (entry.result === 'pass') out.push(`PASS ${entry.seconds}s ${entry.command}`);
+    else if (entry.result === 'flake') {
+      out.push(`FLAKE ${entry.seconds}s ${entry.command} -> ${entry.log}`);
+      out.push(...entry.cases.map((name) => `  ${name}`));
+    }
     else {
       out.push(`FAIL ${entry.seconds}s ${entry.command} -> ${entry.log}`);
       out.push(...lib.tail(entry.log, 5));
+      if (entry.rerunLog) {
+        out.push(`FAIL rerun ${entry.rerunCommand} -> ${entry.rerunLog}`);
+        out.push(...lib.tail(entry.rerunLog, 5));
+      }
     }
   }
   return out;
+}
+
+/** The Playwright failure summary names the cases after its count, before the pass count. */
+function failedCases(log) {
+  const lines = fs.readFileSync(log, 'utf8').split('\n');
+  const summary = lines.findIndex((line) => /^  \d+ failed(?: \([^)]+\))?\s*$/.test(line));
+  if (summary < 0) return [];
+  const cases = [];
+  for (const line of lines.slice(summary + 1)) {
+    if (!/^    \[[^\]]+\] › .+/.test(line)) break;
+    cases.push(line.trim());
+  }
+  return cases;
+}
+
+/** A passing rerun proves the original command only while its inputs remain unchanged. */
+function recordFlake(tree, config, selected, command, seconds) {
+  const { file, ...identity } = proofs.commandProof(tree, config, selected, command);
+  const record = { ...identity, stamp: new Date().toISOString(), seconds, branch: lib.currentBranch(tree) };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const pending = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(pending, `${JSON.stringify(record)}\n`);
+  fs.renameSync(pending, file);
 }
 
 function gateCommands(tree, selected) {
@@ -190,14 +217,32 @@ function gateNow(options) {
   const { config, commands } = gateCommands(tree, options.config);
   // Reject a verdict if the inputs change while the gate runs.
   const codeHash = lib.codeTreeHash(tree);
+  const head = lib.git(tree, ['rev-parse', 'HEAD']);
   const started = proofs.scopeHash(tree);
   const definition = JSON.stringify(config.verification);
   const branch = lib.currentBranch(tree);
   const dir = path.join(lib.cacheDir(tree), branch, `gate-${lib.stamp()}`);
 
   const results = [];
+  const unchanged = () => lib.git(tree, ['rev-parse', 'HEAD']) === head &&
+    lib.dirtyPaths(tree).length === 0 && proofs.scopeHash(tree) === started &&
+    JSON.stringify(lib.readConfig(tree, options.config).verification) === definition;
   for (const [index, command] of commands.entries()) {
     const result = proofs.runCommand(tree, config, options.config, command, path.join(dir, `${index}.log`));
+    const rerunCommand = config.verification.flake_rerun && config.verification.flake_rerun[command];
+    if (result.result === 'fail' && rerunCommand) {
+      if (unchanged()) {
+        const rerun = lib.runShell(rerunCommand, tree, path.join(dir, `${index}-rerun.log`));
+        result.rerunCommand = rerunCommand;
+        result.rerunLog = rerun.log;
+        result.seconds += rerun.seconds;
+        if (rerun.code === 0 && unchanged()) {
+          recordFlake(tree, config, options.config, command, result.seconds);
+          result.cases = failedCases(result.log);
+          result.result = 'flake';
+        } else if (!unchanged()) result.moved = true;
+      } else result.moved = true;
+    }
     results.push(result);
     if (result.result === 'fail') {
       const out = [...folded, ...describe(results)];

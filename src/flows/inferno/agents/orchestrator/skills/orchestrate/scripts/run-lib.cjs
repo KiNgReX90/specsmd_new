@@ -289,7 +289,9 @@ function runShell(command, cwd, logFile, options = {}) {
   fs.mkdirSync(path.dirname(logFile), { recursive: true });
   const wrapped = options.wrap !== false && isHeavy(command) && onPath('claude-build');
   const handle = fs.openSync(logFile, 'a');
-  const started = Date.now();
+  // A duration is read on the monotonic clock, because a host that steps its wall clock back
+  // gave a negative one, and a proof with negative seconds is refused as unreadable.
+  const started = performance.now();
   const result = spawnSync(
     wrapped ? 'claude-build' : 'bash',
     wrapped ? ['--', 'bash', '-c', command] : ['-c', command],
@@ -299,7 +301,7 @@ function runShell(command, cwd, logFile, options = {}) {
   return {
     command,
     code: result.status === null ? 1 : result.status,
-    seconds: Math.round((Date.now() - started) / 1000),
+    seconds: Math.round((performance.now() - started) / 1000),
     log: logFile,
     wrapped,
   };
@@ -394,6 +396,16 @@ function capLines(out, max = 30) {
   return [...out.slice(0, max - 1), `... ${out.length - (max - 1)} more lines`];
 }
 
+/**
+ * Whether `file` falls under one of an item's `ownership.editable` entries. A folder entry
+ * owns every path below it whether or not it is written with a trailing slash.
+ */
+function ownedBy(file, editable) {
+  return (editable || []).some(
+    (entry) => file === entry || file.startsWith(`${entry.replace(/\/+$/, '')}/`)
+  );
+}
+
 module.exports = {
   RunError,
   SPECS_DIR,
@@ -411,6 +423,7 @@ module.exports = {
   isHeavy,
   matchesAny,
   onPath,
+  ownedBy,
   parseYaml,
   primaryRoot,
   processesIn,
