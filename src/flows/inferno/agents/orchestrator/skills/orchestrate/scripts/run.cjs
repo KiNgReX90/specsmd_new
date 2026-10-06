@@ -80,7 +80,7 @@ Options
                     scan, review, gate and green: the intent a tree on no intent branch builds
   --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
-  --only <ids>      scan with --plan: the questions to ask, of wiring, contract, reread and live-path
+  --only wiring     scan with --plan: the one question the plan-time scan asks, its default
   --plan <id>       scan: ask of the captured plan of this intent instead of its diff
 
 Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, or an item completed with no integration proof or review), 4 gate still running.`;

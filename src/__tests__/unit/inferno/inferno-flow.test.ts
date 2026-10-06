@@ -111,6 +111,18 @@ describe('inferno flow', () => {
     for (const [id, question] of Object.entries(file.QUESTIONS)) expect(scanner).toContain(`- \`${id}\`: ${question}`);
   });
 
+  // The planner launcher scans every captured plan for wiring gaps before it hands the plan
+  // over, on each host by a call that runs from the project root.
+  it.each([
+    ['claude/commands/inferno-planner.md', ''],
+    ['codex/skills/specsmd-inferno-planner/SKILL.md', ' --config .specs-inferno/config.codex.yaml'],
+  ])('%s runs the plan-time scan', (rel, config) => {
+    const text = readFileSync(path.join(INFERNO, rel), 'utf8');
+    expect(text).toContain(
+      `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id>${config}`
+    );
+  });
+
   // The reviewer judges and records nothing itself: it may write its review file, and run.cjs
   // commits it. The two file shapes it is taught are exactly the keys the scripts accept.
   it('the reviewer carries the tools of a judge and teaches exactly the review schemas', () => {

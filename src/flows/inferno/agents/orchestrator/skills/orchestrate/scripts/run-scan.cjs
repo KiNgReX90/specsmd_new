@@ -26,23 +26,29 @@ const { IDS, QUESTIONS, numbered, readResult, renderScan } = require('./run-scan
 
 const { RunError } = lib;
 
+/** The questions the plan-time scan asks: nothing is built yet, so only the wiring can be held. */
+const PLAN_IDS = ['wiring'];
+
 /** How many scanners a host spawns in one message. */
 const GROUP = { claude: 4, codex: 3 };
 
 const short = (tree, ref) => lib.git(tree, ['rev-parse', '--short', ref]);
 
-/** The questions this call asks: all four, or at plan time the ones `--only` names. */
+/**
+ * The questions this call asks, and so the ones its collect reads: all four before the
+ * review, wiring alone at plan time. The dispatch records them and the collect reads exactly
+ * those, so neither can name a question the other does not.
+ */
 function questions(options) {
-  if (!options.only) return IDS;
   if (!options.plan) {
+    if (!options.only) return IDS;
     throw new RunError('usage: --only goes with --plan <intent>; the scan before the review asks all four questions', 'BAD_ARGS', 1);
   }
-  const ids = String(options.only).split(',').map((id) => id.trim()).filter(Boolean);
-  const unknown = ids.filter((id) => !IDS.includes(id));
-  if (ids.length === 0 || unknown.length > 0) {
-    throw new RunError(`usage: --only names ${IDS.join(', ')}, not ${unknown.join(', ') || 'nothing'}`, 'BAD_ARGS', 1);
+  const asked = options.only ? String(options.only).split(',').map((id) => id.trim()).filter(Boolean) : PLAN_IDS;
+  if (asked.length !== PLAN_IDS.length || asked.some((id) => !PLAN_IDS.includes(id))) {
+    throw new RunError(`usage: the plan-time scan asks wiring alone: run run.cjs scan --only wiring --plan ${options.plan}`, 'BAD_ARGS', 1);
   }
-  return IDS.filter((id) => ids.includes(id));
+  return PLAN_IDS;
 }
 
 /** The agent file the host dispatches the scanner from, relative to the project root. */
@@ -99,7 +105,7 @@ function dispatch(tree, context) {
     fs.rmSync(entry.result, { force: true });
     fs.writeFileSync(entry.brief, briefText(tree, context, entry.id, entry, range));
   }
-  const at = { intent, plan: Boolean(options.plan), range, head: lib.git(tree, ['rev-parse', 'HEAD']), hash: proofs.scopeHash(tree) };
+  const at = { intent, plan: Boolean(options.plan), ids, range, head: lib.git(tree, ['rev-parse', 'HEAD']), hash: proofs.scopeHash(tree) };
   fs.writeFileSync(path.join(dir, 'dispatch.json'), `${JSON.stringify(at)}\n`);
   const size = GROUP[config.host === 'codex' ? 'codex' : 'claude'];
   const groups = [];
@@ -167,6 +173,13 @@ function collect(tree, context) {
   if (!options.plan && sent.hash !== proofs.scopeHash(tree)) {
     return owing([
       `the code moved since the scan dispatch at ${sent.head.slice(0, 7)}, so the results read another tree; nothing recorded`,
+      `run ${again} for a fresh dispatch, spawn the lines it prints, then collect`,
+    ]);
+  }
+  if (!Array.isArray(sent.ids) || sent.ids.join(',') !== ids.join(',')) {
+    return owing([
+      `the scan on record asked ${(Array.isArray(sent.ids) && sent.ids.join(', ')) || 'no question'}, and this collect reads ` +
+        `${ids.join(', ')}; nothing recorded`,
       `run ${again} for a fresh dispatch, spawn the lines it prints, then collect`,
     ]);
   }

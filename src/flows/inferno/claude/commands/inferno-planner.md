@@ -21,7 +21,7 @@ Run one verification at a time and never start a second while one is running.
 
 ## 1. Spawn the planner
 
-Dispatch one `specsmd-inferno-planner` subagent with the statement verbatim. It pins its own model and effort. Never plan inline, whatever the statement asks: this session never reads the tree or writes the brief.
+Dispatch one `specsmd-inferno-planner` subagent with the statement verbatim. It pins its own model and effort. Never plan inline, whatever the statement asks for: this session never reads the tree or writes the brief.
 
 The planner triages before it captures and returns, in this order: a `Triage: direct | intent` line, an `Intent PLANNED` block per intent, `reserve:` lines, `direct:` recipes and `oracle:` paragraphs. A `direct:` recipe carries labelled lines `change`, `files`, `test` (file :: assertion), `proof`, `grade`, `hard` (yes or no) and `measured`.
 

@@ -169,14 +169,78 @@ test("the plan-time scan asks the wiring question of the plan alone and hands ev
   assert.equal(clear.code, 0, clear.out + clear.err);
 });
 
-test("--only names questions of the plan-time scan only, and only the four", () => {
+test("the plan-time scan asks wiring alone, and its printed collect reads exactly what it sent", () => {
+  const { fixture } = started();
+  const result = scan(fixture, fixture.root, ["--plan", "alpha"]);
+  assert.equal(result.code, 3, result.out + result.err);
+  const sent = [...result.out.matchAll(/ scan (\S+) brief (\S+)/g)];
+  assert.deepEqual(sent.map((line) => line[1]), ["wiring"]);
+  const collect = /then (run\.cjs scan --collect .*) collects them/.exec(result.out)[1].split(" ").slice(1);
+  answer({ id: "wiring", result: sent[0][2].replace(/\.md$/, ".yaml") }, LINE);
+  const gaps = run(fixture, collect);
+  assert.equal(gaps.code, 2, gaps.out + gaps.err);
+  assert.match(gaps.out, /GAP wiring-1/);
+});
+
+test("--only goes with --plan and names wiring alone, and the refusal prints the call that works", () => {
   const { fixture, tree } = started();
   const alone = scan(fixture, tree, ["--only", "wiring"]);
   assert.equal(alone.code, 1, alone.out + alone.err);
   assert.match(alone.err, /--plan/);
-  const unknown = scan(fixture, fixture.root, ["--only", "wires", "--plan", "alpha"]);
-  assert.equal(unknown.code, 1, unknown.out + unknown.err);
-  assert.match(unknown.err, /wiring, contract, reread, live-path/);
+  for (const id of ["contract", "wires"]) {
+    const refused = scan(fixture, fixture.root, ["--only", id, "--plan", "alpha"]);
+    assert.equal(refused.code, 1, refused.out + refused.err);
+    assert.match(refused.err, /the plan-time scan asks wiring alone: run run\.cjs scan --only wiring --plan alpha/);
+  }
+});
+
+test("collect refuses results of a dispatch that asked other questions than the call collects", () => {
+  const { fixture } = started();
+  const result = scan(fixture, fixture.root, ["--plan", "alpha", "--json"]);
+  const [entry] = JSON.parse(result.out).groups.flat();
+  const record = path.join(path.dirname(entry.result), "dispatch.json");
+  const sent = JSON.parse(fs.readFileSync(record, "utf8"));
+  assert.deepEqual(sent.ids, ["wiring"]);
+  fs.writeFileSync(record, JSON.stringify({ ...sent, ids: ["wiring", "contract"] }));
+  answer(entry);
+  const refused = scan(fixture, fixture.root, ["--collect", "--plan", "alpha"]);
+  assert.equal(refused.code, 3, refused.out + refused.err);
+  assert.match(refused.out, /asked wiring, contract/);
+  assert.match(refused.out, /run\.cjs scan --tree .* --plan alpha for a fresh dispatch/);
+});
+
+test("a role installed in the primary checkout alone lets a worktree cut before it scan", () => {
+  const fixture = repo();
+  write(fixture.root, CLAUDE_ROLE, INSTALLED[CLAUDE_ROLE]);
+  const tree = worktree(fixture, INTENT_TREE);
+  assert.equal(fs.existsSync(path.join(tree, CLAUDE_ROLE)), false);
+  const result = scan(fixture, tree);
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.equal([...result.out.matchAll(/^dispatch specsmd-inferno-scanner /gm)].length, 4);
+});
+
+test("a fresh dispatch after the tree moved drops the old results, so collect waits on all four again", () => {
+  const { fixture, tree } = started();
+  const sent = dispatched(fixture, tree);
+  for (const id of IDS) answer(sent[id]);
+  write(tree, "src/a.ts", "export const a = 6;\n");
+  git(tree, ["commit", "-qam", "landed after the scan"]);
+  assert.match(scan(fixture, tree, ["--collect"]).out, /moved since the scan dispatch/);
+  dispatched(fixture, tree);
+  const waiting = scan(fixture, tree, ["--collect"]);
+  assert.equal(waiting.code, 3, waiting.out + waiting.err);
+  assert.match(waiting.out, /waiting on the wiring, contract, reread, live-path scanners/);
+});
+
+test("a result that answers another question than its scanner was sent is refused", () => {
+  const { fixture, tree } = started();
+  const sent = dispatched(fixture, tree);
+  for (const id of IDS) answer(sent[id]);
+  write(path.dirname(sent.wiring.result), path.basename(sent.wiring.result), "question: contract\nlines: []\n");
+  const result = scan(fixture, tree, ["--collect"]);
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.err, /question must be wiring/);
+  assert.match(result.err, /the wiring scanner, then run run\.cjs scan --collect --tree/);
 });
 
 test("an install without the scanner role is refused with the fix, never skipped", () => {
