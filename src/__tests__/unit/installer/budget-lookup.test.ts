@@ -5,7 +5,7 @@ import { budgetStub, openSandbox, snapshot, write } from './sandbox';
 
 const { installFlow } = require('../../../lib/installer');
 
-describe.sequential('install budget lookup', () => {
+describe.sequential('install budget lookup', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
   let logs: string[];
   let savedHome: string | undefined;

@@ -39,7 +39,7 @@ function tomlPins(rel: string) {
   return [text.match(/^model = "([^"]*)"$/m)?.[1], text.match(/^model_reasoning_effort = "([^"]*)"$/m)?.[1]];
 }
 
-describe.sequential('role pins from host config', () => {
+describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => {

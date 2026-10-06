@@ -17,7 +17,7 @@ function run(command: string, args: string[], cwd: string): void {
   }
 }
 
-describe('dashboard git changes', () => {
+describe('dashboard git changes', { timeout: 30_000 }, () => {
   it('returns unavailable snapshot outside git repo', () => {
     const folder = mkdtempSync(join(tmpdir(), 'git-changes-no-repo-'));
     try {

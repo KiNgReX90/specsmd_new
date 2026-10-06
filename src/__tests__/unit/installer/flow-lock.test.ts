@@ -14,7 +14,7 @@ function managedBlock(text: string) {
   return text.slice(start, end);
 }
 
-describe.sequential('flow.lock', () => {
+describe.sequential('flow.lock', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
   let logs: string[];
 

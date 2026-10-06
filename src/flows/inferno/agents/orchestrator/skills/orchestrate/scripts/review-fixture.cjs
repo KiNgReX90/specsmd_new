@@ -4,8 +4,8 @@
  * Test fixtures for the item review: a throwaway host repository with one intent, and the
  * helpers that record a clean review the way the reviewer and `run.cjs review` do.
  *
- * Shared by run-review.test.cjs, run-integrate-review.test.cjs and run.test.cjs, so the
- * review the integrate tests need is written in one place.
+ * Shared by every run*.test.cjs suite that needs a review on record (the review suites, the
+ * integrate and gate suites, and run-fixture.cjs), so the review they need is written in one place.
  */
 
 const assert = require('node:assert/strict');
