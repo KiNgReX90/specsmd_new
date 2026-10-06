@@ -183,6 +183,16 @@ function record(tree, context, ledger) {
   return verdictResult(tree, { ...context, item: updated }, review, head);
 }
 
+/** The files a pending review lists. A review that does not parse lists none here; its record reports why. */
+function pendingFiles(tree, rel, id) {
+  try {
+    return parseItemReview(tree, rel, id, { recorded: false }).files;
+  } catch (error) {
+    if (error instanceof RunError) return [];
+    throw error;
+  }
+}
+
 /** The step itself. Every call first puts back a killed mutate's leftover and refuses this item's uncommitted work. */
 function review(options) {
   if (!options.item) {
@@ -203,8 +213,8 @@ function review(options) {
 
   // Only this item's work has to be committed: another builder may be editing beside it, and
   // another item's reviewer may be running a mutant beside it. A dead run's mutant goes back
-  // first, so it never reads as this item's work.
-  const listed = current ? current.files : [];
+  // first, so it never reads as this item's work. A pending review binds every file it lists.
+  const listed = pending ? pendingFiles(tree, rel, item.id) : current ? current.files : [];
   const mine = (file) => lib.ownedBy(file, editable) || listed.includes(file);
   const restored = recoverInterrupted(tree, { keepLive: (file) => !mine(file) });
   const dirty = lib.dirtyPaths(tree).filter(mine);

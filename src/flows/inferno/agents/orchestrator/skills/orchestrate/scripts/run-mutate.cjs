@@ -57,57 +57,45 @@ function alive(entry) {
   return now !== null && now.state !== 'Z' && now.start === entry.start;
 }
 
-/** Every index of `lines` where the lines of `block` start. */
-function occurrences(lines, block) {
-  const at = [];
-  for (let i = 0; i + block.length <= lines.length; i += 1) {
-    if (block.every((text, j) => lines[i + j] === text)) at.push(i);
-  }
-  return at;
-}
-
 /**
- * Put a dead run's mutant back and say what happened. A file edited since keeps the edit: the
- * mutant line is found again by its text. When it shows up more than once, nobody can tell
- * which one the run wrote, so this refuses and keeps the journal.
+ * Put a dead run's mutant back and say what happened. Recovery writes the file only when it is
+ * byte for byte what the mutate wrote, and never looks for the mutant by its text: that guess
+ * rewrites lines nobody mutated. A file that already holds its original is left as it is. Any
+ * other file, an edit since, a missing file or a journal short of a field, is refused with the
+ * journal kept, since a leftover never clears by waiting.
  */
 function putBack(tree, entry, journal) {
   const abs = path.join(tree, entry.file);
-  const text = fs.existsSync(abs) ? fs.readFileSync(abs) : null;
-  const whole = text !== null && sha(text) === entry.mutant;
-  if (typeof entry.original !== 'string' || typeof entry.replace !== 'string' || !Number.isInteger(entry.line)) {
-    // A journal written before the line was journaled holds only the mutant's hash.
-    if (whole) lib.git(tree, ['checkout', '--', entry.file]);
-    return whole ? `restored ${entry.file} from an interrupted mutate`
-      : `${entry.file} changed after an interrupted mutate; check it for the mutant, the journal is dropped`;
+  const now = fs.existsSync(abs) ? fs.readFileSync(abs) : null;
+  const complete = Number.isInteger(entry.line) && typeof entry.original === 'string' &&
+    typeof entry.replace === 'string' && typeof entry.before === 'string';
+  if (complete && now !== null && sha(now) === entry.before) {
+    return `${entry.file} already holds its original; dropped the journal of an interrupted mutate`;
   }
-  const lines = text === null ? [] : text.toString('utf8').split('\n');
-  const block = entry.replace.split('\n');
-  const at = whole ? [entry.line - 1] : occurrences(lines, block);
-  const mutantText = JSON.stringify(entry.replace);
-  if (at.length === 0) {
-    return `${entry.file} changed after an interrupted mutate and no longer holds its mutant ${mutantText} ` +
-      `from line ${entry.line}; the journal is dropped`;
+  if (complete && now !== null && sha(now) === entry.mutant) {
+    const lines = now.toString('utf8').split('\n');
+    lines.splice(entry.line - 1, entry.replace.split('\n').length, entry.original);
+    fs.writeFileSync(abs, lines.join('\n'));
+    return `restored ${entry.file} from an interrupted mutate`;
   }
-  if (at.length > 1) {
-    throw new RunError(
-      `${entry.file} changed after an interrupted mutate and holds its mutant ${mutantText} at lines ` +
-        `${at.map((i) => i + 1).join(', ')}. Put the original ${JSON.stringify(entry.original)} back on the one the ` +
-        `mutate wrote (line ${entry.line} then), then delete ${journal}`,
-      'MUTATE_LEFTOVER'
-    );
-  }
-  lines.splice(at[0], block.length, entry.original);
-  fs.writeFileSync(abs, lines.join('\n'));
-  return whole ? `restored ${entry.file} from an interrupted mutate` : `restored line ${at[0] + 1} of ${entry.file} from an interrupted mutate`;
+  const why = !complete ? 'its journal lacks what a restore needs' : now === null ? 'the file is gone' : 'the file changed since';
+  const wrote = Number.isInteger(entry.line) ? ` line ${entry.line} of` : '';
+  const as = typeof entry.replace === 'string' ? ` as ${JSON.stringify(entry.replace)}` : '';
+  const over = typeof entry.original === 'string' ? ` in place of ${JSON.stringify(entry.original)}` : '';
+  throw new RunError(
+    `an interrupted mutate wrote${wrote} ${entry.file}${as}${over}, and ${why}, so nothing was restored. ` +
+      `Put the original back where the mutant stands, keep every other change, then delete ${journal}`,
+    'MUTATE_LEFTOVER'
+  );
 }
 
 /**
  * Put back a mutant an earlier run left behind when it was killed before its restore. A run
  * that is still alive owns its mutant, so the tree is refused instead of reverted under it,
- * unless `keepLive(file)` says the caller never reads that file. Every step that refuses a
- * dirty tree calls this first, so a leftover is never committed, and every journal it drops
- * comes with a line that says why.
+ * unless `keepLive(file)` says the caller never reads that file. A dead run's leftover that
+ * cannot go back byte for byte is refused in every step, whichever item owns the file. Every
+ * step that refuses a dirty tree calls this first, so a leftover is never committed, and every
+ * journal it drops comes with a line that says why.
  */
 function recoverInterrupted(tree, options = {}) {
   const journal = journalPath(tree);
@@ -191,7 +179,7 @@ function mutate(options) {
   fs.mkdirSync(path.dirname(journal), { recursive: true });
   const self = procStat('self');
   const owner = { pid: process.pid, start: self && self.start };
-  const line = { line: n, original: was, replace: options.replace };
+  const line = { line: n, original: was, replace: options.replace, before: sha(original) };
   fs.writeFileSync(journal, `${JSON.stringify({ file: rel, ...line, mutant: sha(mutant), ...owner })}\n`);
   // A listener replaces the default action, so a signal now waits for the restore below.
   const hold = () => {};

@@ -84,15 +84,25 @@ test("mutate refuses a line that does not change, a line past the end and an unt
   assert.equal(outside.status, 2, outside.stderr);
 });
 
-/** Start a mutate whose test holds until `release` exists; resolves once the mutant is in place. */
-async function held(f) {
+/** Start a mutate on line 1 of `file` whose test holds until `release` exists; resolves once the mutant is in place. */
+async function held(f, file = FILE, replace = "module.exports = 2;") {
   const release = path.join(f.dir, "release");
-  const child = spawn(process.execPath, args(f, `until [ -f ${release} ]; do sleep 0.05; done; true`),
-    { cwd: f.tree, env: env(f), stdio: "ignore" });
+  const child = spawn(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", file, "--line", "1", "--replace", replace,
+    "--test", `until [ -f ${release} ]; do sleep 0.05; done; true`], { cwd: f.tree, env: env(f), stdio: "ignore" });
   const done = new Promise((resolve) => child.on("close", (code, signal) => resolve({ code, signal })));
-  for (let i = 0; i < 200 && content(f) === ORIGINAL; i += 1) await new Promise((r) => setTimeout(r, 25));
-  assert.notEqual(content(f), ORIGINAL, "the mutant never landed");
+  const read = () => fs.readFileSync(path.join(f.tree, file), "utf8");
+  const before = read();
+  for (let i = 0; i < 200 && read() === before; i += 1) await new Promise((r) => setTimeout(r, 25));
+  assert.notEqual(read(), before, "the mutant never landed");
   return { child, done, release: () => fs.writeFileSync(release, "") };
+}
+
+/** A mutate killed outright: its mutant and its journal stay behind. */
+async function killed(f, file, replace) {
+  const run = await held(f, file, replace);
+  run.child.kill("SIGKILL");
+  await run.done;
+  run.release();
 }
 
 test("a signal during the test still restores the line", async (t) => {
@@ -197,27 +207,64 @@ for (const [name, owner] of [
   });
 }
 
-// A file edited after its mutate was killed: the mutant line is found again by its text, never
-// guessed at, and the journal goes only with a line that says what happened to it.
-for (const [name, edit, after, said, kept] of [
-  ["a line added above it", (text) => `// first\n${text}`, "// first\nmodule.exports = 1;\n",
-    /restored line 2 of src\/m\.js from an interrupted mutate/, false],
-  ["the mutant line edited away", () => "module.exports = 7;\n", "module.exports = 7;\n",
-    /src\/m\.js changed after an interrupted mutate and no longer holds its mutant "module\.exports = 2;"/, false],
-  ["the mutant line twice", (text) => `${text}${text}`, "module.exports = 2;\nmodule.exports = 2;\n",
-    /src\/m\.js .*lines 1, 2.*"module\.exports = 1;".*mutate-journal\.json/, true],
+// Recovery writes a file only when it is byte for byte what the mutate wrote, and never looks
+// for the mutant by its text. Anything else is refused with the journal kept, so a person puts
+// the original back where the mutant stands.
+const LEFTOVER = /MUTATE_LEFTOVER.*line 1 of src\/m\.js as "module\.exports = 2;" in place of "module\.exports = 1;".*delete \S+mutate-journal\.json/;
+
+for (const [name, edit] of [
+  ["a line added above it", (text) => `// first\n${text}`],
+  ["the mutant line edited away", () => "module.exports = 7;\n"],
+  ["the mutant line twice", (text) => `${text}${text}`],
 ]) {
-  test(`a leftover mutant under a later edit, ${name}, is handled out loud`, async (t) => {
+  test(`a leftover mutant under a later edit, ${name}, is refused and nothing is written`, async (t) => {
     const f = fixture(t);
-    const run = await held(f);
-    run.child.kill("SIGKILL");
-    await run.done;
-    run.release();
-    fs.writeFileSync(path.join(f.tree, FILE), edit(content(f)));
+    await killed(f);
+    const edited = edit(content(f));
+    fs.writeFileSync(path.join(f.tree, FILE), edited);
     const next = mutate(f, CHECK);
     assert.equal(next.code, 2, next.out + next.err);
-    assert.match(next.err, said);
-    assert.equal(content(f), after);
-    assert.equal(journalOf(f) !== null, kept);
+    assert.match(next.err, LEFTOVER);
+    assert.equal(content(f), edited);
+    assert.ok(journalOf(f), "the journal is kept");
   });
 }
+
+test("a line nobody mutated is never rewritten: A,B,C mutated to C,B,C and edited to Z,B,C stays Z,B,C", async (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.tree, "src/p.txt"), "A\nB\nC\n");
+  git(f.tree, "add", "-A");
+  git(f.tree, "commit", "-qm", "p");
+  await killed(f, "src/p.txt", "C");
+  fs.writeFileSync(path.join(f.tree, "src/p.txt"), "Z\nB\nC\n");
+  const next = mutate(f, CHECK);
+  assert.equal(next.code, 2, next.out + next.err);
+  assert.match(next.err, /MUTATE_LEFTOVER.*src\/p\.txt/);
+  assert.equal(fs.readFileSync(path.join(f.tree, "src/p.txt"), "utf8"), "Z\nB\nC\n");
+  assert.ok(journalOf(f), "the journal is kept");
+});
+
+test("a run killed after its restore leaves a file that already holds its original, and the journal goes", async (t) => {
+  const f = fixture(t);
+  await killed(f);
+  git(f.tree, "checkout", "--", FILE);
+  const next = mutate(f, CHECK);
+  assert.equal(next.code, 0, next.out + next.err);
+  assert.match(next.out, /^src\/m\.js already holds its original/m);
+  assert.match(next.out, /^caught yes$/m);
+  assert.equal(content(f), ORIGINAL);
+  assert.equal(journalOf(f), null);
+});
+
+test("a journal without the line, the texts and the original's hash is refused, and the mutant stays", async (t) => {
+  const f = fixture(t);
+  await killed(f);
+  const journal = journalOf(f);
+  const { line, original, replace, before, ...rest } = JSON.parse(fs.readFileSync(journal, "utf8"));
+  fs.writeFileSync(journal, JSON.stringify(rest));
+  const next = mutate(f, CHECK);
+  assert.equal(next.code, 2, next.out + next.err);
+  assert.match(next.err, /MUTATE_LEFTOVER.*src\/m\.js/);
+  assert.equal(content(f), "module.exports = 2;\n");
+  assert.ok(journalOf(f), "the journal is kept");
+});
