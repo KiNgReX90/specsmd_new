@@ -49,14 +49,17 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
   node run.cjs ship <intent-id> --tree <dir> [--config <file>] fold, merge, push, verify, tear down
   node run.cjs teardown --tree <dir> [--base <branch>] [--config <file>] remove a worktree and branch the base already holds
-  node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>
+  node run.cjs dispatch-log <intent-id> --item <id> --tier <tier> --agent <name> [--tree <dir>] record the builder's baseline, print its dispatch id
+  node run.cjs accept-dispatch <dispatch-id> --changed-paths <json-array> [--tree <dir>] freeze the result it reported
 
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
   --config <file>   select, claim, unclaim, worktree, integrate, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
   --base <branch>   integrate, gate, ship and teardown: the base branch to fold in (default: the config's base)
-  --since <ref>     verify-item: what to compare the working tree against (default HEAD)
+  --since <ref>     verify-item: compare against this ref instead of the item's accepted dispatch
+  --dispatch-id <id> verify-item: the accepted dispatch to check (default the item's latest)
+  --peers <json>    verify-item: the dispatch ids that may explain a sibling's change (default every accepted one)
   --item <id>       integrate: the item this landing completes once the checks are green
   --items <a,b>     integrate and verify-item: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate and probes: the intent owning the item, when the id is ambiguous
@@ -86,10 +89,12 @@ const COMMANDS = {
   teardown: (args, options) => teardown(options),
   'dispatch-log': (args, options) =>
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
+  'accept-dispatch': (args, options) =>
+    intents.acceptDispatch(required(args[0], 'accept-dispatch <dispatch-id> --changed-paths <json-array>'), options),
 };
 
 /** The steps that work inside an intent worktree, so running one is owning the tree. */
-const OWNING = new Set(['frontier', 'probes', 'verify-item', 'integrate', 'gate', 'green', 'ship', 'dispatch-log']);
+const OWNING = new Set(['frontier', 'probes', 'verify-item', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch']);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
 const FLAGS = new Set(['--json', '--detach', '--wait', '--force']);

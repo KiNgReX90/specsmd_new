@@ -195,6 +195,18 @@ function opened(fixture) {
   return { tree: made.path, branch: made.branch };
 }
 
+/** Record a builder's baseline the way the orchestrator does before it launches one. */
+function dispatched(fixture, tree, id) {
+  const args = ["dispatch-log", "alpha", "--item", id, "--tier", "strong", "--agent", "builder", "--tree", tree, "--json"];
+  return JSON.parse(run(fixture, args).out).dispatch_id;
+}
+
+/** Accept a builder's result with the files it reports as changed. */
+function accepted(fixture, tree, dispatch, paths = []) {
+  const result = run(fixture, ["accept-dispatch", dispatch, "--changed-paths", JSON.stringify(paths), "--tree", tree]);
+  assert.equal(result.code, 0, result.out + result.err);
+}
+
 // --- usage ---------------------------------------------------------------
 test("an unknown subcommand is a usage error, not a failure", () => {
   const fixture = repo();
@@ -536,6 +548,7 @@ test("frontier suggests one dispatch for consecutive low items of the same tier"
 test("verify-item passes the item's own check and reports ownership clean", () => {
   const fixture = repo();
   const { tree } = opened(fixture);
+  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
   const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
   assert.equal(result.code, 0);
   assert.match(result.out, /PASS/);
@@ -548,6 +561,7 @@ test("verify-item fails with the log path and the tail of the log", () => {
   };
   const fixture = repo({ items: failing });
   const { tree } = opened(fixture);
+  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
   const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
   assert.equal(result.code, 2);
   assert.match(result.out, /FAIL/);
@@ -557,7 +571,9 @@ test("verify-item fails with the log path and the tail of the log", () => {
 test("verify-item names a changed file outside the item's ownership", () => {
   const fixture = repo();
   const { tree } = opened(fixture);
+  const dispatch = dispatched(fixture, tree, "a-one");
   write(tree, "src/b.ts", "export const b = 9;\n");
+  accepted(fixture, tree, dispatch);
   const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
   assert.equal(result.code, 2);
   assert.match(result.out, /src\/b\.ts/);
@@ -568,9 +584,30 @@ test("verify-item ignores a file an earlier item already committed on the branch
   const { tree } = opened(fixture);
   write(tree, "src/b.ts", "export const b = 9;\n");
   git(tree, ["commit", "-qam", "a-two landed first"]);
+  accepted(fixture, tree, dispatched(fixture, tree, "a-one"));
   const result = run(fixture, ["verify-item", "a-one", "--tree", tree]);
   assert.equal(result.code, 0, result.out);
-  assert.match(result.out, /ownership clean since HEAD/);
+  assert.match(result.out, /ownership clean since [0-9a-f]{40}/);
+});
+
+test("verify-item refuses an item with no accepted dispatch unless a baseline is named", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  const refused = run(fixture, ["verify-item", "a-one", "--tree", tree]);
+  assert.equal(refused.code, 2, refused.out + refused.err);
+  assert.match(refused.err, /DISPATCH_PROOF.*dispatch-log/);
+  const named = run(fixture, ["verify-item", "a-one", "--tree", tree, "--since", "HEAD"]);
+  assert.equal(named.code, 0, named.out + named.err);
+  assert.match(named.out, /ownership clean since HEAD/);
+});
+
+test("accept-dispatch refuses a reported file the builder never changed", () => {
+  const fixture = repo();
+  const { tree } = opened(fixture);
+  const dispatch = dispatched(fixture, tree, "a-one");
+  const result = run(fixture, ["accept-dispatch", dispatch, "--changed-paths", '["src/a.ts"]', "--tree", tree]);
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.err, /no dispatch patch: src\/a\.ts/);
 });
 
 // --- integrate -----------------------------------------------------------
@@ -939,6 +976,7 @@ test("dispatch-log appends one line per dispatch", () => {
   const log = fs.readFileSync(result.log, "utf8");
   assert.equal(lines(log).length, 2);
   assert.match(log, /a-one\tcheap\tbuilder/);
+  assert.match(result.dispatch_id, /^[0-9a-f-]{36}$/);
 });
 
 // --- gate folds the base in ---------------------------------------------
@@ -1151,10 +1189,14 @@ test("an item the integration proved releases its successor", () => {
 test("verify-item takes the union of a batch's ownership", () => {
   const fixture = repo();
   const { tree } = opened(fixture);
+  const one = dispatched(fixture, tree, "a-one");
+  const two = dispatched(fixture, tree, "a-two");
   write(tree, "src/a.ts", "export const a = 4;\n");
   write(tree, "src/b.ts", "export const b = 5;\n");
+  accepted(fixture, tree, one, ["src/a.ts"]);
 
   assert.equal(run(fixture, ["verify-item", "a-one", "--tree", tree]).code, 2, "src/b.ts is outside a-one alone");
+  accepted(fixture, tree, two, ["src/b.ts"]);
   const batch = run(fixture, ["verify-item", "--items", "a-one,a-two", "--tree", tree]);
   assert.equal(batch.code, 0, batch.out + batch.err);
   assert.match(batch.out, /ownership clean/);

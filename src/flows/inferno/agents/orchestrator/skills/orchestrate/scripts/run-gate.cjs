@@ -8,6 +8,7 @@ const { spawn } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
+const dispatch = require('./run-dispatch.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 
 const { RunError } = lib;
@@ -83,11 +84,55 @@ function reviewed(ledger, itemId, options) {
   });
 }
 
+/** Every path changed since `since` that the union of the reviewed items does not own. */
+function sinceOutside(tree, since, editable) {
+  return changedPaths(tree, since).filter(
+    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !lib.ownedBy(file, editable, tree)
+  );
+}
+
+/** The dispatch records verify-item may consult as peers: every accepted one, or `--peers`. */
+function peerRecords(tree, peers) {
+  if (peers === undefined) return undefined;
+  let ids = peers;
+  if (typeof ids === 'string') {
+    try {
+      ids = JSON.parse(ids);
+    } catch (error) {
+      throw new RunError('verify-item --peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
+    }
+  }
+  if (!Array.isArray(ids)) throw new RunError('verify-item --peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
+  return ids.map((id) => dispatch.loadDispatch(tree, { dispatch_id: id }));
+}
+
+/**
+ * Each item's accepted dispatch, checked against its own ownership: a change counts as the
+ * item's only when its builder reported it and it changed since that builder started, and a
+ * sibling's change counts as the sibling's only when the sibling's dispatch accepted it. The
+ * ledger is the single writer's and never a builder's, so it is never outside.
+ */
+function attribute(tree, items, options) {
+  if (options.dispatch_id && items.length > 1) {
+    throw new RunError('--dispatch-id names one item; a batch is checked against each item\'s latest dispatch', 'BAD_ARGS', 1);
+  }
+  const peers = peerRecords(tree, options.peers);
+  const outside = new Set();
+  const attributed = [];
+  for (const entry of items) {
+    const record = dispatch.loadDispatch(tree, { intent: entry.intent, item: entry.id, dispatch_id: options.dispatch_id });
+    const own = (entry.spec.manifest.ownership && entry.spec.manifest.ownership.editable) || [];
+    const result = dispatch.verifyDispatch(tree, record, own, { peers });
+    for (const file of result.outside) if (!file.startsWith(`${lib.SPECS_DIR}/`)) outside.add(file);
+    attributed.push({ item: entry.id, dispatch_id: result.dispatch_id, since: result.since, changed: result.changed });
+  }
+  return { since: attributed[0].since, outside: [...outside].sort(), attributed };
+}
+
 /**
  * One item's own check plus its ownership. A batch is reviewed as the unit it was built as:
- * the ownership is the union of its items' editable lists, because attributing every
- * uncommitted change to the first id of a batch reported a false ownership error on work the
- * batch legitimately owned (2026-09-09).
+ * each item against its own dispatch, so a change one item of the batch reported is that
+ * item's, and under `--since` against the union of its items' editable lists.
  */
 function verifyItem(itemId, options) {
   const tree = treeOf(options);
@@ -102,14 +147,10 @@ function verifyItem(itemId, options) {
       items.flatMap((entry) => (entry.spec.manifest.ownership && entry.spec.manifest.ownership.editable) || [])
     ),
   ];
-  // Builders never commit and every item is committed only after this review, so the item's
-  // own work is what sits uncommitted on HEAD. The merge base used to be the default here, and
-  // it named every file an earlier item in the same intent had already landed (2026-09-05).
-  const since = options.since || 'HEAD';
-  const outside = changedPaths(tree, since).filter(
-    (file) => !file.startsWith(`${lib.SPECS_DIR}/`) && !lib.ownedBy(file, editable)
-  );
-
+  // `--since` names the baseline by hand; without it each item answers to its own dispatch.
+  const { since, outside, attributed } = options.since
+    ? { since: options.since, outside: sinceOutside(tree, options.since, editable), attributed: [] }
+    : attribute(tree, items, options);
   const out = [];
   let failed = outside.length > 0;
   const checks = [];
@@ -140,7 +181,7 @@ function verifyItem(itemId, options) {
 
   return {
     exit: failed ? 2 : 0,
-    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, checks },
+    payload: { items: items.map((entry) => entry.id), item: items[0].id, intent: items[0].intent, since, outside, checks, dispatches: attributed },
     out,
   };
 }
