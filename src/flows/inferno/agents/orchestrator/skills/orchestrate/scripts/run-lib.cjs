@@ -20,6 +20,7 @@ const { listValues } = require('./state-lists.cjs');
 
 const { RunError } = require('./run-error.cjs');
 const owned = require('./run-owned.cjs');
+const lanes = require('./run-lane-config.cjs');
 const { parseYaml, stripQuotes } = require('./run-yaml.cjs');
 
 // ---------------------------------------------------------------------------
@@ -126,6 +127,7 @@ function validateVerification(config, file) {
       throw new RunError(`verification.${key} in ${file} must be a map.`, 'BAD_CONFIG');
     }
   }
+  lanes.validateLanes(verification, file);
 }
 
 /**
@@ -178,6 +180,7 @@ function readConfig(root, selected) {
         config[section] = defaults[section];
       }
     }
+    lanes.inheritLanes(config, defaults);
   }
   config.host = resolveHost(config, file);
   validateRoles(config, file);
