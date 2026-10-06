@@ -2,8 +2,6 @@
  * Shared fixture for the run.cjs frontier and probes suites: a throwaway project tree, committed
  * so `git grep` can see it, and a `run` that drives the CLI as a process.
  */
-const assert = require("node:assert/strict");
-const test = require("node:test");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");

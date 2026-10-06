@@ -1,7 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { CONFIG, ITEMS, STATE, git, item, lines, opened, repo, run, write } = require("./run-fixture.cjs");
