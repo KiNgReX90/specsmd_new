@@ -168,7 +168,7 @@ function select(options) {
     out.push(
       entry.kind === 'session'
         ? `running ${entry.id}  owned by live session pid ${entry.pid}, last step ${entry.step} ${entry.minutes} min ago`
-        : `running ${entry.id}  gate pid ${entry.pid} still running since ${entry.started}`
+        : `running ${entry.id}  ${entry.lane ? `${entry.lane} lane` : 'gate'} pid ${entry.pid} still running since ${entry.started}`
     );
   }
   for (const entry of recovery) out.push(`recover ${entry.id}  ${entry.reason}  ${entry.check}`);

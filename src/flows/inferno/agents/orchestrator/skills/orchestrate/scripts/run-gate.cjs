@@ -4,13 +4,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const { attribute } = require('./run-attribute.cjs');
 const { resolveBase } = require('./run-intents.cjs');
-const processes = require('./run-processes.cjs');
+const jobs = require('./run-jobs.cjs');
+const lanes = require('./run-lanes.cjs');
 const intentReview = require('./run-intent-owed.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
@@ -299,44 +299,6 @@ function gateNow(options) {
 // the cap: `--wait` exits 0 green, 2 red, 4 still running, and 4 means call it again.
 // ---------------------------------------------------------------------------
 
-function jobPaths(tree) {
-  const dir = path.join(lib.cacheDir(tree), lib.currentBranch(tree));
-  return {
-    job: path.join(dir, 'gate-job.json'),
-    result: path.join(dir, 'gate-job.result.json'),
-    log: path.join(dir, 'gate-job.log'),
-  };
-}
-
-function readJson(file) {
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
-    return null;
-  }
-}
-
-/** Is the job's process still the gate we started, and still running. */
-function alive(job) {
-  if (!job || !job.pid) return false;
-  try {
-    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes('run.cjs')) return false;
-  } catch (error) {
-    if (error.code === 'ENOENT') return false;
-  }
-  try {
-    process.kill(job.pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === 'EPERM';
-  }
-}
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
 function waitCommand(tree, config) {
   return `node ${path.join(__dirname, 'run.cjs')} gate --wait --tree ${tree}${config ? ` --config ${config}` : ''}`;
 }
@@ -345,50 +307,42 @@ function gateDetach(options) {
   const tree = treeOf(options);
   const restored = refuseDirty(tree);
   const { config } = gateCommands(tree, options.config);
-  const paths = jobPaths(tree);
-  const existing = readJson(paths.job);
-  if (alive(existing)) {
+  const paths = jobs.jobPaths(tree);
+  const existing = jobs.everyJob(tree).find((job) => jobs.alive(job));
+  if (existing) {
     throw new RunError(
-      `a gate is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree, options.config)}`,
+      `a ${existing.lane ? `${existing.lane} lane` : 'gate'} is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree, options.config)}`,
       'GATE_RUNNING'
     );
   }
 
   const intent = intentReview.intentFor(tree, options);
   const before = lib.git(tree, ['rev-parse', 'HEAD']);
-  const foldLines = foldBase(tree, options.base || resolveBase(config, null, tree));
+  const base = options.base || resolveBase(config, null, tree);
+  const foldLines = foldBase(tree, base);
   const folded = [...restored, ...foldLines];
+  const current = gateCommands(tree, options.config).config;
   // Refused here too, or the child dies refusing and --wait reports a gate with no result.
-  const unreviewed = intentReview.gateRefusal(tree, gateCommands(tree, options.config).config, intent, options, before, folded);
+  const unreviewed = intentReview.gateRefusal(tree, current, intent, options, before, folded);
   if (unreviewed) return unreviewed;
-  fs.mkdirSync(path.dirname(paths.job), { recursive: true });
-  const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
+  const laneStart = lanes.startLanes(tree, options, current, changedPaths(tree, mergeBase(tree, base)));
+  const args = ['gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
   if (options.intent) args.push('--intent', options.intent);
   if (options.config) args.push('--config', options.config);
   if (options.force) args.push('--force');
-  const out = fs.openSync(paths.result, 'w');
-  const err = fs.openSync(paths.log, 'w');
-  const child = spawn(process.execPath, args, { cwd: tree, detached: true, stdio: ['ignore', out, err] });
-  fs.closeSync(out);
-  fs.closeSync(err);
-  child.unref();
   // The gate is a process the run launched in its worktree, so teardown may stop it.
-  const owner = processes.loadOwnership(tree);
-  const identity = processes.processIdentity(child.pid);
-  if (owner && identity) processes.registerProcess(tree, child.pid, owner.run_id, { inspect: () => identity });
-
-  const job = { pid: child.pid, config: options.config || `${lib.SPECS_DIR}/config.yaml`, started: new Date().toISOString(), tree, branch: lib.currentBranch(tree), ...paths };
-  fs.writeFileSync(paths.job, `${JSON.stringify(job)}\n`, 'utf8');
+  const job = jobs.detach(tree, args, paths, { config: options.config || `${lib.SPECS_DIR}/config.yaml`, lanes: laneStart.started });
   return {
     exit: 0,
     payload: { started: true, folded: foldLines.length > 0, ...job },
-    out: [...folded, `gate started pid ${child.pid}`, `log ${paths.log}`, `result ${paths.result}`, `wait with: ${waitCommand(tree, options.config)}`],
+    out: [...folded, `gate started pid ${job.pid}`, `log ${paths.log}`, `result ${paths.result}`, ...laneStart.out,
+      `wait with: ${waitCommand(tree, options.config)}`],
   };
 }
 
 function finished(job) {
-  const result = readJson(job.result);
+  const result = jobs.readJson(job.result);
   if (result && Array.isArray(result.results)) {
     const out = describe(result.results);
     if (result.ok) out.push(`green ${result.hash}`);
@@ -403,7 +357,7 @@ function finished(job) {
 
 function gateWait(options) {
   const tree = treeOf(options);
-  const job = readJson(jobPaths(tree).job);
+  const job = jobs.readJson(jobs.jobPaths(tree).job);
   if (!job) {
     throw new RunError('no gate has been started for this tree; start one with gate --detach', 'NO_GATE_JOB');
   }
@@ -413,22 +367,12 @@ function gateWait(options) {
     throw new RunError(`the started gate uses config ${job.config}. Wait with the same --config file.`, 'GATE_CONFIG');
   }
   const deadline = Date.now() + Number(options.minutes || 9) * 60000;
-  while (alive(job)) {
-    if (Date.now() >= deadline) {
-      const elapsed = Math.round((Date.now() - Date.parse(job.started)) / 60000);
-      return {
-        exit: 4,
-        payload: { running: true, ...job, elapsed_minutes: elapsed },
-        out: [`gate still running pid ${job.pid}, ${elapsed} min so far`, `log ${job.log}`, 'call gate --wait again'],
-      };
-    }
-    sleepSync(500);
-  }
-  return finished(job);
+  return lanes.waitAll(job, options, deadline, () => finished(job));
 }
 
 function gate(options) {
   if (options.detach && options.wait) throw new RunError('gate takes --detach or --wait, not both', 'BAD_ARGS', 1);
+  if (options.lane) return lanes.laneNow(options);
   if (options.detach) return gateDetach(options);
   if (options.wait) return gateWait(options);
   return gateNow(options);
@@ -445,9 +389,11 @@ function green(options) {
   const hash = lib.codeTreeHash(tree);
   const missing = commands.filter((command) => !proofs.readProof(proofs.commandProof(tree, config, options.config, command)));
   const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options));
-  const { owed } = merge;
-  const out = [...restored, ...merge.out];
-  if (missing.length === 0 && owed.length === 0) return { exit: 0, payload: { green: true, hash }, out: [...restored, `green ${hash}`] };
+  const base = options.base || resolveBase(config, null, tree);
+  const smoke = lanes.smokeOwed(tree, config, options.config, changedPaths(tree, mergeBase(tree, base)));
+  const owed = [...merge.owed, ...smoke.owed];
+  const out = [...restored, ...merge.out, ...smoke.out];
+  if (missing.length === 0 && owed.length === 0) return { exit: 0, payload: { green: true, hash }, out: [...restored, ...smoke.out, `green ${hash}`] };
   if (missing.length > 0) out.push(`no green marker for ${hash}`, 'run gate first');
   return { exit: 3, payload: { green: false, hash, missing, owed }, out };
 }

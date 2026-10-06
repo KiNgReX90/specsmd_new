@@ -29,6 +29,8 @@ const { reviewIntent } = require('./run-intent-review.cjs');
 const { mutate } = require('./run-mutate.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
+const { accept } = require('./run-lanes.cjs');
+const { LANES } = require('./run-lane-config.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
 const { TransitionError } = require('./state-transition.cjs');
 const processes = require('./run-processes.cjs');
@@ -53,9 +55,10 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
   node run.cjs doubles [--tree <dir>] [--config <file>] count the test doubles against the merge base: 0 held, 2 rose
   node run.cjs gate [--tree <dir>] [--config <file>] [--force] run the finalize commands without matching proofs
-  node run.cjs gate --detach [--tree <dir>]              start the gate as its own process and return
-  node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the started gate: 0 green, 2 red, 4 still running (default 9 min)
-  node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command
+  node run.cjs gate --detach [--tree <dir>]              start the gate and each lane the branch touched (verification.smoke, .windows) and return
+  node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the gate and its lanes: 0 green, 2 red, 3 a lane's instrument red to accept, 4 still running (default 9 min)
+  node run.cjs green [--tree <dir>] [--config <file>]    check the proofs for every finalize command and the smoke lane
+  node run.cjs smoke|windows --accept --harness-fix <sha> [--tree <dir>] [--config <file>] accept that lane's instrument red against a harness fix on the base
   node run.cjs ship <intent-id> --tree <dir> [--config <file>] fold, merge, push, verify, tear down
   node run.cjs teardown --tree <dir> [--base <branch>] [--config <file>] remove a worktree and branch the base already holds
   node run.cjs register-process <pid> --tree <dir> --run-id <id> let teardown stop a process the run launched in the tree
@@ -76,8 +79,10 @@ Options
                     review, gate and green: the intent a tree on no intent branch builds
   --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
+  --lane <name>     gate: run one configured lane in this process, as gate --detach starts it
+  --harness-fix <sha> smoke|windows --accept: the harness fix on the base branch the instrument red is accepted against
 
-Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, or an item completed with no integration proof or review), 4 gate still running.`;
+Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, a lane accept, the smoke lane, or an item completed with no integration proof or review), 4 gate or a lane still running.`;
 
 function required(value, usage) {
   if (!value) throw new RunError(`usage: node run.cjs ${usage}`, 'BAD_ARGS', 1);
@@ -120,13 +125,15 @@ const COMMANDS = {
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
   'accept-dispatch': (args, options) =>
     intents.acceptDispatch(required(args[0], 'accept-dispatch <dispatch-id> --changed-paths <json-array>'), options),
+  // One accept per lane, so the `<lane> --accept` line gate --wait prints always names a real command.
+  ...Object.fromEntries(LANES.map((lane) => [lane, (args, options) => accept(lane, options)])),
 };
 
 /** The steps that work inside an intent worktree, so running one is owning the tree. */
-const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch']);
+const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch', ...LANES]);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
-const FLAGS = new Set(['--json', '--detach', '--wait', '--force']);
+const FLAGS = new Set(['--json', '--detach', '--wait', '--force', '--accept']);
 
 function parseArgs(argv) {
   const options = { cwd: process.cwd() };
