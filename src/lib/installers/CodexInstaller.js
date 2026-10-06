@@ -50,6 +50,14 @@ class CodexInstaller extends ToolInstaller {
         return '.codex';
     }
 
+    get seedFiles() {
+        return ['AGENTS.md', 'CLAUDE.md'];
+    }
+
+    get managedBlocks() {
+        return [{ file: 'AGENTS.md', block: [MANAGED_START, MANAGED_END] }];
+    }
+
     async installCommands(flowPath, config) {
         const nativeDir = path.join(flowPath, 'codex');
         if (await fs.pathExists(nativeDir)) {

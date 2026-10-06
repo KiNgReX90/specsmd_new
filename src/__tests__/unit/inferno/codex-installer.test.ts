@@ -12,7 +12,7 @@ import os from 'os';
 import path from 'path';
 
 const CodexInstaller = require('../../../lib/installers/CodexInstaller');
-const { installFlow, rollback } = require('../../../lib/installer');
+const { installFlow } = require('../../../lib/installer');
 
 const ROOT = path.resolve(__dirname, '../../..');
 const INFERNO = path.join(ROOT, 'flows/inferno');
@@ -45,15 +45,24 @@ function tomlStrings(source: string): Record<string, string> {
 describe.sequential('CodexInstaller native bundle', () => {
   let originalCwd: string;
   let sandbox: string;
+  let savedBudget: Record<string, string | undefined>;
 
   beforeEach(() => {
     originalCwd = process.cwd();
     sandbox = mkdtempSync(path.join(os.tmpdir(), 'specsmd-codex-installer-'));
     process.chdir(sandbox);
+    // No machine-level budget script runs against a test host.
+    savedBudget = { INFERNO_FLOW_BUDGET: process.env.INFERNO_FLOW_BUDGET, XDG_DATA_HOME: process.env.XDG_DATA_HOME };
+    delete process.env.INFERNO_FLOW_BUDGET;
+    process.env.XDG_DATA_HOME = path.join(sandbox, 'no-data');
   });
 
   afterEach(() => {
     process.chdir(originalCwd);
+    for (const [key, value] of Object.entries(savedBudget)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     rmSync(sandbox, { recursive: true, force: true });
   });
 
@@ -173,7 +182,7 @@ describe.sequential('CodexInstaller native bundle', () => {
       .toBe('preserve me\n');
   });
 
-  it('copies Codex documentation through package install and rolls back managed assets', async () => {
+  it('copies Codex documentation through package install and drops managed assets with Codex', async () => {
     writeFileSync('AGENTS.md', '# Existing project instructions\n');
     mkdirSync('.agents/skills/user-skill', { recursive: true });
     writeFileSync('.agents/skills/user-skill/SKILL.md', 'preserve me\n');
@@ -184,8 +193,8 @@ describe.sequential('CodexInstaller native bundle', () => {
     expect(existsSync('.agents/skills/specsmd-inferno/SKILL.md')).toBe(true);
     expect(existsSync('.codex/agents/specsmd_inferno_builder_strong.toml')).toBe(true);
 
-    await rollback('inferno', ['codex']);
-    expect(existsSync('.specsmd')).toBe(false);
+    await installFlow('inferno', ['claude']);
+    expect(existsSync('.specsmd/inferno/README.codex.md')).toBe(false);
     expect(existsSync('.agents/skills/specsmd-inferno')).toBe(false);
     expect(readFileSync('.agents/skills/user-skill/SKILL.md', 'utf8')).toBe('preserve me\n');
     expect(readFileSync('AGENTS.md', 'utf8')).toContain('# Existing project instructions');
