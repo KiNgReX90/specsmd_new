@@ -9,12 +9,27 @@
 autonomy:
   level: full                     # full or review; accepted for compatibility, the planner never pauses either way
 
-# Model per role. Values are passed VERBATIM as the per-dispatch model override,
+# Model per builder tier. Values are passed VERBATIM as the per-dispatch model override,
 # so use a form the host accepts (full model IDs keep a tier pinned to a release).
-# Effort is pinned in each agent definition's frontmatter, never here.
 models:
   strong: claude-opus-5-5         # builders on complexity medium and high
-  cheap: claude-opus-5-5          # builders on complexity low and kind test, docs-only, config-only, config
+  cheap: claude-sonnet-5-5        # builders on complexity low and kind test, docs-only, config-only, config
+
+# Optional: model and effort per role, rendered into the installed agent and command
+# files at the next install, so a host never edits an installed file. A role or key
+# left out keeps the flow default shown here. Codex roles live in config.codex.yaml.
+# roles:
+#   builder: {model: claude-opus-5-5, effort: high}
+#   builder-cheap: {model: claude-sonnet-5-5, effort: high}
+#   config: {model: claude-sonnet-5-5, effort: high}
+#   oracle: {model: claude-opus-5-5, effort: xhigh}
+#   planner: {model: claude-opus-5-5, effort: xhigh}
+
+# planner:
+#   test_trees: ["src/**/*.test.ts", "e2e/**"]          # the trees the planner's blast-radius grep covers; omit for every test tree
+
+# budget:
+#   script: ~/tools/flow-text-budget.py                 # the flow text budget script; else INFERNO_FLOW_BUDGET, else $XDG_DATA_HOME/specsmd-inferno/flow-text-budget.py
 
 verification:
   finalize:                       # ordered shell commands forming the authoritative gate, run once per intent

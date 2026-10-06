@@ -18,7 +18,8 @@ function env(extra: Record<string, string | undefined> = {}) {
   return out;
 }
 
-describe.sequential('scriptable install', () => {
+// Each case spawns the CLI up to three times, which outlasts the default timeout on a loaded box.
+describe.sequential('scriptable install', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => { box = openSandbox('specsmd-install-cli-'); });

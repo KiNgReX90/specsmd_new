@@ -414,6 +414,34 @@ test("claim refuses while the flow text a builder loads is over its budget", () 
   assert.doesNotMatch(git(fixture.root, ["log", "-1", "--pretty=%s"]).trim(), /claim intent/);
 });
 
+// The config names the script first, so a host whose script sits elsewhere is still checked,
+// and a configured script that is gone is a refusal, never a silent pass.
+test("claim runs the budget script config budget.script names, with ~ expanded", () => {
+  const fixture = repo({ config: `${CONFIG}budget:\n  script: ~/tools/budget.py\n` });
+  const budget = path.join(fixture.dir, "tools", "budget.py");
+  fs.mkdirSync(path.dirname(budget), { recursive: true });
+  fs.writeFileSync(budget, "print('OVER configured budget')\nraise SystemExit(1)\n");
+  const result = run(fixture, ["claim", "alpha"], { env: { HOME: fixture.dir, INFERNO_FLOW_BUDGET: "" } });
+  assert.notEqual(result.code, 0, result.out + result.err);
+  assert.match(result.out + result.err, /OVER configured budget/);
+});
+
+test("claim refuses when the configured budget script is missing", () => {
+  const fixture = repo({ config: `${CONFIG}budget:\n  script: /nowhere/flow-text-budget.py\n` });
+  const result = run(fixture, ["claim", "alpha"]);
+  assert.notEqual(result.code, 0, result.out + result.err);
+  assert.match(result.out + result.err, /\/nowhere\/flow-text-budget\.py/);
+  assert.doesNotMatch(git(fixture.root, ["log", "-1", "--pretty=%s"]).trim(), /claim intent/);
+});
+
+test("claim says it skipped the budget when no script sits at the unconfigured default", () => {
+  const fixture = repo();
+  const data = path.join(fixture.dir, "data");
+  const result = run(fixture, ["claim", "alpha"], { env: { XDG_DATA_HOME: data, INFERNO_FLOW_BUDGET: "" } });
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.err, new RegExp(`SKIP budget \\(no script at ${path.join(data, "specsmd-inferno", "flow-text-budget.py").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)`));
+});
+
 test("claim is idempotent for the run that already holds the intent", () => {
   const fixture = repo();
   const first = JSON.parse(run(fixture, ["claim", "alpha", "--json"]).out);

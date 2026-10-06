@@ -2,8 +2,8 @@
 name: inferno-builder-cheap-agent
 description: Low-cost single-work-item implementation specialist for low-complexity INFERNO orchestration.
 version: 2.7.0
-model: claude-opus-5-5
-effort: medium
+model: claude-sonnet-5-5
+effort: high
 ---
 
 # INFERNO Builder

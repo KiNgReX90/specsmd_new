@@ -146,7 +146,7 @@ Every number that travelled with a command becomes a `probes:` entry on the item
 
 **Size both ways.** Split an item past about six required files or past two concerns, and merge the adjacent steps of a serial same-compile-tree chain until each earns its cold dispatch. An item boundary preserves every existing invariant, so the tests, allowlists, goldens and docs one needs travel with the source change they follow.
 
-**Blast radius is measured.** Every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` is listed in `context.tests` with the value it must show and its own acceptance criterion. The list comes from the blast-radius grep, one `git grep -n` per changed symbol over every test tree: unit, e2e, script, Rust `#[cfg(test)]`, `integration/` and golden alike. `run.cjs frontier` prints what you missed as `candidate` lines.
+**Blast radius is measured.** Every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` is listed in `context.tests` with the value it must show and its own acceptance criterion. The list comes from the blast-radius grep, one `git grep -n` per changed symbol over the test trees in `planner.test_trees` of config.yaml, else every one. `run.cjs frontier` prints what you missed as `candidate` lines.
 
 **Ownership is recorded truthfully.** Items that recompile one tree form a linear chain, labelled as compile serialization in the technical notes. A file shared with a pending intent is intent-level `depends_on_intents`, which may point at an `on_hold` intent but never at a completed one and never in a cycle. Prefer disjoint ownership where the boundary is free, and record it truthfully whatever it costs in parallelism.
 

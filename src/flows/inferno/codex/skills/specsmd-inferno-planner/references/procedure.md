@@ -115,7 +115,7 @@ An item boundary preserves every existing invariant, so the tests, allowlists, g
 
 ### Blast radius is measured
 
-List every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` with the value it must show, in the item's `context.tests` beside the source files. The list comes from the blast-radius grep: one `rg -n` for every symbol, component, catalogue, count, definition file and document the item changes, over every test tree: unit, e2e, script, Rust `#[cfg(test)]`, `integration/` and golden alike. Each listed test carries its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
+List every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` with the value it must show, in the item's `context.tests` beside the source files. The list comes from the blast-radius grep: one `rg -n` for every symbol, component, catalogue, count, definition file and document the item changes, over the test trees in `planner.test_trees` of the config, else every one. Each listed test carries its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
 
 ### Verification-item convention
 
