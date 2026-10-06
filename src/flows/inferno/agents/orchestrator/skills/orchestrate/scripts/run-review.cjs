@@ -25,15 +25,29 @@ const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./sta
 
 const { RunError } = lib;
 
-const REVIEWER = 'specsmd-inferno-reviewer';
+/**
+ * The agent each host dispatches for an actor, by the config's `host` key (claude when it has
+ * none). The Codex names are the ones the flow's codex/agents files define; the reviewer's
+ * agents arrive with the reviewer role.
+ */
 const AGENTS = {
-  cheap: 'specsmd-inferno-builder-cheap',
-  strong: 'specsmd-inferno-builder',
-  escalate: 'specsmd-inferno-builder-escalate',
-  oracle: 'specsmd-inferno-oracle',
+  claude: {
+    cheap: 'specsmd-inferno-builder-cheap',
+    strong: 'specsmd-inferno-builder',
+    escalate: 'specsmd-inferno-builder-escalate',
+    oracle: 'specsmd-inferno-oracle',
+    reviewer: 'specsmd-inferno-reviewer',
+  },
+  codex: {
+    cheap: 'specsmd_inferno_builder_cheap',
+    strong: 'specsmd_inferno_builder_strong',
+    escalate: 'specsmd_inferno_builder_escalate',
+    oracle: 'specsmd_inferno_oracle',
+    reviewer: 'specsmd_inferno_reviewer',
+  },
 };
-/** The `roles` entry a host config (Codex) names each actor under. */
-const ROLES = { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle' };
+/** The `roles` entry a host config names each actor under. */
+const ROLES = { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer' };
 
 /** The tier that builds an item first. Complexity alone decides it. */
 function tierOf(item) {
@@ -46,7 +60,7 @@ function tierOf(item) {
  * builder go to the oracle, whose decision returns to that warm builder as a correction.
  * The count is per tier, recorded by state-review.cjs.
  */
-function nextActor(item) {
+function nextActor(item, config = {}) {
   const tier = item.review_tier || tierOf(item);
   const rejections = Number(item.review_rejections) || 0;
   let actor = tier;
@@ -54,7 +68,7 @@ function nextActor(item) {
   if (tier === 'cheap' && rejections >= 1) [actor, fresh] = ['strong', true];
   else if (tier === 'strong' && rejections >= 2) [actor, fresh] = ['escalate', true];
   else if (tier === 'escalate' && rejections >= 2 && rejections % 2 === 0) actor = 'oracle';
-  return { actor, agent: AGENTS[actor], fresh, rejections };
+  return { actor, agent: hostActor(actor, config).agent, fresh, rejections };
 }
 
 /** The tier that built the version a review read: the oracle decides, the escalate builder builds. */
@@ -64,14 +78,16 @@ function builtBy(item) {
 }
 
 /**
- * The agent and model this host dispatches for an actor: `models.<tier>` and the Claude agent
- * names by default, or the host's `roles.<role>` entry where its config names one.
+ * The agent and model this host dispatches for an actor: the host's `roles.<role>` entry where
+ * its config names one, else this host's own agent. The model is `models.<tier>`, or
+ * `review.model` for the reviewer, before the role's.
  */
 function hostActor(actor, config = {}) {
   const roles = config.roles && typeof config.roles === 'object' ? config.roles : {};
   const role = roles[ROLES[actor]] && typeof roles[ROLES[actor]] === 'object' ? roles[ROLES[actor]] : {};
-  const agent = typeof role.agent === 'string' && role.agent ? role.agent : AGENTS[actor];
-  const model = (config.models && config.models[actor]) || (typeof role.model === 'string' && role.model) || null;
+  const agent = typeof role.agent === 'string' && role.agent ? role.agent : AGENTS[config.host === 'codex' ? 'codex' : 'claude'][actor];
+  const pinned = actor === 'reviewer' ? config.review && config.review.model : config.models && config.models[actor];
+  const model = pinned || (typeof role.model === 'string' && role.model) || null;
   return { agent, model };
 }
 
@@ -84,8 +100,8 @@ function actorLabel(item, config) {
 
 /** The one line frontier and review both print for a rejected item. */
 function nextLine(id, item, config) {
-  const next = nextActor(item);
-  const label = `${actorLabel(item, config)} ${hostActor(next.actor, config).agent}`;
+  const next = nextActor(item, config);
+  const label = `${actorLabel(item, config)} ${next.agent}`;
   const loop = 'then commit and run review again';
   if (next.actor === 'oracle') {
     return `next ${label}: ask it about ${id} with every finding so far; its decision goes to the warm escalate builder as a correction, ${loop}`;
@@ -116,16 +132,16 @@ function forkPoint(tree, config, intent) {
 
 function owed(tree, context, reason, from, paths) {
   const { intent, item, config, rel } = context;
-  const model = config.review && config.review.model;
+  const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
   const spec = path.relative(tree, lib.readItemSpec(tree, intent.id, item.id).file);
   const brief = path.join(lib.SPECS_DIR, 'intents', intent.id, 'brief.md');
   return {
     exit: 3,
-    payload: { ok: false, item: item.id, owed: reason, agent: REVIEWER, model: model || null, range, paths, spec, brief, write: rel },
+    payload: { ok: false, item: item.id, owed: reason, agent, model, range, paths, spec, brief, write: rel },
     out: [
       `review owed for ${item.id}: ${reason}`,
-      `dispatch ${REVIEWER}${model ? ` model ${model}` : ''} item ${item.id}`,
+      `dispatch ${agent}${model ? ` model ${model}` : ''} item ${item.id}`,
       `  range ${range} paths ${paths.join(' ') || '(the whole range)'}`,
       `  spec ${spec}`,
       `  brief ${brief}`,
@@ -146,7 +162,7 @@ function verdictResult(tree, context, review, head) {
     out.push(`FINDING ${finding.criterion} ${finding.file}:${finding.line}: ${finding.evidence}. fix: ${finding.fix}`);
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
-  const next = nextActor(item);
+  const next = nextActor(item, config);
   out.push(nextLine(item.id, item, config));
   return {
     exit: 2,

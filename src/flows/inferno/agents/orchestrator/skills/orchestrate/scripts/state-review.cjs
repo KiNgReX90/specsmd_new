@@ -12,14 +12,29 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
-/** Where the host's install record sits, relative to the host root. */
+/** Where the host's install record sits, relative to the primary checkout. */
 const LOCK = path.join('.specsmd', 'inferno', 'flow.lock');
+
+/**
+ * The checkout whose flow.lock holds the cutover: the primary one, where the installer writes
+ * it. An intent worktree cut before the lock was committed, or beside a lock left untracked,
+ * has none of its own. Git names the primary as the parent of the common `.git` dir. A tree
+ * outside git, or one whose common dir is bare, is read as it stands.
+ */
+function primaryCheckout(root) {
+  const result = spawnSync('git', ['rev-parse', '--show-toplevel', '--git-common-dir'], { cwd: root, encoding: 'utf8' });
+  const [top, common] = result.status === 0 ? result.stdout.trim().split('\n') : [];
+  if (!top || !common || fs.realpathSync(top) !== fs.realpathSync(root)) return root;
+  const dir = path.resolve(root, common);
+  return path.basename(dir) === '.git' ? path.dirname(dir) : root;
+}
 
 /** What a host with no recorded cutover is told, on every refusal the rule makes. */
 const REINSTALL = 'This host\'s .specsmd/inferno/flow.lock records no review cutover, so every item owes ' +
@@ -27,13 +42,13 @@ const REINSTALL = 'This host\'s .specsmd/inferno/flow.lock records no review cut
 
 /**
  * When the item review became mandatory on this host: the moment its first install of a flow
- * carrying the rule, as the installer recorded it in flow.lock. An item completed before it
- * was integrated under a flow with no review. Null when the lock records none, and then the
- * rule applies to every item.
+ * carrying the rule, as the installer recorded it in the primary checkout's flow.lock. An
+ * item completed before it was integrated under a flow with no review. Null when the lock
+ * records none, and then the rule applies to every item.
  */
 function reviewRuleSince(root) {
   try {
-    const lock = JSON.parse(fs.readFileSync(path.join(root, LOCK), 'utf8'));
+    const lock = JSON.parse(fs.readFileSync(path.join(primaryCheckout(root), LOCK), 'utf8'));
     const since = Date.parse((lock.rules && lock.rules.review) || '');
     return Number.isNaN(since) ? null : since;
   } catch (error) {

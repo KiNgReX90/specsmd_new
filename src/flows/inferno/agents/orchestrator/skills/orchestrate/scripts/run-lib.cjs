@@ -127,6 +127,12 @@ function validateVerification(config, file) {
   }
 }
 
+/** The host a config is written for, which decides the agent names the scripts print. */
+function validateHost(config, file) {
+  if (config.host === undefined || config.host === 'claude' || config.host === 'codex') return;
+  throw new RunError(`host in ${file} must be claude or codex, not ${String(config.host) || 'empty'}.`, 'BAD_CONFIG');
+}
+
 function readConfig(root, selected) {
   const defaultFile = path.resolve(root, SPECS_DIR, 'config.yaml');
   const file = path.resolve(root, selected || defaultFile);
@@ -146,6 +152,7 @@ function readConfig(root, selected) {
       }
     }
   }
+  validateHost(config, file);
   validateVerification(config, file);
   return config;
 }

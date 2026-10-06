@@ -120,6 +120,13 @@ function repo(options = {}) {
   return { root, cache: path.join(dir, 'cache') };
 }
 
+/** An intent worktree beside the fixture's primary checkout, cut from main as it stands now. */
+function worktree(fixture, name = 'wt') {
+  const tree = path.join(path.dirname(fixture.root), name);
+  git(fixture.root, ['worktree', 'add', '-q', '-b', `inferno-intent/${name}`, tree]);
+  return tree;
+}
+
 function run(fixture, args, cwd = fixture.root) {
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd,
@@ -149,4 +156,4 @@ function markReviewed(state, ids, intent = 'alpha') {
   }
 }
 
-module.exports = { CONFIG, LOCK_PATH, STATE, git, hostLock, markReviewed, repo, reviewed, run, write };
+module.exports = { CONFIG, LOCK_PATH, STATE, git, hostLock, markReviewed, repo, reviewed, run, worktree, write };

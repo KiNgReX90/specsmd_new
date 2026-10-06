@@ -6,6 +6,8 @@
 # flow. This file is where ALL project- and machine-specific values live; the
 # flow files stay portable. The values below are examples, not defaults to copy.
 
+host: claude                      # claude or codex: the fleet this file configures, which decides the agent names run.cjs prints; claude when absent
+
 autonomy:
   level: full                     # full or review; accepted for compatibility, the planner never pauses either way
 

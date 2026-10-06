@@ -38,7 +38,7 @@ Continue in this thread from here.
 
 1. In one batched read, load the applicable `AGENTS.md` files, state, Codex config, every pending work-item spec for this intent, the halt flag, UTC time, the worktree list and branch status.
 2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close` and the discovered build and full tests for final verification. `verification.finalize_scopes` narrows a gate command to the paths worth running it on, `worktree.bootstrap` runs in a fresh worktree, and `dispatch.constraints` is pasted verbatim into every dispatch.
-3. Validate every pending work item before creating a worktree with `run.cjs frontier <intent-id> --tree <path>`. It checks the manifest fields and the dependency graph and names the exact missing field; hand a manifest defect to the planner skill for a bounded repair and never claim or dispatch an invalid item.
+3. Validate every pending work item before creating a worktree with `run.cjs frontier <intent-id> --tree <path> --config .specs-inferno/config.codex.yaml`. It checks the manifest fields and the dependency graph and names the exact missing field; hand a manifest defect to the planner skill for a bounded repair and never claim or dispatch an invalid item.
 4. For recovery, inspect the intent branch's commits and run:
 
    ```sh

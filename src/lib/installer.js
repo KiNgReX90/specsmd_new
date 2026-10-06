@@ -9,6 +9,7 @@ const analytics = require('./analytics');
 const { stageFlow } = require('./install/stage');
 const { applyInstall, InstallError } = require('./install/transaction');
 const { sourceCommit } = require('./install/lock');
+const { hostConfigEdits } = require('./install/host-config');
 
 // Use theme from CLIUtils for consistent styling
 const { theme } = CLIUtils;
@@ -208,7 +209,7 @@ async function installFlow(flowKey, toolKeys, options = {}) {
     installed_at: new Date().toISOString(),
     tools: toolKeys
   };
-  const extras = new Map([['.specsmd/manifest.yaml', yaml.dump(manifest)]]);
+  const extras = new Map([['.specsmd/manifest.yaml', yaml.dump(manifest)], ...await hostConfigEdits(root, toolKeys)]);
 
   const count = await applyInstall({
     root,

@@ -3,7 +3,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { nextActor, tierOf } = require("./run-review.cjs");
+const { hostActor, nextActor, tierOf } = require("./run-review.cjs");
 const { STATE, git, repo, run, write } = require("./review-fixture.cjs");
 
 // --- the ladder ------------------------------------------------------------
@@ -375,6 +375,66 @@ delivery:
   fs.writeFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
   git(fixture.root, ["commit", "-qam", "two strong rejections"]);
   assert.match(review(fixture, args).out, /next escalate codex-strong specsmd_inferno_builder_escalate: a fresh builder/);
+});
+
+// A Codex host declares itself. A role its config leaves out falls back to the agent the
+// flow's own Codex agent file defines, never to a Claude agent name.
+const CODEX_HOST = `host: codex
+roles:
+  builder_cheap:
+    agent: specsmd_inferno_builder_cheap
+    model: codex-cheap
+  builder_strong:
+    agent: specsmd_inferno_builder_strong
+    model: codex-strong
+delivery:
+  base_branch: main
+`;
+
+test("a Codex host with no oracle or escalate role names the Codex agents on both rungs", () => {
+  const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": CODEX_HOST } });
+  const args = ["--config", ".specs-inferno/config.codex.yaml"];
+  const owed = review(fixture, args).out;
+  assert.match(owed, /^dispatch specsmd_inferno_reviewer item a-one$/m);
+  write(fixture.root, REVIEW, FIX);
+  review(fixture, args);
+  const rung = (tier, rejections) => {
+    const state = ledger(fixture)
+      .replace(/review_tier: \w+/, `review_tier: ${tier}`)
+      .replace(/review_rejections: \d+/, `review_rejections: ${rejections}`);
+    fs.writeFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
+    git(fixture.root, ["commit", "-qam", `${tier} rejected ${rejections} time(s)`]);
+    const out = review(fixture, args).out + run(fixture, ["frontier", "alpha", ...args]).out;
+    const payload = JSON.parse(review(fixture, [...args, "--json"]).out);
+    assert.doesNotMatch(out, /specsmd-inferno-/);
+    return { out, agent: payload.next.agent };
+  };
+
+  const escalate = rung("strong", 2);
+  assert.match(escalate.out, /^next escalate specsmd_inferno_builder_escalate: a fresh builder takes a-one over/m);
+  assert.equal(escalate.agent, "specsmd_inferno_builder_escalate");
+  const oracle = rung("escalate", 2);
+  assert.match(oracle.out, /^next oracle specsmd_inferno_oracle: ask it about a-one/m);
+  assert.equal(oracle.agent, "specsmd_inferno_oracle");
+});
+
+test("the Codex fallback names are the agents the flow's own Codex agent files define", () => {
+  const agents = path.join(__dirname, "..", "..", "..", "..", "..", "codex", "agents");
+  for (const actor of ["cheap", "strong", "escalate", "oracle"]) {
+    const { agent } = hostActor(actor, { host: "codex" });
+    const toml = fs.readFileSync(path.join(agents, `${agent}.toml`), "utf8");
+    assert.match(toml, new RegExp(`^name = "${agent}"$`, "m"));
+  }
+});
+
+test("every frontier and review call in the Codex procedure reads the Codex config", () => {
+  const procedure = fs.readFileSync(
+    path.join(__dirname, "..", "..", "..", "..", "..", "codex", "skills", "specsmd-inferno", "references", "procedure.md"),
+    "utf8",
+  );
+  const calls = procedure.match(/`run\.cjs (?:frontier|review) [^`]*`/g) || [];
+  assert.ok(calls.length >= 2, calls.join("\n"));
+  for (const call of calls) assert.match(call, /--config \.specs-inferno\/config\.codex\.yaml/, call);
 });
 
 // --- the cutover is per host -------------------------------------------------------------

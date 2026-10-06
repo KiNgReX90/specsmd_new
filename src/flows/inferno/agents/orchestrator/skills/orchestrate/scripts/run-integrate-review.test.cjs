@@ -3,7 +3,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { CONFIG, STATE, git, repo, reviewed, run, write } = require("./review-fixture.cjs");
+const { CONFIG, LOCK_PATH, STATE, git, hostLock, repo, reviewed, run, worktree, write } = require("./review-fixture.cjs");
 
 // Every item is reviewed cold against its brief before it lands. integrate checks every id
 // before the fold and writes nothing when one review is owed, so a batch never lands half.
@@ -108,3 +108,36 @@ test("integrate proves an item completed before the host's review cutover withou
   assert.equal(result.code, 0, result.out + result.err);
   assert.match(ledger(fixture), /integrated_sha:/);
 });
+
+// The installer writes flow.lock in the primary checkout, so an intent worktree cut before the
+// lock was committed, or one beside a lock left untracked, has none of its own. The cutover is
+// read from the primary checkout, whatever tree the caller names.
+const completedBefore = (proved) => STATE.replace(
+  /(- id: a-one[\s\S]*?)status: pending/,
+  `$1status: completed\n        completed_at: 2026-09-10T09:00:00Z${proved ? "\n        integrated_sha: abc1234" : ""}`,
+);
+const LOCK_LANDS = {
+  "committed on main after the worktree was cut": (root) => {
+    write(root, LOCK_PATH, hostLock());
+    git(root, ["add", LOCK_PATH]);
+    git(root, ["commit", "-qm", "install the flow"]);
+  },
+  "left untracked in the primary checkout": (root) => write(root, LOCK_PATH, hostLock()),
+};
+
+for (const [how, land] of Object.entries(LOCK_LANDS)) {
+  test(`a worktree reads the cutover from the lock ${how}`, () => {
+    const proved = repo({ state: completedBefore(true), lock: null });
+    const provedTree = worktree(proved);
+    land(proved.root);
+    const frontier = run(proved, ["frontier", "alpha", "--tree", provedTree]);
+    assert.equal(frontier.code, 0, frontier.out + frontier.err);
+
+    const interrupted = repo({ state: completedBefore(false), lock: null });
+    const tree = worktree(interrupted);
+    land(interrupted.root);
+    const result = run(interrupted, ["integrate", "--item", "a-one", "--tree", tree]);
+    assert.equal(result.code, 0, result.out + result.err);
+    assert.match(fs.readFileSync(path.join(tree, ".specs-inferno/state.yaml"), "utf8"), /integrated_sha:/);
+  });
+}

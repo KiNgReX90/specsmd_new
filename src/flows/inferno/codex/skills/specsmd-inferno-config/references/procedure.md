@@ -7,6 +7,8 @@ Configure only `.specs-inferno/config.codex.yaml`. The parent conversation owns 
 All keys are optional except that a created file should include the fixed Codex role matrix. The orchestrator has no role entry: it is the session's main thread and runs on the session's own model and effort.
 
 ```yaml
+host: codex
+
 autonomy:
   level: review
 
@@ -31,6 +33,10 @@ roles:
     agent: specsmd_inferno_builder_cheap
     model: gpt-5.6-terra
     reasoning_effort: high
+  oracle:
+    agent: specsmd_inferno_oracle
+    model: gpt-6-astra
+    reasoning_effort: xhigh
 
 verification:
   finalize:
@@ -60,6 +66,7 @@ knowledge:
 
 Allowed values:
 
+- `host`: `codex`. Without it `run.cjs` reads the file as a Claude host's and prints Claude agent names; with it, a role the file omits falls back to its Codex agent.
 - `autonomy.level`: `review` or `full`. Accepted for compatibility; the planner never pauses either way.
 - `delivery.mode`: `auto-close` or `merge-request`.
 - `verification.finalize`: ordered non-empty command strings when present.
@@ -91,7 +98,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 3. Preserve unknown top-level and nested keys, comments, and existing settings the user did not change.
 4. Use a focused `apply_patch`; do not rewrite the entire file when a local edit is sufficient.
 5. Write no file other than `.specs-inferno/config.codex.yaml`.
-6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
+6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that the file declares `host: codex`, that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
 7. Return:
 
 ```yaml
