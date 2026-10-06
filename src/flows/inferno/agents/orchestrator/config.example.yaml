@@ -13,10 +13,8 @@ autonomy:
 # so use a form the host accepts (full model IDs keep a tier pinned to a release).
 # Effort is pinned in each agent definition's frontmatter, never here.
 models:
-  strong: claude-opus-5-5           # builders on complexity medium and high
+  strong: claude-opus-5-5         # builders on complexity medium and high
   cheap: claude-opus-5-5          # builders on complexity low and kind test, docs-only, config-only, config
-  tester: claude-opus-5-5           # the project's own tester agent, on a low or medium complexity item
-  tester_high: claude-fable-5-1   # the project's own tester agent, on a high complexity item or intent
 
 verification:
   finalize:                       # ordered shell commands forming the authoritative gate, run once per intent
