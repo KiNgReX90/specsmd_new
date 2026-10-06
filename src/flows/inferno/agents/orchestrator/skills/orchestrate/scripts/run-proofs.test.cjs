@@ -6,6 +6,7 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
+const { reviewBefore } = require('./review-fixture.cjs');
 
 function tempdir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -139,10 +140,13 @@ function repo(t, body = config()) {
   write(root, '.specs-inferno/state.yaml', 'ledger\n');
   write(root, CONFIG, body);
   commit(root);
+  // A real host gates on an intent branch, after a clean intent review of the tree it gates.
+  git(root, 'checkout', '-qb', 'inferno-intent/demo-00000000T000000Z');
   return { root, cache: path.join(dir, 'cache') };
 }
 
 function run(fixture, ...args) {
+  reviewBefore(args, fixture.root);
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: fixture.root,
     encoding: 'utf8',
