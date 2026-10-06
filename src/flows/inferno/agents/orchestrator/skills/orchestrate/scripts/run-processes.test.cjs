@@ -81,8 +81,8 @@ function fixture(t) {
   git(root, ['remote', 'add', 'origin', remote]);
   git(root, ['push', '-qu', 'origin', 'main']);
   const env = { ...process.env, XDG_CACHE_HOME: path.join(dir, 'cache'), INFERNO_FLOW_BUDGET: path.join(dir, 'no-budget') };
-  const run = (args) => {
-    const result = spawnSync(process.execPath, [RUN, ...args], { cwd: root, encoding: 'utf8', env });
+  const run = (args, node = []) => {
+    const result = spawnSync(process.execPath, [...node, RUN, ...args], { cwd: root, encoding: 'utf8', env });
     return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
   };
   return { dir, root, run };
@@ -200,5 +200,22 @@ test('a system without /proc registers nothing and does not fail', (t) => {
   const before = owned.loadOwnership(made.path);
   const result = owned.registerProcess(made.path, 400000, made.branch, { proc: false, inspect: () => assert.fail('inspected') });
   assert.equal(result, null);
+  assert.deepEqual(owned.loadOwnership(made.path), before);
+});
+
+test('register-process on a system without /proc exits 0, says teardown stops nothing and writes no record', (t) => {
+  const fx = fixture(t);
+  assert.equal(fx.run(['claim', 'alpha']).code, 0);
+  const made = JSON.parse(fx.run(['worktree', 'alpha', '--json']).out);
+  const noProc = path.join(fx.dir, 'no-proc.cjs');
+  fs.writeFileSync(noProc, `const fs = require('node:fs');
+const existsSync = fs.existsSync;
+fs.existsSync = (file) => file !== '/proc/self/stat' && existsSync(file);
+`);
+  const owned = require('./run-processes.cjs');
+  const before = owned.loadOwnership(made.path);
+  const result = fx.run(['register-process', '400000', '--tree', made.path, '--run-id', made.branch], ['--require', noProc]);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /this system cannot record process identities, so teardown stops nothing/);
   assert.deepEqual(owned.loadOwnership(made.path), before);
 });
