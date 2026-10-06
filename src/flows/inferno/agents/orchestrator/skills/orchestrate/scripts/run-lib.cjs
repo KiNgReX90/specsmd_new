@@ -137,7 +137,7 @@ function readConfig(root, selected) {
   const config = parseYaml(fs.readFileSync(file, 'utf8'));
   if (selected && file !== defaultFile && fs.existsSync(defaultFile)) {
     const defaults = parseYaml(fs.readFileSync(defaultFile, 'utf8'));
-    for (const section of ['worktree', 'recovery', 'halt']) {
+    for (const section of ['worktree', 'recovery', 'halt', 'doubles']) {
       if (
         !Object.prototype.hasOwnProperty.call(config, section) &&
         Object.prototype.hasOwnProperty.call(defaults, section)
