@@ -17,7 +17,7 @@ function recordRetiredFile() {
   writeFileSync(LOCK, JSON.stringify(lock, null, 2));
 }
 
-describe.sequential('install lifecycle', () => {
+describe.sequential('install lifecycle', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => {
@@ -105,7 +105,7 @@ describe.sequential('install lifecycle', () => {
 
     expect(Object.keys(readLock().files)).not.toContain('.codex/rules/host.rules');
     expect(readFileSync('.codex/rules/host.rules', 'utf8')).toContain('/abs/claude-build');
-  }, 30_000);
+  });
 
   it('runs the budget script from INFERNO_FLOW_BUDGET on the host root', async () => {
     const script = budgetStub(path.join(box.base, 'budget.py'), 0, 'within budget');

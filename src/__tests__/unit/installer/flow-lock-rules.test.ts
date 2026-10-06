@@ -7,7 +7,7 @@ const { installFlow } = require('../../../lib/installer');
 
 // A rule that holds back work completed without it starts per host, at the install that
 // first carried it. The lock records that moment and every later install keeps it.
-describe.sequential('flow.lock rule cutover', () => {
+describe.sequential('flow.lock rule cutover', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => {

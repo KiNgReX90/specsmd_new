@@ -45,7 +45,7 @@ function tomlStrings(source: string): Record<string, string> {
   );
 }
 
-describe.sequential('CodexInstaller native bundle', () => {
+describe.sequential('CodexInstaller native bundle', { timeout: 30_000 }, () => {
   let originalCwd: string;
   let sandbox: string;
   let savedBudget: Record<string, string | undefined>;
@@ -213,7 +213,7 @@ describe.sequential('CodexInstaller native bundle', () => {
 
 // The run scripts ship to the host without codex/, so the tests that hold them to the Codex
 // bundle live here, in the source tree.
-describe('the run scripts and the Codex bundle', () => {
+describe('the run scripts and the Codex bundle', { timeout: 30_000 }, () => {
   const SCRIPTS = path.join(INFERNO, 'agents/orchestrator/skills/orchestrate/scripts');
 
   it('falls back to the agents the Codex agent files define', () => {

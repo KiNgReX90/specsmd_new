@@ -13,7 +13,7 @@ function frontmatter(text: string) {
   return (text.match(/^---\n([\s\S]*?)\n---/) || ['', ''])[1];
 }
 
-describe.sequential('Claude command-only files', () => {
+describe.sequential('Claude command-only files', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => {

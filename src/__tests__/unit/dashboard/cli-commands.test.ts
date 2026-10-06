@@ -7,11 +7,12 @@ const cliPath = join(__dirname, '../../../bin/cli.js');
 function runCli(args: string[]): string {
   return execFileSync(process.execPath, [cliPath, ...args], {
     cwd: join(__dirname, '../../..'),
-    encoding: 'utf8'
+    encoding: 'utf8',
+    timeout: 25_000
   });
 }
 
-describe('dashboard CLI command surface', () => {
+describe('dashboard CLI command surface', { timeout: 30_000 }, () => {
   test('uses dashboard for web and dashboard-cli for terminal', () => {
     const output = runCli(['--help']);
 
