@@ -117,7 +117,8 @@ const REFUSED =
   /INVALID c-screen: consumes command save_dossier: no item in alpha provides it and src-tauri\/src\/commands\/mod\.rs does not register it\. /;
 
 test("a consumed command nobody provides and the host does not register refuses the frontier", () => {
-  const result = frontier(fixture({ config: WIRING, modRs: "tauri::generate_handler![open_project];\n" }));
+  const modRs = "#[tauri::command]\npub fn save_dossier() {}\ntauri::generate_handler![open_project];\n";
+  const result = frontier(fixture({ config: WIRING, modRs }));
   assert.equal(result.code, 2);
   assert.match(result.out, REFUSED);
   assert.match(result.out, /Add it to the provides of the item that builds it, or register it in that file/);
@@ -173,4 +174,18 @@ test("a registry file that does not exist refuses with the path to fix", () => {
   const result = frontier(tree);
   assert.equal(result.code, 2);
   assert.match(result.out, /wiring\.command\.file src-tauri\/src\/commands\/mod\.rs does not exist/);
+});
+
+test("a provider of another kind does not wire the consumed command", () => {
+  const result = frontier(fixture({ provides: "provides:\n  - kind: table\n    name: save_dossier\n" }));
+  assert.equal(result.code, 2);
+  assert.match(result.out, /INVALID c-screen: consumes command save_dossier: no item in alpha provides it/);
+});
+
+test("a bad wiring block inherited from config.yaml is refused against config.yaml", () => {
+  const bad = "wiring:\n  command:\n    file: src-tauri/src/commands/mod.rs\n    within: 'x('\n    name: '(\\w+)'\n";
+  const tree = fixture({ config: bad, codex: "host: codex\n" });
+  const result = frontier(tree, ["--config", ".specs-inferno/config.codex.yaml"]);
+  assert.equal(result.code, 2);
+  assert.match(result.out, /wiring\.command\.within in \S*\.specs-inferno\/config\.yaml is not a valid regular expression/);
 });

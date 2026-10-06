@@ -168,6 +168,7 @@ function readConfig(root, selected) {
     return {};
   }
   const config = parseYaml(fs.readFileSync(file, 'utf8'));
+  let wiringFile = file; // an inherited block is refused against the file that holds it
   if (selected && file !== defaultFile && fs.existsSync(defaultFile)) {
     const defaults = parseYaml(fs.readFileSync(defaultFile, 'utf8'));
     // Machine facts every host config shares; the budget lookup must match the installer's.
@@ -177,13 +178,14 @@ function readConfig(root, selected) {
         Object.prototype.hasOwnProperty.call(defaults, section)
       ) {
         config[section] = defaults[section];
+        if (section === 'wiring') wiringFile = defaultFile;
       }
     }
   }
   config.host = resolveHost(config, file);
   validateRoles(config, file);
   validateVerification(config, file);
-  validateWiring(config, file);
+  validateWiring(config, wiringFile);
   return config;
 }
 
