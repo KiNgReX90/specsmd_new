@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync, readFileSync } from 'fs';
-import { openSandbox, readLock, sha256, snapshot, write } from './sandbox';
+import { existsSync, readFileSync, readdirSync } from 'fs';
+import path from 'path';
+import { SRC, openSandbox, readLock, sha256, snapshot, write } from './sandbox';
 
 const { installFlow } = require('../../../lib/installer');
 
@@ -156,8 +157,12 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
   });
 
   it('names no model but the host pin in any Codex skill text, so a config run keeps the pin', async () => {
-    const defaults = ['gpt-5.6-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-5.6-terra'];
-    const roles = ['planner', 'builder_strong', 'builder_escalate', 'config', 'builder_cheap', 'oracle', 'reviewer', 'scanner'];
+    const agents = path.join(SRC, 'flows/inferno/codex/agents');
+    const tomls = readdirSync(agents).filter((name) => /^specsmd_inferno_[a-z_]+\.toml$/.test(name));
+    const roles = tomls.map((name) => name.slice('specsmd_inferno_'.length, -'.toml'.length));
+    const defaults = [...new Set(tomls.map((name) => tomlPins(path.join(agents, name))[0]))];
+    expect(roles.length).toBeGreaterThan(0);
+    expect(defaults.every(Boolean)).toBe(true);
     write('.specs-inferno/config.codex.yaml', [
       'roles:',
       ...roles.map((role) => `  ${role}: {agent: specsmd_inferno_${role}, model: gpt-test-${role}, reasoning_effort: max}`),
@@ -172,6 +177,10 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
       const text = readFileSync(rel, 'utf8');
       for (const model of defaults) expect(text.includes(model), `${rel} names ${model}`).toBe(false);
     }
+    const config = readFileSync('.agents/skills/specsmd-inferno-config/references/procedure.md', 'utf8');
+    expect(config).toContain('An existing `<pin>` stays unless the user changes it');
+    expect(config).toContain('a created one copies `model` and `model_reasoning_effort` from `.codex/agents/<agent>.toml`');
+    expect(config).not.toMatch(/fixed compatibility values|exact `agent`, `model`/);
   });
 
   it('matches a Codex toml by the agent key before the role name', async () => {

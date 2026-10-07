@@ -1,9 +1,13 @@
 import { mkdirSync, readFileSync, readdirSync, lstatSync, readlinkSync, rmSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
+import { afterAll } from 'vitest';
 import path from 'path';
 
 // Tests never call mkdtemp directly; the flow's temp helper owns every test dir.
-const { tempDir } = require('../../../flows/inferno/agents/orchestrator/skills/orchestrate/scripts/test-temp.cjs');
+const { tempDir, cleanup } = require('../../../flows/inferno/agents/orchestrator/skills/orchestrate/scripts/test-temp.cjs');
+
+// A vitest worker never reaches the helper's exit hook, so every file that imports the sandbox removes its root.
+afterAll(() => cleanup());
 
 export const SRC = path.resolve(__dirname, '../../..');
 export const LOCK = '.specsmd/inferno/flow.lock';

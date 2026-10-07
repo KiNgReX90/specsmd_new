@@ -68,12 +68,16 @@ The source defaults of each role. A `roles:` entry in
 
 | Role | Model | Reasoning |
 |---|---|---|
-| Orchestrator | `gpt-5.6-sol` | `xhigh` |
 | Planner | `gpt-5.6-sol` | `xhigh` |
 | Strong builder | `gpt-6.1-sol` | `xhigh` |
 | Escalate builder | `gpt-6.1-sol` | `xhigh` |
+| Reviewer | `gpt-6.1-sol` | `xhigh` |
+| Oracle | `gpt-6-astra` | `xhigh` |
 | Config helper | `gpt-5.6-terra` | `high` |
 | Cheap builder | `gpt-5.6-terra` | `high` |
+| Scanner | `gpt-5.6-terra` | `high` |
+
+The orchestrator has no `roles:` entry. It runs on the session's own model.
 
 Custom agents inherit the parent session's sandbox and approval policy. Model
 and reasoning values in `.codex/agents/*.toml` take precedence for their

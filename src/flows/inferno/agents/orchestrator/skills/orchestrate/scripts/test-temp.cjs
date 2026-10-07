@@ -42,10 +42,13 @@ function sweepStale(tmp) {
 
 sweepStale(os.tmpdir());
 
-process.on('exit', () => {
+/** Removes every root this process made. A runner whose workers never reach the exit hook calls it after each file. */
+function cleanup() {
   for (const root of roots.values()) remove(root);
   roots.clear();
-});
+}
+
+process.on('exit', cleanup);
 
 function tempDir(prefix) {
   const tmp = os.tmpdir();
@@ -53,4 +56,4 @@ function tempDir(prefix) {
   return fs.mkdtempSync(path.join(roots.get(tmp), prefix));
 }
 
-module.exports = { tempDir };
+module.exports = { tempDir, cleanup };
