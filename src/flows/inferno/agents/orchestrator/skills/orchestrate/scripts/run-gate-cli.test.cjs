@@ -1,8 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
+const { tempDir } = require("./test-temp.cjs");
 const { CONFIG, closed, git, opened, repo, run, write } = require("./run-fixture.cjs");
 
 // --- gate / green --------------------------------------------------------
@@ -89,7 +89,7 @@ test("gate --detach starts the gate in its own process and --wait reports it gre
 // sleep ran out before the early --wait on a loaded box, so the gate had finished and the
 // "still running" answer never came.
 test("gate --wait exits 4 while the gate still runs, refuses a second start, and finishes on the next call", () => {
-  const release = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "inferno-hold-")), "release");
+  const release = path.join(tempDir("inferno-hold-"), "release");
   const held = `until [ -f ${release} ]; do sleep 0.1; done; echo held`;
   const fixture = repo({ config: CONFIG.replace("    - echo always", `    - ${held}`) });
   const { tree } = opened(fixture);

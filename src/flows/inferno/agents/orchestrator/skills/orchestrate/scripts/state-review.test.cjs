@@ -1,10 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
+const { tempDir } = require("./test-temp.cjs");
 const { reviewItem, completeItem } = require("./state-transition.cjs");
 const { hostLock } = require("./review-fixture.cjs");
 
@@ -42,7 +42,7 @@ const reviewFile = (file, body) => fs.writeFileSync(path.join(path.dirname(path.
  * is null, the install lock and its cutover.
  */
 function sandbox(content = FIXTURE, lock = "2026-09-20T00:00:00.000Z") {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-review-writer-"));
+  const dir = tempDir("inferno-review-writer-");
   const file = path.join(dir, ".specs-inferno", "state.yaml");
   fs.mkdirSync(path.join(dir, path.dirname(REVIEW_FILE)), { recursive: true });
   fs.mkdirSync(path.join(dir, "src"));

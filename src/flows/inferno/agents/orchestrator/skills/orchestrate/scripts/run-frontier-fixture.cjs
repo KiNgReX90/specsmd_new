@@ -3,9 +3,9 @@
  * so `git grep` can see it, and a `run` that drives the CLI as a process.
  */
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { tempDir } = require("./test-temp.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -340,7 +340,7 @@ function git(cwd, args) {
 
 /** A throwaway project tree, committed so `git grep` can see it, or without git at all. */
 function fixture(options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-frontier-"));
+  const dir = tempDir("inferno-frontier-");
   const root = path.join(dir, "app");
   fs.mkdirSync(root, { recursive: true });
   for (const [rel, body] of Object.entries(SOURCES)) write(root, rel, body);

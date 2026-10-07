@@ -3,9 +3,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
+const { tempDir } = require('./test-temp.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
@@ -66,7 +66,7 @@ function write(root, rel, body) {
 }
 
 function fixture(t) {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-processes-')));
+  const dir = fs.realpathSync(tempDir('inferno-processes-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const root = path.join(dir, 'app');
   const remote = path.join(dir, 'remote.git');

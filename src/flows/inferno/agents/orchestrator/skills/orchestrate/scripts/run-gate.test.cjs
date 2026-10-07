@@ -1,11 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
+const { tempDir } = require('./test-temp.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 // An intent branch, so gate and green know which intent review holds the tree.
 const BRANCH = 'inferno-intent/demo-00000000T000000Z';
@@ -34,7 +34,7 @@ function config(commands = [scoped, whole], integrate = [], scopes = { [scoped]:
 }
 
 function fixture(t, source = config()) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-gate-proof-'));
+  const dir = tempDir('inferno-gate-proof-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const tree = path.join(dir, 'app');
   fs.mkdirSync(tree);

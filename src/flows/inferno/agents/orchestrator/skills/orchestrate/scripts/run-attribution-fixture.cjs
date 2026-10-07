@@ -5,8 +5,8 @@
 const assert = require('node:assert/strict');
 const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const { tempDir } = require('./test-temp.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 
@@ -26,7 +26,7 @@ function spec(id, editable, check) {
 
 /** A repository with intent alpha and the items given as id -> editable list (or { editable, check }). */
 function fixture(t, items) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-attribution-'));
+  const directory = tempDir('inferno-attribution-');
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const root = path.join(directory, 'repo');
   fs.mkdirSync(root);

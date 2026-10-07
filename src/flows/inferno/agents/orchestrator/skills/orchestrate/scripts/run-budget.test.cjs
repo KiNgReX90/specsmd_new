@@ -1,9 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { tempDir } = require("./test-temp.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -40,7 +40,7 @@ function git(cwd, args) {
 
 /** A one-intent host repo with the given config files; no machine budget is in reach. */
 function repo(files = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-budget-"));
+  const dir = tempDir("inferno-budget-");
   const root = path.join(dir, "app");
   git(dir, ["init", "-q", "-b", "main", root]);
   git(root, ["config", "user.email", "test@example.com"]);

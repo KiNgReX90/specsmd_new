@@ -8,10 +8,11 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 process.env.INFERNO_FLOW_BUDGET = path.join(os.tmpdir(), 'inferno-no-flow-budget');
+const { tempDir } = require('./test-temp.cjs');
 const intents = require('./run-intents.cjs');
 
 function fixture(t, config) {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-worktrees-')));
+  const dir = fs.realpathSync(tempDir('inferno-worktrees-'));
   const root = path.join(dir, 'repo');
   fs.mkdirSync(root);
   const priorCache = process.env.XDG_CACHE_HOME;

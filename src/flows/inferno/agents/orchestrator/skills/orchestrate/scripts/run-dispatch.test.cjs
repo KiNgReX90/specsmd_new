@@ -3,10 +3,10 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
+const { tempDir } = require('./test-temp.cjs');
 const { verifyDispatch } = require('./run-attribute.cjs');
 
 function git(tree, ...args) {
@@ -18,7 +18,7 @@ function write(tree, file, value) {
 }
 function commit(tree) { git(tree, 'add', '-A'); git(tree, 'commit', '-qm', 'fixture'); }
 function fixture(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-dispatch-'));
+  const dir = tempDir('inferno-dispatch-');
   const tree = path.join(dir, 'app'); fs.mkdirSync(tree);
   const old = process.env.XDG_CACHE_HOME; process.env.XDG_CACHE_HOME = path.join(dir, 'cache');
   t.after(() => { if (old === undefined) delete process.env.XDG_CACHE_HOME; else process.env.XDG_CACHE_HOME = old; fs.rmSync(dir, { recursive: true, force: true }); });

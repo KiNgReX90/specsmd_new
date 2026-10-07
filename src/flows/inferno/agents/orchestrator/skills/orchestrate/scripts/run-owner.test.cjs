@@ -1,17 +1,17 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawn } = require("node:child_process");
 
+const { tempDir } = require("./test-temp.cjs");
 const owner = require("./run-owner.cjs");
 
 const LINUX = process.platform === "linux" && fs.existsSync("/proc/self/stat");
 
 /** A throwaway repo on a branch, because the record is keyed by the tree's branch. */
 function tree() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-owner-"));
+  const dir = tempDir("inferno-owner-");
   const root = path.join(dir, "app");
   fs.mkdirSync(root);
   const git = (...args) => execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "pipe"] });

@@ -1,10 +1,10 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
 
+const { tempDir } = require('./test-temp.cjs');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const owner = require('./run-owner.cjs');
@@ -12,7 +12,7 @@ const owner = require('./run-owner.cjs');
 const LINUX = process.platform === 'linux' && fs.existsSync('/proc/self/stat');
 
 function tempdir(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-lane-config-'));
+  const dir = tempDir('inferno-lane-config-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }

@@ -2,9 +2,9 @@
 const assert = require('node:assert/strict');
 const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { tempDir } = require('./test-temp.cjs');
 
 function git(root, ...args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -15,7 +15,7 @@ function write(root, file, value) {
   fs.writeFileSync(target, value);
 }
 function fixture(t) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-native-cli-'));
+  const directory = tempDir('inferno-native-cli-');
   const root = path.join(directory, 'repo');
   fs.mkdirSync(root);
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
