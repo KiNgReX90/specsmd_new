@@ -12,7 +12,6 @@ This procedure adapts the canonical INFERNO lifecycle to Codex. The canonical sc
 - Run script, one subcommand per mechanical step: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs` (exit 0 ok, 1 usage, 2 failure, 3 a step is owed first)
 - Ledger writer: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs`
 - Selection template: `.specsmd/inferno/agents/orchestrator/skills/orchestrate/templates/intent-selection.md.hbs`
-- Codex gate plan: `node scripts/specs-inferno-codex-gate.mjs <worktree>` prints the gate's commands and scopes without running them
 
 Do not read `.specsmd/inferno/memory-bank.yaml` and never edit a canonical flow resource during a run. Read applicable `AGENTS.md` instructions before work and again in a nested scope.
 
@@ -64,7 +63,7 @@ Repeat until all items are completed or the run blocks or halts.
    - `medium` or `high` uses `specsmd_inferno_builder_strong`.
    Model and reasoning come from `roles`.
    After a rejected item review, dispatch the builder its `next` line names.
-6. Use `spawn_agent` with `fork_turns: "none"` and the role's `agent_type` for the items or approved batches in the frontier, in one dispatch round. The prompt contains only:
+6. Use `spawn_agent` with `fork_turns: "none"` and the role's `agent_type` for the items or approved batches in the frontier, in one dispatch round. The session holds four thread slots, this thread one, so a round starts at most three workers and the rest waits. The prompt contains only:
    - intent and work-item ids, worktree and work-item spec paths, the spec to be read first;
    - the item's `context` manifest and `ownership.editable` verbatim, and `design_contract` verbatim when present;
    - the exact verification command, as the whole verification budget;
@@ -131,7 +130,7 @@ On resume, read that note, reconcile state from disk, and dispatch ready halted 
 
 Finalize automatically once no work remains.
 
-1. Fold the base branch into the intent branch first (`git fetch origin <base>` then `git merge --no-edit origin/<base>`), resolving any conflict there so both goals survive. Then `run.cjs review --tree <path> --config .specs-inferno/config.codex.yaml` reviews the intent cold: exit 3 prints the reviewer dispatch; 2 sends each finding to its owner item's builder, then review again. Inspect the plan with `node scripts/specs-inferno-codex-gate.mjs <worktree>`, then gate that folded tree once: `run.cjs gate --detach --tree <path> --config .specs-inferno/config.codex.yaml`, then `run.cjs gate --wait --tree <path> --config .specs-inferno/config.codex.yaml`. The runner skips a `finalize_scopes` command no changed path matches; that list is the gate and it runs once per intent. The gate reruns a failed `flake_rerun` command once on the unchanged tree; a pass names its failed cases as flake and marks the gate green, while another failure stays red. Run a work-item `finalize_check` only for a scoped invariant the list does not cover. A run tests a binary only through the configured lanes the gate starts and waits on; nothing else in a run builds a binary for testing or dispatches a tester. Non-zero blocks close. Never de-parallelize the gate, regate to mask flake, or poll in a loop.
+1. Fold the base branch into the intent branch first (`git fetch origin <base>` then `git merge --no-edit origin/<base>`), resolving any conflict there so both goals survive. Then `run.cjs review --tree <path> --config .specs-inferno/config.codex.yaml` reviews the intent cold: exit 3 prints the reviewer dispatch; 2 sends each finding to its owner item's builder, then review again. Gate that folded tree once: `run.cjs gate --detach --tree <path> --config .specs-inferno/config.codex.yaml`, then `run.cjs gate --wait --tree <path> --config .specs-inferno/config.codex.yaml`. The runner skips a `finalize_scopes` command no changed path matches; that list is the gate and it runs once per intent. The gate reruns a failed `flake_rerun` command once on the unchanged tree; a pass names its failed cases as flake and marks the gate green, while another failure stays red. Run a work-item `finalize_check` only for a scoped invariant the list does not cover. A run tests a binary only through the configured lanes the gate starts and waits on; nothing else in a run builds a binary for testing or dispatches a tester. Non-zero blocks close. Never de-parallelize the gate, regate to mask flake, or poll in a loop.
 2. Run ledger reconciliation:
 
    ```sh

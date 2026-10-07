@@ -255,3 +255,44 @@ test('an ownership entry written as a folder with a trailing slash owns the file
   assert.equal(lib.ownedBy('src/scanner.rs', ['src/scan']), false);
   assert.equal(lib.ownedBy('src/a.rs', undefined), false);
 });
+
+// A scope decides whether the gate reruns a command, so one that cannot match a path reuses
+// the command's first proof forever. Each shape is refused with the entry and its fix.
+function scopedConfig(scope) {
+  const dir = tempdir("inferno-lib-scope-");
+  fs.mkdirSync(path.join(dir, ".specs-inferno"));
+  fs.writeFileSync(
+    path.join(dir, ".specs-inferno", "config.yaml"),
+    `verification:\n  finalize:\n    - echo a\n  integrate:\n    - echo i\n  finalize_scopes:\n${scope}\n`,
+    "utf8",
+  );
+  return dir;
+}
+
+function refusesScope(scope, reason) {
+  assert.throws(
+    () => lib.readConfig(scopedConfig(scope)),
+    (error) => error.code === "BAD_CONFIG" && reason.test(error.message) && /finalize_scopes "echo [ab]"/.test(error.message),
+  );
+}
+
+test("a finalize_scopes entry holding one glob instead of a list is refused", () => {
+  refusesScope('    "echo a": src/**', /must be a list of path globs, none blank: write "echo a": \["src\/\*\*"\]/);
+});
+
+test("a finalize_scopes entry holding a blank glob is refused", () => {
+  refusesScope('    "echo a":\n      - "src/**"\n      - ""', /must be a list of path globs, none blank/);
+});
+
+test("a finalize_scopes entry holding no glob is refused", () => {
+  refusesScope('    "echo a": []', /must be a list of path globs, none blank/);
+});
+
+test("a finalize_scopes key naming no finalize or integrate command is refused", () => {
+  refusesScope('    "echo b": ["src/**"]', /names no command in verification\.finalize or verification\.integrate/);
+});
+
+test("finalize_scopes keyed by a finalize or an integrate command reads", () => {
+  const config = lib.readConfig(scopedConfig('    "echo a": ["src/**"]\n    "echo i": ["docs/**"]'));
+  assert.deepEqual(config.verification.finalize_scopes, { "echo a": ["src/**"], "echo i": ["docs/**"] });
+});

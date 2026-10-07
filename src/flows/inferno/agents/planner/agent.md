@@ -161,7 +161,7 @@ Every number that travelled with a command becomes a `probes:` entry on the item
 
 ## Verification lanes
 
-- The brief names the tester case ids the intent touches: an existing id for a changed journey, and for a new one the next free id in `integration/TEST-CASES.md`, which you never write. Each new id comes back as its own handoff line, exactly `reserve: TC-<n> <title> for <intent-id>/<item-id>`; the launcher lands it, and a collision comes back with the replacement id for the brief and the item. The item that changes the journey owns the case text and its test.
+- On a host with `integration/TEST-CASES.md`, the brief names the tester case ids the intent touches: an existing id for a changed journey, and for a new one the next free id there, which you never write. Each new id is its own handoff line, exactly `reserve: TC-<n> <title> for <intent-id>/<item-id>`; the launcher lands it, and a collision returns the replacement id for the brief and the item. The item that changes the journey owns the case text and its test.
 - An item that writes or changes a reader-facing string cites the host's reader profile in `context.required` and tells the builder to invoke the writing skill the host's rules name.
 - A design source the UI must reproduce is the fidelity contract: cite it in `context.required` and in `design_contract` on every UI item it covers, with a criterion that every value matches it.
 - Platform work built on one OS verifies through code, gated tests and a cross-target compile. Hardware this machine lacks is never a merge gate; the item names what stands in.

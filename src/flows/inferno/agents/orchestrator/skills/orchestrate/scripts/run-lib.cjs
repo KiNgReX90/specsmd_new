@@ -128,6 +128,17 @@ function validateVerification(config, file) {
       throw new RunError(`verification.${key} in ${file} must be a map.`, 'BAD_CONFIG');
     }
   }
+  // A scope that matches no path skips its command and reuses the command's first proof forever.
+  const ran = [...(verification.finalize || []), ...(verification.integrate || [])];
+  for (const [command, globs] of Object.entries(verification.finalize_scopes || {})) {
+    const at = `verification.finalize_scopes "${command}" in ${file}`;
+    if (!commandList(globs) || globs.length === 0) {
+      throw new RunError(`${at} must be a list of path globs, none blank: write "${command}": ["src/**"].`, 'BAD_CONFIG');
+    }
+    if (!ran.includes(command)) {
+      throw new RunError(`${at} names no command in verification.finalize or verification.integrate: key it by one verbatim or remove it.`, 'BAD_CONFIG');
+    }
+  }
   lanes.validateLanes(verification, file);
 }
 
