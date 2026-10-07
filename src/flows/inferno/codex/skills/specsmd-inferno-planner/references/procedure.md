@@ -134,7 +134,7 @@ Create a `kind: test` item only when verification itself requires real reasoning
 
 ### Tester case reservation
 
-The brief names the tester case ids the intent touches: an existing id for a changed journey, and for a new one the next free id from `integration/TEST-CASES.md`, which the planner never writes. Return each new id as its own handoff line, exactly `reserve: TC-<n> <title> for <intent-id>/<item-id>`, so the parent lands the reservation at planning time; a collision comes back with the replacement id to apply to the brief and the work item. The work item that changes the journey owns the case text and its test.
+On a host with `integration/TEST-CASES.md`, the brief names the tester case ids the intent touches: an existing id for a changed journey, and for a new one the next free id there, which the planner never writes. Return each new id as its own handoff line, exactly `reserve: TC-<n> <title> for <intent-id>/<item-id>`, so the parent lands the reservation at planning time; a collision returns the replacement id for the brief and the work item. The work item that changes the journey owns the case text and its test.
 
 ### High-complexity decisions
 

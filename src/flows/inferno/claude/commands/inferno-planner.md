@@ -35,7 +35,7 @@ Resume the planner with the decision as written, so it plans what the oracle dec
 
 ## 3. The `reserve:` lines
 
-Each line reads `reserve: TC-<n> <title> for <intent-id>/<item-id>`. Land every one of them on the default branch before the plan is handed over, so no other plan can take the same id:
+On a host with `integration/TEST-CASES.md`, the planner may return them. Each line reads `reserve: TC-<n> <title> for <intent-id>/<item-id>`. Land every one of them on the default branch before the plan is handed over, so no other plan can take the same id:
 
 ```bash
 node scripts/tester/reserve-cases.mjs --intent <intent-id>/<item-id> TC-<n> "<title>"
