@@ -37,10 +37,19 @@ test("a finding without a severity, or with another value, is refused and the re
   const fixture = repo();
   refused(fixture, fixReview(finding("")), /BAD_REVIEW.*findings entry 1 severity reads nothing.*blocker.*major.*minor.*send this back/);
   refused(fixture, fixReview(finding("    severity: low\n")), /BAD_REVIEW.*severity reads low; it must be blocker/);
+  refused(fixture, fixReview(finding("    severity:\n")), /BAD_REVIEW.*severity reads nothing; it must be blocker.*major.*minor/);
+  refused(fixture, fixReview(finding("    severity: [major]\n")), /BAD_REVIEW.*severity reads a list; it must be blocker/);
 });
 
 test("repeat holds true or is left out", () => {
-  refused(repo(), fixReview(finding("    severity: minor\n    repeat: maybe\n")), /BAD_REVIEW.*repeat reads maybe.*true/);
+  const fixture = repo();
+  refused(fixture, fixReview(finding("    severity: minor\n    repeat: maybe\n")), /BAD_REVIEW.*repeat reads maybe.*write repeat: true/);
+  refused(fixture, fixReview(finding("    severity: minor\n    repeat:\n")), /BAD_REVIEW.*repeat reads nothing.*write repeat: true/);
+  refused(fixture, fixReview(finding("    severity: minor\n    repeat: [true]\n")), /BAD_REVIEW.*repeat reads a list.*write repeat: true/);
+});
+
+test("repeat: true on an item's first review is refused, since no earlier round reported anything", () => {
+  refused(repo(), fixReview(finding("    severity: minor\n    repeat: true\n")), /BAD_REVIEW.*first review.*drop repeat: true.*send this back/);
 });
 
 test("a minor-only fix review leaves the count and names the warm builder of the same tier", () => {
@@ -82,21 +91,25 @@ test("a surviving mutant counts even when every finding is minor", () => {
 test("a repeat finding goes to the oracle at any count, and the warm builder of its tier builds the decision", () => {
   const state = STATE.replace("        complexity: low\n", "        complexity: medium\n");
   const fixture = repo({ state });
+  write(fixture.root, REVIEW, fixReview(MAJOR));
+  review(fixture);
+  write(fixture.root, "src/a.ts", "export const a = 2;\n");
+  git(fixture.root, ["commit", "-qam", "the warm strong fix"]);
   write(fixture.root, REVIEW, fixReview(finding("    severity: minor\n    repeat: true\n")));
 
   const result = review(fixture);
 
   assert.equal(result.code, 2, result.out + result.err);
-  assert.match(ledger(fixture), /review_rejections: 0/);
+  assert.match(ledger(fixture), /review_rejections: 1/);
   assert.match(ledger(fixture), /review_weight: repeat/);
   assert.match(result.out, /^next oracle specsmd-inferno-oracle: a finding repeats an earlier round, so ask it about a-one .*warm strong builder/m);
 
-  write(fixture.root, "src/a.ts", "export const a = 2;\n");
+  write(fixture.root, "src/a.ts", "export const a = 3;\n");
   git(fixture.root, ["commit", "-qam", "the oracle's decision, built warm"]);
   write(fixture.root, REVIEW, fixReview(MAJOR));
   review(fixture);
   assert.match(ledger(fixture), /review_tier: strong/);
-  assert.match(ledger(fixture), /review_rejections: 1/);
+  assert.match(ledger(fixture), /review_rejections: 2/);
   assert.match(ledger(fixture), /review_weight: serious/);
 });
 

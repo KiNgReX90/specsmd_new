@@ -21,7 +21,7 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
-const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
+const { bad, parseItemReview, reviewPath } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
 const { integrateCall, itemReviewCall } = require('./run-call.cjs');
 
@@ -184,6 +184,9 @@ function verdictResult(tree, context, review, head) {
 function record(tree, context, ledger) {
   const { intent, item, rel } = context;
   const review = parseItemReview(tree, rel, item.id, { recorded: false });
+  if (!item.review && review.findings.some((finding) => finding.repeat === 'true')) {
+    throw bad(rel, 'repeat: true marks a kind an earlier round of this item reported, and this is its first review, so drop repeat: true');
+  }
   const commit = lib.git(tree, ['rev-parse', 'HEAD']);
   const hash = filesHash(tree, review.files);
   const result = writer.reviewItem({

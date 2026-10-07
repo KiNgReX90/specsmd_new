@@ -36,6 +36,12 @@ function bad(rel, problem) {
 
 const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+/** A value as a refusal names it: the text, or the shape that is no text. */
+function reads(value) {
+  if (typeof value === 'string' && value.trim() !== '') return value;
+  return Array.isArray(value) ? 'a list' : isMap(value) ? 'a map' : 'nothing';
+}
+
 /** A list field, where an empty value or `[]` is the empty list. */
 function listOf(rel, doc, key) {
   const value = doc[key];
@@ -46,9 +52,10 @@ function listOf(rel, doc, key) {
 
 /**
  * Every entry of a list holds `keys`, each with a value, plus at most the `optional` ones,
- * which carry a value when present.
+ * which carry a value when present. The `held` ones the caller checks itself, so its refusal
+ * names what they may hold.
  */
-function entries(rel, doc, key, keys, optional = []) {
+function entries(rel, doc, key, keys, optional = [], held = []) {
   const known = [...keys, ...optional];
   return listOf(rel, doc, key).map((entry, index) => {
     if (!isMap(entry)) throw bad(rel, `${key} entry ${index + 1} must be a map of ${known.join(', ')}`);
@@ -56,7 +63,7 @@ function entries(rel, doc, key, keys, optional = []) {
       if (!known.includes(name)) throw bad(rel, `unknown key ${name} in ${key} entry ${index + 1}: it holds ${known.join(', ')} only`);
     }
     for (const name of known) {
-      if (!keys.includes(name) && entry[name] === undefined) continue;
+      if (held.includes(name) || (!keys.includes(name) && entry[name] === undefined)) continue;
       if (typeof entry[name] !== 'string' || entry[name].trim() === '') {
         throw bad(rel, `${key} entry ${index + 1} has no ${name}`);
       }
@@ -118,7 +125,7 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
   const { findings, mutants, survivors } = verdictParts(rel, doc, FINDING_KEYS, ['repeat']);
   for (const [index, finding] of findings.entries()) {
     if (finding.repeat !== undefined && finding.repeat !== 'true') {
-      throw bad(rel, `findings entry ${index + 1} repeat reads ${finding.repeat}; write repeat: true when an earlier ` +
+      throw bad(rel, `findings entry ${index + 1} repeat reads ${reads(finding.repeat)}; write repeat: true when an earlier ` +
         'round of this item reported the same kind, or leave it out');
     }
   }
@@ -143,11 +150,11 @@ function weightOf(review) {
 function verdictParts(rel, doc, findingKeys, optional = []) {
   // Severity is held below, so a finding without one is refused with the three it may carry.
   const required = findingKeys.filter((key) => key !== 'severity');
-  const findings = entries(rel, doc, 'findings', required, ['severity', ...optional]);
+  const findings = entries(rel, doc, 'findings', required, ['severity', ...optional], ['severity', ...optional]);
   for (const [index, finding] of findings.entries()) {
     if (!/^\d+$/.test(finding.line)) throw bad(rel, `finding line must be a line number, not ${finding.line}`);
     if (!SEVERITIES.includes(finding.severity)) {
-      throw bad(rel, `findings entry ${index + 1} severity reads ${finding.severity || 'nothing'}; it must be ${SEVERITY_FIX}`);
+      throw bad(rel, `findings entry ${index + 1} severity reads ${reads(finding.severity)}; it must be ${SEVERITY_FIX}`);
     }
   }
   const mutants = entries(rel, doc, 'mutants', MUTANT_KEYS);
