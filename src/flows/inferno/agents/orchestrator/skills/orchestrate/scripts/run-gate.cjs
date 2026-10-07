@@ -444,7 +444,7 @@ function green(options) {
   const { config, commands } = gateCommands(tree, options.config);
   const hash = lib.codeTreeHash(tree);
   const missing = commands.filter((command) => !proofs.readProof(proofs.commandProof(tree, config, options.config, command)));
-  const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options));
+  const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options), options);
   const { owed } = merge;
   const out = [...restored, ...merge.out];
   if (missing.length === 0 && owed.length === 0) return { exit: 0, payload: { green: true, hash }, out: [...restored, `green ${hash}`] };

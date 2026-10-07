@@ -81,12 +81,16 @@ function parseFor(tree, rel, intentId, recorded) {
 
 /**
  * The review as it holds for the tree: `owed` lists every reason it does not, empty when a
- * recorded review reads clean for the current content.
+ * recorded review reads clean for the current content. `options` are the caller's, so the
+ * scan calls a reason prints run on the caller's tree, intent and host.
  */
-function intentReviewState(tree, config, intentId) {
+function intentReviewState(tree, config, intentId, options = {}) {
   const rel = intentReviewPath(tree, intentId);
   const owed = [];
-  if (scanOwed(tree, intentId)) owed.push('the scan is owed: run.cjs scan, then collect it before the review');
+  if (scanOwed(tree, intentId)) {
+    owed.push(`the scan is owed: run ${scanCommand(tree, options)}, spawn the dispatch lines it prints, ` +
+      `then run ${scanCommand(tree, options, true)} before the review`);
+  }
   if (!fs.existsSync(path.join(tree, rel))) return { rel, review: null, owed: [...owed, 'no intent review yet'] };
   if (lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0) {
     return { rel, review: null, owed: [...owed, `${rel} is written but not recorded`] };
@@ -106,16 +110,23 @@ function intentReviewState(tree, config, intentId) {
   return { rel, review, owed };
 }
 
-function reviewCommand(tree, options) {
-  const extra = `${options.intent ? ` --intent ${options.intent}` : ''}${options.config ? ` --config ${options.config}` : ''}`;
-  return `run.cjs review --tree ${tree}${extra}`;
+/**
+ * A runner call printed for the caller to run next. It carries the caller's tree, intent and
+ * host config, so run as printed it reads the config the caller's call read and dispatches
+ * that host's agents.
+ */
+function runCall(step, tree, options, args = '') {
+  const intent = options.intent ? ` --intent ${options.intent}` : '';
+  const config = options.config ? ` --config ${options.config}` : '';
+  return `run.cjs ${step} --tree ${tree}${args}${intent}${config}`;
 }
+
+const reviewCommand = (tree, options) => runCall('review', tree, options);
 
 /** The scan call for the same tree and host, or its collect. */
 function scanCommand(tree, options, collect = false) {
   const plan = options.plan ? ` --only ${options.only || 'wiring'} --plan ${options.plan}` : '';
-  const extra = `${options.intent ? ` --intent ${options.intent}` : ''}${options.config ? ` --config ${options.config}` : ''}`;
-  return `run.cjs scan${collect ? ' --collect' : ''} --tree ${tree}${plan}${extra}`;
+  return runCall(collect ? 'scan --collect' : 'scan', tree, options, plan);
 }
 
 /**
@@ -124,7 +135,7 @@ function scanCommand(tree, options, collect = false) {
  * `shown` are the lines the gate printed so far.
  */
 function gateRefusal(tree, config, intentId, options, before, shown) {
-  const state = intentReviewState(tree, config, intentId);
+  const state = intentReviewState(tree, config, intentId, options);
   if (state.owed.length === 0) return null;
   const out = [...shown, ...state.owed.map((reason) => `intent review owed: ${reason}`)];
   const moved = lib.git(tree, ['rev-parse', 'HEAD']) !== before;
@@ -153,10 +164,10 @@ function evidenceExists(tree, intentId, rel) {
  * evidence of every external criterion. The smoke lane's proof joins this list when the
  * flow gains one.
  */
-function mergeOwed(tree, config, intentId) {
+function mergeOwed(tree, config, intentId, options = {}) {
   const owed = [];
   const out = [];
-  const state = intentReviewState(tree, config, intentId);
+  const state = intentReviewState(tree, config, intentId, options);
   if (state.owed.length > 0) {
     owed.push('review');
     out.push(...state.owed.map((reason) => `intent review owed: ${reason}`));
@@ -172,6 +183,6 @@ function mergeOwed(tree, config, intentId) {
 }
 
 module.exports = {
-  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, reviewCommand,
+  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, reviewCommand, runCall,
   scanCommand, scanOwed, scanPath,
 };

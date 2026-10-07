@@ -37,16 +37,18 @@ const short = (tree, ref) => lib.git(tree, ['rev-parse', '--short', ref]);
 /**
  * The questions this call asks, and so the ones its collect reads: all four before the
  * review, wiring alone at plan time. The dispatch records them and the collect reads exactly
- * those, so neither can name a question the other does not.
+ * those, so neither can name a question the other does not. A refused plan-time call prints
+ * the caller's own call with wiring alone.
  */
-function questions(options) {
+function questions(tree, options) {
   if (!options.plan) {
     if (!options.only) return IDS;
     throw new RunError('usage: --only goes with --plan <intent>; the scan before the review asks all four questions', 'BAD_ARGS', 1);
   }
   const asked = options.only ? String(options.only).split(',').map((id) => id.trim()).filter(Boolean) : PLAN_IDS;
   if (asked.length !== PLAN_IDS.length || asked.some((id) => !PLAN_IDS.includes(id))) {
-    throw new RunError(`usage: the plan-time scan asks wiring alone: run run.cjs scan --only wiring --plan ${options.plan}`, 'BAD_ARGS', 1);
+    const call = owed.scanCommand(tree, { ...options, only: PLAN_IDS.join(',') }, Boolean(options.collect));
+    throw new RunError(`usage: the plan-time scan asks wiring alone: run ${call}`, 'BAD_ARGS', 1);
   }
   return PLAN_IDS;
 }
@@ -198,7 +200,7 @@ function collect(tree, context) {
 function scan(options) {
   const tree = options.tree || lib.repoRoot(options.cwd);
   const config = lib.readConfig(tree, options.config);
-  const ids = questions(options);
+  const ids = questions(tree, options);
   const intent = options.plan || owed.intentFor(tree, options);
   if (options.plan && !fs.existsSync(path.join(tree, lib.SPECS_DIR, 'intents', intent))) {
     throw new RunError(`no plan of ${intent} in ${path.join(tree, lib.SPECS_DIR, 'intents')}: capture the intent first, then run this again`, 'NO_PLAN');

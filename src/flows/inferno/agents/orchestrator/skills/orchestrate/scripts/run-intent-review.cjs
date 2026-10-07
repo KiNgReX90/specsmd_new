@@ -88,7 +88,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then run.cjs gate --tree ${tree} --detach`],
+      out: [head, `then ${owed.runCall('gate', tree, context.options, ' --detach')}`],
     };
   }
   const out = [head];
@@ -100,7 +100,7 @@ function verdict(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   out.push('send each item its findings as one correction to its warm builder, commit, ' +
-    `run.cjs review --item <id> --tree ${tree}, then ${owed.reviewCommand(tree, context.options)} again`);
+    `${owed.runCall('review --item <id>', tree, context.options)}, then ${owed.reviewCommand(tree, context.options)} again`);
   return {
     exit: 2,
     payload: { ok: false, intent, verdict: 'fix', owners, findings: review.findings, survivors: review.survivors },
@@ -155,7 +155,7 @@ function reviewIntent(options) {
   const base = options.base || resolveBase(config, null, tree);
   const folded = [...restored, ...gate.foldBase(tree, base)];
   if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, folded);
-  const state = owed.intentReviewState(tree, config, intent);
+  const state = owed.intentReviewState(tree, config, intent, options);
   const current = state.review && state.review.tree === proofs.scopeHash(tree);
   if (current) {
     const head = `intent review ${state.review.verdict} for the current tree (read at ${state.review.commit.slice(0, 7)})`;
