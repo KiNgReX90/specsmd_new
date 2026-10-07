@@ -179,7 +179,7 @@ function waitAll(job, options, deadline, gateResult) {
       return {
         exit: 4,
         payload: { running: true, ...job, elapsed_minutes: elapsed, ...lanePayload },
-        out: fit(gateOut, [`call ${gateWaitCall(tree, options)} again`]),
+        out: fit(gateOut, [`call ${gateWaitCall(tree)} again`]),
       };
     }
     jobs.sleepSync(500);
@@ -203,8 +203,8 @@ function accept(name, options) {
   const proof = laneProof(tree, options.config, lane);
   const last = jobs.readJson(jobs.jobPaths(tree, name).result);
   if (!last || last.lane !== name || last.result !== 'instrument-red' || last.hash !== proof.hash || typeof last.run !== 'string') {
-    throw new RunError(`no instrument red of the ${name} lane on this tree to accept: run ${gateStartCall(tree, options)}, ` +
-      `then ${gateWaitCall(tree, options)}.`, 'NOTHING_TO_ACCEPT');
+    throw new RunError(`no instrument red of the ${name} lane on this tree to accept: run ${gateStartCall(tree)}, ` +
+      `then ${gateWaitCall(tree)}.`, 'NOTHING_TO_ACCEPT');
   }
   const { file, ...identity } = proof;
   writeRecord(`${file}${ACCEPTED}`, { ...identity, harness_fix: sha, run: last.run, code: last.code, stamp: new Date().toISOString(), branch: lib.currentBranch(tree) });
@@ -213,7 +213,7 @@ function accept(name, options) {
     payload: { accepted: true, lane: name, harness_fix: sha, hash: proof.hash },
     out: [
       `accepted ${name} instrument red against harness fix ${sha.slice(0, 7)} for this tree`,
-      `wait with: ${gateWaitCall(tree, options)}`,
+      `wait with: ${gateWaitCall(tree)}`,
     ],
   };
 }
@@ -229,8 +229,8 @@ function smokeOwed(tree, config, selected, changed) {
   if (accepted) return { owed: [], out: [`ACCEPTED smoke instrument red, harness fix ${accepted.harness_fix.slice(0, 7)}`] };
   return {
     owed: ['smoke'],
-    out: [`smoke owed: no green or accepted instrument-red smoke run for this tree; run ${gateStartCall(tree, {})}, ` +
-      `then ${gateWaitCall(tree, {})}`],
+    out: [`smoke owed: no green or accepted instrument-red smoke run for this tree; run ${gateStartCall(tree)}, ` +
+      `then ${gateWaitCall(tree)}`],
   };
 }
 

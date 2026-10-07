@@ -190,7 +190,7 @@ function archiveIntent(options) {
     } else if (!isComplete(statusOf(lines, named))) {
       throw new TransitionError(
         `refusing to archive ${options.intent}: status is ${statusOf(lines, named) || 'unset'}, ` +
-          `not completed. Close it first with: ${closeIntentCall(options)}`,
+          `not completed. Close it first with: ${closeIntentCall(options.intent)}`,
         'NOT_COMPLETE'
       );
     } else {

@@ -174,7 +174,7 @@ function select(options) {
   }
   for (const entry of recovery) out.push(`recover ${entry.id}  ${entry.reason}  ${entry.check}`);
   for (const entry of leftovers) {
-    out.push(`leftover ${entry.id}  ${entry.path}  merged into ${base}; run ${teardownCall(entry.path, options)}`);
+    out.push(`leftover ${entry.id}  ${entry.path}  merged into ${base}; run ${teardownCall(entry.path)}`);
   }
   return { exit: 0, payload: { claimable, blocked, parked, running, recovery, leftovers }, out };
 }

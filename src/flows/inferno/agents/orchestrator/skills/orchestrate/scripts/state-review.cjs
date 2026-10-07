@@ -87,7 +87,7 @@ function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, optio
   if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
     `refusing to complete ${itemId}: its item review is not clean. Run ` +
-      `${itemReviewCall(options.tree || '<worktree>', options, itemId)}, have the builder fix every finding until the ` +
+      `${itemReviewCall(options.tree || '<worktree>', itemId, options.intent)}, have the builder fix every finding until the ` +
       `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );

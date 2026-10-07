@@ -239,7 +239,7 @@ function gateNow(options) {
   const folded = foldBase(tree, base);
   const shown = [...restored, ...folded];
   const { config, commands } = gateCommands(tree, options.config);
-  const unreviewed = intentReview.gateRefusal(tree, config, intent, options, before, shown);
+  const unreviewed = intentReview.gateRefusal(tree, config, intent, before, shown);
   if (unreviewed) return unreviewed;
   // Reject a verdict if the inputs change while the gate runs.
   const codeHash = lib.codeTreeHash(tree);
@@ -308,7 +308,7 @@ function gateDetach(options) {
   const existing = jobs.everyJob(tree).find((job) => jobs.alive(job));
   if (existing) {
     throw new RunError(
-      `a ${existing.lane ? `${existing.lane} lane` : 'gate'} is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${gateWaitCall(tree, options)}`,
+      `a ${existing.lane ? `${existing.lane} lane` : 'gate'} is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${gateWaitCall(tree)}`,
       'GATE_RUNNING'
     );
   }
@@ -320,7 +320,7 @@ function gateDetach(options) {
   const folded = [...restored, ...foldLines];
   const current = gateCommands(tree, options.config).config;
   // Refused here too, or the child dies refusing and --wait reports a gate with no result.
-  const unreviewed = intentReview.gateRefusal(tree, current, intent, options, before, folded);
+  const unreviewed = intentReview.gateRefusal(tree, current, intent, before, folded);
   if (unreviewed) return unreviewed;
   const laneStart = lanes.startLanes(tree, options, current, changedPaths(tree, mergeBase(tree, base)));
   const args = ['gate', '--tree', tree, '--json'];
@@ -334,7 +334,7 @@ function gateDetach(options) {
     exit: 0,
     payload: { started: true, folded: foldLines.length > 0, ...job },
     out: [...folded, `gate started pid ${job.pid}`, `log ${paths.log}`, `result ${paths.result}`, ...laneStart.out,
-      `wait with: ${gateWaitCall(tree, options)}`],
+      `wait with: ${gateWaitCall(tree)}`],
   };
 }
 
@@ -356,7 +356,7 @@ function gateWait(options) {
   const tree = treeOf(options);
   const job = jobs.readJson(jobs.jobPaths(tree).job);
   if (!job) {
-    throw new RunError(`no gate has been started for this tree; start one with ${gateStartCall(tree, options)}`, 'NO_GATE_JOB');
+    throw new RunError(`no gate has been started for this tree; start one with ${gateStartCall(tree)}`, 'NO_GATE_JOB');
   }
   const selected = path.resolve(tree, options.config || `${lib.SPECS_DIR}/config.yaml`);
   const configured = path.resolve(tree, job.config || `${lib.SPECS_DIR}/config.yaml`);
@@ -385,7 +385,7 @@ function green(options) {
   const { config, commands } = gateCommands(tree, options.config);
   const hash = lib.codeTreeHash(tree);
   const missing = commands.filter((command) => !proofs.readProof(proofs.commandProof(tree, config, options.config, command)));
-  const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options), options);
+  const merge = intentReview.mergeOwed(tree, config, intentReview.intentFor(tree, options));
   const base = options.base || resolveBase(config, null, tree);
   const smoke = lanes.smokeOwed(tree, config, options.config, changedPaths(tree, mergeBase(tree, base)));
   const owed = [...merge.owed, ...smoke.owed];

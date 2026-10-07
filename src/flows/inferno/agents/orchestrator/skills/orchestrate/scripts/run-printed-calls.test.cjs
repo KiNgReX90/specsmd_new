@@ -173,31 +173,39 @@ test("on Codex the archive and close refusals point through close-intent to the 
   integrateOwesReview(fixture, asPrinted(fixture, filled, "integrate --item")[0]);
 });
 
-// Every printed call is built by one named builder that owns its own flags, and carries the
-// config and intent the process was called with, whatever a site passes. The builders are the
-// module's whole surface: a builder with no row here, or a generic one exported again, goes red.
-test("each call builder prints its exact line from the process's own flags, and run-call exports nothing else", () => {
+// Every printed call is built by one named builder that owns its own flags. The host config, the
+// writer's tree and, unless a site names another, a runner call's intent come from the
+// process's own record; a site gives only what decides its line, and a writer call's intent
+// is always the site's. The tree a runner call names is /w here and
+// the record's tree is /t, so a builder that read the wrong one would print the wrong one. The
+// builders are the module's whole surface: a builder with no row, or a generic one exported
+// again, goes red.
+test("each call builder prints its exact line from its own flags, the site's deciding values and the process's record", () => {
   const calls = require("./run-call.cjs");
   const tail = ` --intent alpha --config ${CODEX}`;
   const rows = {
-    gateStartCall: [[["/t", { config: "other" }], `run.cjs gate --detach --tree /t${tail}`]],
-    gateWaitCall: [[["/t", { config: "other" }], `node ${calls.RUNNER_PATH} gate --wait --tree /t${tail}`]],
+    gateStartCall: [[["/w"], `run.cjs gate --detach --tree /w${tail}`]],
+    gateWaitCall: [[["/w"], `node ${calls.RUNNER_PATH} gate --wait --tree /w${tail}`]],
     itemReviewCall: [
-      [["/t", {}, "a-one"], `run.cjs review --item a-one --tree /t${tail}`],
-      [["/t", { intent: "beta" }, "a-one"], `run.cjs review --item a-one --tree /t --intent beta --config ${CODEX}`],
+      [["/w", "a-one"], `run.cjs review --item a-one --tree /w${tail}`],
+      [["/w", "a-one", "beta"], `run.cjs review --item a-one --tree /w --intent beta --config ${CODEX}`],
     ],
-    integrateCall: [[["/t", {}, "a-one"], `run.cjs integrate --item a-one --tree /t${tail}`]],
-    intentReviewCall: [[["/t", {}], `run.cjs review --tree /t${tail}`]],
+    integrateCall: [
+      [["/w", "a-one"], `run.cjs integrate --item a-one --tree /w${tail}`],
+      [["/w", "a-one", "beta"], `run.cjs integrate --item a-one --tree /w --intent beta --config ${CODEX}`],
+    ],
+    intentReviewCall: [[["/w"], `run.cjs review --tree /w${tail}`]],
     scanCall: [
-      [["/t", {}], `run.cjs scan --tree /t${tail}`],
-      [["/t", {}, true], `run.cjs scan --collect --tree /t${tail}`],
-      [["/t", { plan: "alpha" }, true], `run.cjs scan --collect --only wiring --plan alpha --tree /t${tail}`],
+      [["/w"], `run.cjs scan --tree /w${tail}`],
+      [["/w", null, true], `run.cjs scan --collect --tree /w${tail}`],
+      [["/w", "plan-x"], `run.cjs scan --only wiring --plan plan-x --tree /w${tail}`],
+      [["/w", "plan-x", true], `run.cjs scan --collect --only wiring --plan plan-x --tree /w${tail}`],
     ],
-    teardownCall: [[["/t", {}], `run.cjs teardown --tree /t${tail}`]],
-    laneAcceptCall: [[["smoke", "/t"], `node ${calls.RUNNER_PATH} smoke --accept --harness-fix <sha> --tree /t${tail}`]],
-    closeIntentCall: [[[{ config: "other" }], `state-transition.cjs close-intent --intent alpha --tree /t --config ${CODEX}`]],
-    blockIntentCall: [[[{}], `state-transition.cjs block-intent --reason "<why it cannot be built yet>" --intent alpha --tree /t --config ${CODEX}`]],
-    unclaimIntentCall: [[[{}], `state-transition.cjs unclaim-intent --intent alpha --tree /t --config ${CODEX}`]],
+    teardownCall: [[["/w"], `run.cjs teardown --tree /w${tail}`]],
+    laneAcceptCall: [[["windows", "/w"], `node ${calls.RUNNER_PATH} windows --accept --harness-fix <sha> --tree /w${tail}`]],
+    closeIntentCall: [[["beta"], `state-transition.cjs close-intent --intent beta --tree /t --config ${CODEX}`]],
+    blockIntentCall: [[["beta"], `state-transition.cjs block-intent --reason "<why it cannot be built yet>" --intent beta --tree /t --config ${CODEX}`]],
+    unclaimIntentCall: [[["beta"], `state-transition.cjs unclaim-intent --intent beta --tree /t --config ${CODEX}`]],
   };
   calls.caller({ config: CODEX, intent: "alpha", tree: "/t" });
   try {

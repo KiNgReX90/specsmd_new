@@ -131,7 +131,7 @@ function forkPoint(tree, config, intent) {
 }
 
 function owed(tree, context, reason, from, paths) {
-  const { intent, item, config, rel, options } = context;
+  const { intent, item, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
   const spec = path.relative(tree, lib.readItemSpec(tree, intent.id, item.id).file);
@@ -146,16 +146,16 @@ function owed(tree, context, reason, from, paths) {
       `  spec ${spec}`,
       `  brief ${brief}`,
       `  write ${rel}`,
-      `then ${itemReviewCall(tree, options, item.id)} records it`,
+      `then ${itemReviewCall(tree, item.id)} records it`,
     ],
   };
 }
 
 function verdictResult(tree, context, review, head) {
-  const { item, config, options } = context;
+  const { item, config } = context;
   const out = [head];
   if (review.verdict === 'clean') {
-    out.push(`then ${integrateCall(tree, options, item.id)}`);
+    out.push(`then ${integrateCall(tree, item.id)}`);
     return { exit: 0, payload: { ok: true, item: item.id, verdict: 'clean' }, out };
   }
   for (const finding of review.findings) {
@@ -212,7 +212,7 @@ function review(options) {
   const { intent, item } = itemOf(ledger, options.item, options);
   const rel = reviewPath(intent.id, item.id);
   const config = lib.readConfig(tree, options.config);
-  const context = { intent, item, config, rel, options };
+  const context = { intent, item, config, rel };
   const manifest = lib.readItemSpec(tree, intent.id, item.id).manifest || {};
   const editable = (manifest.ownership && manifest.ownership.editable) || [];
 
@@ -267,7 +267,7 @@ function owedReviews(tree, ledger, ids, options) {
     const { intent, item } = itemOf(ledger, id, options);
     const complete = writer.isComplete(item.status);
     if (complete && completedBeforeReviewRule(item.completed_at, since)) continue;
-    const command = `${itemReviewCall(tree, options, id)}${complete && since === null ? `. ${REINSTALL}` : ''}`;
+    const command = `${itemReviewCall(tree, id)}${complete && since === null ? `. ${REINSTALL}` : ''}`;
     if (item.review !== 'clean') {
       lines.push(`${id} ${item.review === 'fix' ? 'has a fix review' : 'has no clean review'}, run ${command}`);
       continue;

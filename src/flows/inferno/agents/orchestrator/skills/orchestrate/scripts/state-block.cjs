@@ -53,7 +53,7 @@ function blockIntent(options) {
   if (!reason) {
     throw new TransitionError(
       'refusing to block an intent with no reason: nobody can tell later whether the wait is ' +
-        `over. Say what it waits on: ${blockIntentCall(options)}.`,
+        `over. Say what it waits on: ${blockIntentCall(options.intent)}.`,
       'NO_REASON'
     );
   }
@@ -68,7 +68,7 @@ function blockIntent(options) {
   if (previous !== 'pending') {
     const fix =
       previous === 'in_progress'
-        ? ` A run holds it. Release it first: ${unclaimIntentCall(options)}.`
+        ? ` A run holds it. Release it first: ${unclaimIntentCall(options.intent)}.`
         : '';
     throw new TransitionError(
       `refusing to block ${options.intent}: status is ${previous || 'unset'}, not pending.${fix}`,

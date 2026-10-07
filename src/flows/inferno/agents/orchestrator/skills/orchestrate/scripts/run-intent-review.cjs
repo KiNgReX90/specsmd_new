@@ -44,14 +44,14 @@ function scanRefusal(tree, context, folded) {
   return {
     exit: 3,
     payload: { ok: false, intent: context.intent, owed: 'scan' },
-    out: [...folded, `the scan of ${context.intent} is owed: run ${scanCall(tree, context.options)}, ` +
+    out: [...folded, `the scan of ${context.intent} is owed: run ${scanCall(tree)}, ` +
       'spawn the dispatch lines it prints in one message per group it names, ' +
-      `run ${scanCall(tree, context.options, true)}, then ${intentReviewCall(tree, context.options)} again`],
+      `run ${scanCall(tree, null, true)}, then ${intentReviewCall(tree)} again`],
   };
 }
 
 function dispatch(tree, context, reasons, from, folded) {
-  const { intent, config, rel, options } = context;
+  const { intent, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
   const dir = path.dirname(rel);
@@ -78,7 +78,7 @@ function dispatch(tree, context, reasons, from, folded) {
       `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
       ...(scanned ? [`  scan ${scan}`] : []),
       `  write ${rel}`,
-      `then ${intentReviewCall(tree, options)} records it`,
+      `then ${intentReviewCall(tree)} records it`,
     ],
   };
 }
@@ -89,7 +89,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then ${gateStartCall(tree, context.options)}`],
+      out: [head, `then ${gateStartCall(tree)}`],
     };
   }
   const out = [head];
@@ -101,7 +101,7 @@ function verdict(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   out.push('send each item its findings as one correction to its warm builder, commit, ' +
-    `${itemReviewCall(tree, context.options, '<id>')}, then ${intentReviewCall(tree, context.options)} again`);
+    `${itemReviewCall(tree, '<id>')}, then ${intentReviewCall(tree)} again`);
   return {
     exit: 2,
     payload: { ok: false, intent, verdict: 'fix', owners, findings: review.findings, survivors: review.survivors },
@@ -126,7 +126,7 @@ function reviewIntent(options) {
   const intent = owed.intentFor(tree, options);
   const config = lib.readConfig(tree, options.config);
   const rel = owed.intentReviewPath(tree, intent);
-  const context = { intent, config, rel, options };
+  const context = { intent, config, rel };
 
   const pending = fs.existsSync(path.join(tree, rel)) && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   if (pending) {
@@ -146,7 +146,7 @@ function reviewIntent(options) {
         exit: 3,
         payload: { ok: false, intent, owed: 'dispatch', dispatched: sent && sent.head },
         out: [...restored, `the code ${since}, so ${rel} reads another tree; nothing recorded`,
-          `discard the unrecorded ${rel}, then run ${intentReviewCall(tree, options)} for a fresh dispatch of the delta`],
+          `discard the unrecorded ${rel}, then run ${intentReviewCall(tree)} for a fresh dispatch of the delta`],
       };
     }
     return record(tree, context, sent.head, restored);
@@ -156,7 +156,7 @@ function reviewIntent(options) {
   const base = options.base || resolveBase(config, null, tree);
   const folded = [...restored, ...gate.foldBase(tree, base)];
   if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, folded);
-  const state = owed.intentReviewState(tree, config, intent, options);
+  const state = owed.intentReviewState(tree, config, intent);
   const current = state.review && state.review.tree === proofs.scopeHash(tree);
   if (current) {
     const head = `intent review ${state.review.verdict} for the current tree (read at ${state.review.commit.slice(0, 7)})`;

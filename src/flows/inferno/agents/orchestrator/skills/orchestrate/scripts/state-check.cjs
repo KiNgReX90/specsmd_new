@@ -105,7 +105,7 @@ function check(options) {
         intent: intent.id,
         kind: 'all-items-completed-intent-open',
         detail: `all ${items.length} work items are completed but the intent is ${intentStatus || 'unset'}. ` +
-          `Close it with: ${closeIntentCall({ ...options, intent: intent.id })}`,
+          `Close it with: ${closeIntentCall(intent.id)}`,
       });
     }
 

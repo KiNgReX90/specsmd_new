@@ -48,7 +48,7 @@ function questions(tree, options) {
   }
   const asked = options.only ? String(options.only).split(',').map((id) => id.trim()).filter(Boolean) : PLAN_IDS;
   if (asked.length !== PLAN_IDS.length || asked.some((id) => !PLAN_IDS.includes(id))) {
-    const call = scanCall(tree, { ...options, only: PLAN_IDS.join(',') }, Boolean(options.collect));
+    const call = scanCall(tree, options.plan, Boolean(options.collect));
     throw new RunError(`usage: the plan-time scan asks wiring alone: run ${call}`, 'BAD_ARGS', 1);
   }
   return PLAN_IDS;
@@ -65,7 +65,7 @@ function refuseUninstalled(tree, context) {
   if ([tree, lib.primaryRoot(tree)].some((root) => fs.existsSync(path.join(root, rel)))) return;
   throw new RunError(
     `the scanner role is not installed on this host: ${rel} is missing. reinstall the flow on this host so the role lands, ` +
-      `then run ${scanCall(tree, context.options)} again.`,
+      `then run ${scanCall(tree, context.options.plan)} again.`,
     'NO_SCANNER'
   );
 }
@@ -118,7 +118,7 @@ function dispatch(tree, context) {
     out.push(groupLine(index, group.length));
     for (const entry of group) out.push(`dispatch ${agent}${model ? ` model ${model}` : ''} scan ${entry.id} brief ${entry.brief}`);
   });
-  out.push(`then ${scanCall(tree, options, true)} collects them`);
+  out.push(`then ${scanCall(tree, options.plan, true)} collects them`);
   return { exit: 3, payload: { ok: false, intent, owed: 'scan', agent, model, range, groups }, out };
 }
 
@@ -142,7 +142,7 @@ function planGaps(tree, context, results) {
     payload: { ok: false, intent: context.intent, gaps: lines },
     out: [
       ...lines.map((line) => `GAP ${line.id} ${line.file}:${line.line}: ${line.claim} (proof: ${line.proof})`),
-      `resume the planner with every GAP line as one message, then run ${scanCall(tree, context.options)} again`,
+      `resume the planner with every GAP line as one message, then run ${scanCall(tree, context.options.plan)} again`,
     ],
   };
 }
@@ -161,15 +161,15 @@ function record(tree, context, sent, results) {
     out: [
       `scan of ${intent} collected: ${lines.length} line${lines.length === 1 ? '' : 's'}, recorded in ${rel} at ${short(tree, 'HEAD')}`,
       ...lines.map((line) => `SCAN ${line.id} ${line.file}:${line.line}: ${line.claim}`),
-      `then ${intentReviewCall(tree, context.options)}`,
+      `then ${intentReviewCall(tree)}`,
     ],
   };
 }
 
 function collect(tree, context) {
   const { intent, options, ids, dir } = context;
-  const again = scanCall(tree, options);
-  const fix = scanCall(tree, options, true);
+  const again = scanCall(tree, options.plan);
+  const fix = scanCall(tree, options.plan, true);
   const sent = readDispatch(dir, intent, Boolean(options.plan));
   const owing = (out) => ({ exit: 3, payload: { ok: false, intent, owed: 'scan' }, out });
   if (!sent) return owing([`no scan of ${intent} is on record: run ${again}, spawn the dispatch lines it prints, then collect`]);
@@ -212,7 +212,7 @@ function scan(options) {
   const context = { intent, config, options, ids, dir, agent, model };
   if (!options.plan && !owed.scanOwed(tree, intent)) {
     const rel = owed.scanPath(tree, intent);
-    return { exit: 0, payload: { ok: true, intent, scan: rel }, out: [`the scan of ${intent} is collected in ${rel}`, `then ${intentReviewCall(tree, options)}`] };
+    return { exit: 0, payload: { ok: true, intent, scan: rel }, out: [`the scan of ${intent} is collected in ${rel}`, `then ${intentReviewCall(tree)}`] };
   }
   return options.collect ? collect(tree, context) : dispatch(tree, context);
 }

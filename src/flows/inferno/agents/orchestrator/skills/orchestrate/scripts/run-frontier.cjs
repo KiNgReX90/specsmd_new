@@ -54,11 +54,11 @@ function itemIntegrated(item, since) {
   return isComplete(item.status) && itemProved(item) && itemReviewed(item, since);
 }
 
-/** `calls` are the caller's options with the intent it named, so each printed call reaches this intent's item. */
-function heldLine(item, tree, since, calls) {
-  const integrate = integrateCall(tree, calls, item.id);
+/** `intentId` is the intent the frontier was named, so each printed call reaches this intent's item. */
+function heldLine(item, tree, since, intentId) {
+  const integrate = integrateCall(tree, item.id, intentId);
   if (!itemProved(item)) return `HELD ${item.id}: completed with no integration proof, run ${integrate} to prove it`;
-  return `HELD ${item.id}: completed with no clean item review, run ${itemReviewCall(tree, calls, item.id)}, ` +
+  return `HELD ${item.id}: completed with no clean item review, run ${itemReviewCall(tree, item.id, intentId)}, ` +
     `then ${integrate}${since === null ? `. ${REINSTALL}` : ''}`;
 }
 
@@ -195,7 +195,7 @@ function frontier(intentId, options) {
     const { actor } = nextActor(item);
     return { id: item.id, complexity: item.complexity, kind: item.kind, tier: actor, model: hostActor(actor, config).model };
   };
-  const out = held.map((item) => heldLine(item, tree, since, { ...options, intent: intent.id }));
+  const out = held.map((item) => heldLine(item, tree, since, intent.id));
   for (const item of ready) {
     out.push(`ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${actorLabel(item, config)}`);
     if (item.review === 'fix') out.push(nextLine(item.id, item, config));
