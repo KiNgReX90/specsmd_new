@@ -168,7 +168,7 @@ test("buildBuilderPrompt includes pointers and policy but not file bodies", () =
     }),
   );
 
-  assert.match(prompt, /src\/app\/foo\.ts — Primary implementation target/);
+  assert.match(prompt, /src\/app\/foo\.ts - Primary implementation target/);
   assert.match(prompt, /Start from the listed paths/);
   assert.doesNotMatch(prompt, /SECRET_FILE_BODY/);
 });

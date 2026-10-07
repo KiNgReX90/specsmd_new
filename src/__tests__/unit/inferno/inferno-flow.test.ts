@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { builtinModules } from 'module';
 import os from 'os';
@@ -292,9 +292,20 @@ describe('inferno flow', () => {
     }
   });
 
-  it('the config command is dash-free', () => {
-    const text = readFileSync(path.join(INFERNO, 'commands/inferno-config.md'), 'utf8');
-    expect(text).not.toMatch(/[\u2013\u2014]/);
+  // The check once read inferno-config.md only, so dashes in the README, a skill
+  // stub and the scheduler never failed anything.
+  it('no file under the flow carries an em or en dash', () => {
+    const dash = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+    const offenders = (readdirSync(INFERNO, { recursive: true, encoding: 'utf8' }) as string[])
+      .filter((file) => statSync(path.join(INFERNO, file)).isFile())
+      .flatMap((file) => readFileSync(path.join(INFERNO, file), 'utf8').split('\n')
+        .map((line, at) => [file, at + 1, line] as const)
+        .filter(([, , line]) => dash.test(line))
+        .map(([name, at]) => `${name}:${at}`));
+    expect(
+      offenders,
+      'Em or en dash (U+2014, U+2013) at the listed file:line. Replace each with a comma, a period or a plain hyphen.'
+    ).toEqual([]);
   });
 
   // The flow text states rules; the incident that produced a rule stays out of it.
