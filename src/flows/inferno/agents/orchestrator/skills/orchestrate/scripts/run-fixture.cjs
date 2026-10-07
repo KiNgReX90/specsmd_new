@@ -9,7 +9,7 @@ const { execFileSync, spawnSync } = require("node:child_process");
 
 const RUN = path.join(__dirname, "run.cjs");
 const WRITER = path.join(__dirname, "state-transition.cjs");
-const { LOCK_PATH, hostLock, markReviewed, reviewBefore } = require("./review-fixture.cjs");
+const { LOCK_PATH, codexHome, hostLock, markReviewed, reviewBefore } = require("./review-fixture.cjs");
 
 const STATE = `project:
   name: demo
@@ -184,7 +184,7 @@ function run(fixture, args, options = {}) {
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: options.cwd || fixture.root,
     encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, ...(options.env || {}) },
+    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, CODEX_HOME: codexHome(fixture.cache), ...(options.env || {}) },
   });
   return { code: result.status, out: result.stdout || "", err: result.stderr || "" };
 }

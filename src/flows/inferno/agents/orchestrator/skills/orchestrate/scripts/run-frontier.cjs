@@ -24,6 +24,8 @@ const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./sta
 // `run.cjs review --item` print the same actor.
 const { actorLabel, hostActor, nextActor, nextLine, tierOf } = require('./run-review.cjs');
 const { integrateCall, itemReviewCall } = require('./run-call.cjs');
+const { waitFloorRefusal } = require('./run-codex-wait.cjs');
+const { RunError } = require('./run-error.cjs');
 
 /**
  * The hour the proof rule landed. Every ledger written before it carries completed items and
@@ -60,6 +62,16 @@ function heldLine(item, tree, since, intentId) {
   if (!itemProved(item)) return `HELD ${item.id}: completed with no integration proof, run ${integrate} to prove it`;
   return `HELD ${item.id}: completed with no clean item review, run ${itemReviewCall(tree, item.id, intentId)}, ` +
     `then ${integrate}${since === null ? `. ${REINSTALL}` : ''}`;
+}
+
+/** The checkout whose .codex/config.toml Codex reads: the primary one, or the tree outside git. */
+function codexProject(tree) {
+  try {
+    return lib.primaryRoot(tree);
+  } catch (error) {
+    if (error.code === 'NO_REPO') return tree;
+    throw error;
+  }
 }
 
 function loadItems(tree, intent) {
@@ -134,6 +146,8 @@ function frontier(intentId, options) {
   const intent = lib.findIntent(ledger, intentId);
   const items = loadItems(tree, intent);
   const config = lib.readConfig(tree, options.config);
+  const refusal = config.host === 'codex' ? waitFloorRefusal(codexProject(tree)) : null;
+  if (refusal) throw new RunError(refusal, 'NO_WAIT_FLOOR');
   const since = reviewRuleSince(tree);
   const integrated = (item) => itemIntegrated(item, since);
 
