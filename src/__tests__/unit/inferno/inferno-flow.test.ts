@@ -296,8 +296,12 @@ describe('inferno flow', () => {
   // stub and the scheduler never failed anything.
   it('no file under the flow carries an em or en dash', () => {
     const dash = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
-    const offenders = (readdirSync(INFERNO, { recursive: true, encoding: 'utf8' }) as string[])
-      .filter((file) => statSync(path.join(INFERNO, file)).isFile())
+    const files = (readdirSync(INFERNO, { recursive: true, encoding: 'utf8' }) as string[])
+      .filter((file) => statSync(path.join(INFERNO, file)).isFile());
+    // An empty walk (empty root, a Node that ignores `recursive`) must not pass.
+    expect(files.length).toBeGreaterThan(50);
+    expect(files).toContain('README.md');
+    const offenders = files
       .flatMap((file) => readFileSync(path.join(INFERNO, file), 'utf8').split('\n')
         .map((line, at) => [file, at + 1, line] as const)
         .filter(([, , line]) => dash.test(line))
