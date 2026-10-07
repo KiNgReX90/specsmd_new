@@ -93,6 +93,7 @@ test("on Codex the gate's start, still-running and wait lines run as printed on 
   const early = run(fixture, ["gate", "--wait", "--minutes", "0.01", "--tree", tree, "--config", CODEX]);
   assert.equal(early.code, 4, early.out + early.err);
   const waited = asPrintedByPath(fixture, early.out);
+  assert.ok(waited.argv[0].includes(" gate --wait "), waited.argv[0]);
   assert.equal(waited.code, 0, waited.out + waited.err);
   assert.match(waited.out, /sleep 2/);
   const again = asPrintedByPath(fixture, started.out);
@@ -172,27 +173,41 @@ test("on Codex the archive and close refusals point through close-intent to the 
   integrateOwesReview(fixture, asPrinted(fixture, filled, "integrate --item")[0]);
 });
 
-// The carried flags are the process's own: the runner and the writer record the flags they were
-// called with once, and every printed call reads the host config from that record, so no site
-// can drop or replace it. A site may still name its own intent, as the frontier does.
-test("the printed calls carry the config and intent the process was called with, whatever a site passes", () => {
-  const { caller, nodeCall, runCall, writerCall } = require("./run-call.cjs");
-  const config = new RegExp(` --config ${CODEX.replace(/[.]/g, "\\.")}( |$)`);
-  caller({ config: CODEX, intent: "alpha", tree: "/t" });
+// Every printed call is built by one named builder that owns its own flags, and carries the
+// config and intent the process was called with, whatever a site passes. The builders are the
+// module's whole surface: a builder with no row here, or a generic one exported again, goes red.
+test("each call builder prints its exact line from the process's own flags, and run-call exports nothing else", () => {
+  const calls = require("./run-call.cjs");
+  const tail = ` --intent alpha --config ${CODEX}`;
+  const rows = {
+    gateStartCall: [[["/t", { config: "other" }], `run.cjs gate --detach --tree /t${tail}`]],
+    gateWaitCall: [[["/t", { config: "other" }], `node ${calls.RUNNER_PATH} gate --wait --tree /t${tail}`]],
+    itemReviewCall: [
+      [["/t", {}, "a-one"], `run.cjs review --item a-one --tree /t${tail}`],
+      [["/t", { intent: "beta" }, "a-one"], `run.cjs review --item a-one --tree /t --intent beta --config ${CODEX}`],
+    ],
+    integrateCall: [[["/t", {}, "a-one"], `run.cjs integrate --item a-one --tree /t${tail}`]],
+    intentReviewCall: [[["/t", {}], `run.cjs review --tree /t${tail}`]],
+    scanCall: [
+      [["/t", {}], `run.cjs scan --tree /t${tail}`],
+      [["/t", {}, true], `run.cjs scan --collect --tree /t${tail}`],
+      [["/t", { plan: "alpha" }, true], `run.cjs scan --collect --only wiring --plan alpha --tree /t${tail}`],
+    ],
+    teardownCall: [[["/t", {}], `run.cjs teardown --tree /t${tail}`]],
+    laneAcceptCall: [[["smoke", "/t"], `node ${calls.RUNNER_PATH} smoke --accept --harness-fix <sha> --tree /t${tail}`]],
+    closeIntentCall: [[[{ config: "other" }], `state-transition.cjs close-intent --intent alpha --tree /t --config ${CODEX}`]],
+    blockIntentCall: [[[{}], `state-transition.cjs block-intent --reason "<why it cannot be built yet>" --intent alpha --tree /t --config ${CODEX}`]],
+    unclaimIntentCall: [[[{}], `state-transition.cjs unclaim-intent --intent alpha --tree /t --config ${CODEX}`]],
+  };
+  calls.caller({ config: CODEX, intent: "alpha", tree: "/t" });
   try {
-    for (const line of [runCall("gate", "/t", {}), nodeCall("gate", "/t", {}, ["--wait"]), writerCall("close-intent", {})]) {
-      assert.match(line, / --intent alpha( |$)/, line);
-      assert.match(line, config, line);
+    for (const [name, cases] of Object.entries(rows)) {
+      for (const [args, line] of cases) assert.equal(calls[name](...args), line, name);
     }
-    assert.match(writerCall("close-intent", {}), / --tree \/t( |$)/);
-    for (const line of [runCall("gate", "/t", { config: "other" }), nodeCall("gate", "/t", { config: "other" }), writerCall("close-intent", { config: "other" })]) {
-      assert.match(line, config, line);
-      assert.doesNotMatch(line, /--config other/, line);
-    }
-    assert.match(runCall("integrate", "/t", { intent: "beta" }), / --intent beta( |$)/);
   } finally {
-    caller({});
+    calls.caller({});
   }
+  assert.deepEqual(Object.keys(calls).sort(), ["RUNNER", "RUNNER_PATH", "caller", ...Object.keys(rows)].sort());
 });
 
 test("on Codex the block, release and close lines the writer prints run as printed and carry the Codex config", () => {

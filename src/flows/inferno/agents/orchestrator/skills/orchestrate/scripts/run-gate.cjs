@@ -12,7 +12,7 @@ const { resolveBase } = require('./run-intents.cjs');
 const jobs = require('./run-jobs.cjs');
 const lanes = require('./run-lanes.cjs');
 const intentReview = require('./run-intent-owed.cjs');
-const { nodeCall, runCall } = require('./run-call.cjs');
+const { gateStartCall, gateWaitCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
@@ -300,11 +300,6 @@ function gateNow(options) {
 // the cap: `--wait` exits 0 green, 2 red, 4 still running, and 4 means call it again.
 // ---------------------------------------------------------------------------
 
-/** The wait on the started gate, by this runner's own path, with the caller's tree, intent and host config. */
-function waitCommand(tree, options) {
-  return nodeCall('gate', tree, options, ['--wait']);
-}
-
 function gateDetach(options) {
   const tree = treeOf(options);
   const restored = refuseDirty(tree);
@@ -313,7 +308,7 @@ function gateDetach(options) {
   const existing = jobs.everyJob(tree).find((job) => jobs.alive(job));
   if (existing) {
     throw new RunError(
-      `a ${existing.lane ? `${existing.lane} lane` : 'gate'} is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree, options)}`,
+      `a ${existing.lane ? `${existing.lane} lane` : 'gate'} is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${gateWaitCall(tree, options)}`,
       'GATE_RUNNING'
     );
   }
@@ -339,7 +334,7 @@ function gateDetach(options) {
     exit: 0,
     payload: { started: true, folded: foldLines.length > 0, ...job },
     out: [...folded, `gate started pid ${job.pid}`, `log ${paths.log}`, `result ${paths.result}`, ...laneStart.out,
-      `wait with: ${waitCommand(tree, options)}`],
+      `wait with: ${gateWaitCall(tree, options)}`],
   };
 }
 
@@ -361,7 +356,7 @@ function gateWait(options) {
   const tree = treeOf(options);
   const job = jobs.readJson(jobs.jobPaths(tree).job);
   if (!job) {
-    throw new RunError(`no gate has been started for this tree; start one with ${runCall('gate', tree, options, ['--detach'])}`, 'NO_GATE_JOB');
+    throw new RunError(`no gate has been started for this tree; start one with ${gateStartCall(tree, options)}`, 'NO_GATE_JOB');
   }
   const selected = path.resolve(tree, options.config || `${lib.SPECS_DIR}/config.yaml`);
   const configured = path.resolve(tree, job.config || `${lib.SPECS_DIR}/config.yaml`);

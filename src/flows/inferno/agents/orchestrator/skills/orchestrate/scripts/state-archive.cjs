@@ -9,7 +9,7 @@ const {
 } = require('./state-ledger.cjs');
 const { readList, removeListValues } = require('./state-lists.cjs');
 const { atomicWrite } = require('./state-store.cjs');
-const { writerCall } = require('./run-call.cjs');
+const { closeIntentCall } = require('./run-call.cjs');
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
 const ARCHIVE_HEADER =
@@ -190,7 +190,7 @@ function archiveIntent(options) {
     } else if (!isComplete(statusOf(lines, named))) {
       throw new TransitionError(
         `refusing to archive ${options.intent}: status is ${statusOf(lines, named) || 'unset'}, ` +
-          `not completed. Close it first with: ${writerCall('close-intent', options)}`,
+          `not completed. Close it first with: ${closeIntentCall(options)}`,
         'NOT_COMPLETE'
       );
     } else {

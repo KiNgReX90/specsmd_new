@@ -18,7 +18,7 @@ const proofs = require('./run-proofs.cjs');
 const { intentOf } = require('./run-worktrees.cjs');
 const { parseIntentReview } = require('./run-intent-review-file.cjs');
 const { itemProofs } = require('./run-mutant-coverage.cjs');
-const { runCall } = require('./run-call.cjs');
+const { intentReviewCall, scanCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -89,8 +89,8 @@ function intentReviewState(tree, config, intentId, options = {}) {
   const rel = intentReviewPath(tree, intentId);
   const owed = [];
   if (scanOwed(tree, intentId)) {
-    owed.push(`the scan is owed: run ${scanCommand(tree, options)}, spawn the dispatch lines it prints, ` +
-      `then run ${scanCommand(tree, options, true)} before the review`);
+    owed.push(`the scan is owed: run ${scanCall(tree, options)}, spawn the dispatch lines it prints, ` +
+      `then run ${scanCall(tree, options, true)} before the review`);
   }
   if (!fs.existsSync(path.join(tree, rel))) return { rel, review: null, owed: [...owed, 'no intent review yet'] };
   if (lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0) {
@@ -111,14 +111,6 @@ function intentReviewState(tree, config, intentId, options = {}) {
   return { rel, review, owed };
 }
 
-const reviewCommand = (tree, options) => runCall('review', tree, options);
-
-/** The scan call for the same tree and host, or its collect. */
-function scanCommand(tree, options, collect = false) {
-  const plan = options.plan ? ['--only', options.only || 'wiring', '--plan', options.plan] : [];
-  return runCall('scan', tree, options, [...(collect ? ['--collect'] : []), ...plan]);
-}
-
 /**
  * The gate's refusal after its fold, or null when the review holds. `before` is HEAD before
  * the fold: when the fold moved the tree, the reviewer reads the base delta from there.
@@ -132,7 +124,7 @@ function gateRefusal(tree, config, intentId, options, before, shown) {
   if (moved) {
     out.push(`the fold moved the tree from ${lib.git(tree, ['rev-parse', '--short', before])}; the reviewer reads the base delta from there`);
   }
-  out.push(`run ${reviewCommand(tree, options)} first, then gate again`);
+  out.push(`run ${intentReviewCall(tree, options)} first, then gate again`);
   return { exit: 3, payload: { ok: false, tree, owed: ['review'], reasons: state.owed, folded: moved }, out };
 }
 
@@ -173,6 +165,5 @@ function mergeOwed(tree, config, intentId, options = {}) {
 }
 
 module.exports = {
-  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, reviewCommand, runCall,
-  scanCommand, scanOwed, scanPath,
+  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, scanOwed, scanPath,
 };

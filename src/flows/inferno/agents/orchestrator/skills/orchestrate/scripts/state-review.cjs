@@ -16,7 +16,7 @@ const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
-const { runCall } = require('./run-call.cjs');
+const { itemReviewCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -87,7 +87,7 @@ function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, optio
   if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
     `refusing to complete ${itemId}: its item review is not clean. Run ` +
-      `${runCall('review', options.tree || '<worktree>', options, ['--item', itemId])}, have the builder fix every finding until the ` +
+      `${itemReviewCall(options.tree || '<worktree>', options, itemId)}, have the builder fix every finding until the ` +
       `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );

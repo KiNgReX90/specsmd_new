@@ -21,7 +21,7 @@ const { archivePaths, archivedIds } = require('./state-archive.cjs');
 const { PARKED_VALUES } = require('./state-ledger.cjs');
 const { bootstrap, branchesFor, intentOf, leftoverWorktrees, worktreeFor } = require('./run-worktrees.cjs');
 const { recordOwnership } = require('./run-processes.cjs');
-const { runCall } = require('./run-intent-owed.cjs');
+const { teardownCall } = require('./run-call.cjs');
 const { ownership } = require('./run-owner.cjs');
 const { resolveBudget } = require('./run-budget.cjs');
 
@@ -174,7 +174,7 @@ function select(options) {
   }
   for (const entry of recovery) out.push(`recover ${entry.id}  ${entry.reason}  ${entry.check}`);
   for (const entry of leftovers) {
-    out.push(`leftover ${entry.id}  ${entry.path}  merged into ${base}; run ${runCall('teardown', entry.path, options)}`);
+    out.push(`leftover ${entry.id}  ${entry.path}  merged into ${base}; run ${teardownCall(entry.path, options)}`);
   }
   return { exit: 0, payload: { claimable, blocked, parked, running, recovery, leftovers }, out };
 }

@@ -18,6 +18,7 @@ const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
+const { gateStartCall, intentReviewCall, itemReviewCall, scanCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
@@ -43,9 +44,9 @@ function scanRefusal(tree, context, folded) {
   return {
     exit: 3,
     payload: { ok: false, intent: context.intent, owed: 'scan' },
-    out: [...folded, `the scan of ${context.intent} is owed: run ${owed.scanCommand(tree, context.options)}, ` +
+    out: [...folded, `the scan of ${context.intent} is owed: run ${scanCall(tree, context.options)}, ` +
       'spawn the dispatch lines it prints in one message per group it names, ' +
-      `run ${owed.scanCommand(tree, context.options, true)}, then ${owed.reviewCommand(tree, context.options)} again`],
+      `run ${scanCall(tree, context.options, true)}, then ${intentReviewCall(tree, context.options)} again`],
   };
 }
 
@@ -77,7 +78,7 @@ function dispatch(tree, context, reasons, from, folded) {
       `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
       ...(scanned ? [`  scan ${scan}`] : []),
       `  write ${rel}`,
-      `then ${owed.reviewCommand(tree, options)} records it`,
+      `then ${intentReviewCall(tree, options)} records it`,
     ],
   };
 }
@@ -88,7 +89,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then ${owed.runCall('gate', tree, context.options, ['--detach'])}`],
+      out: [head, `then ${gateStartCall(tree, context.options)}`],
     };
   }
   const out = [head];
@@ -100,7 +101,7 @@ function verdict(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   out.push('send each item its findings as one correction to its warm builder, commit, ' +
-    `${owed.runCall('review', tree, context.options, ['--item', '<id>'])}, then ${owed.reviewCommand(tree, context.options)} again`);
+    `${itemReviewCall(tree, context.options, '<id>')}, then ${intentReviewCall(tree, context.options)} again`);
   return {
     exit: 2,
     payload: { ok: false, intent, verdict: 'fix', owners, findings: review.findings, survivors: review.survivors },
@@ -145,7 +146,7 @@ function reviewIntent(options) {
         exit: 3,
         payload: { ok: false, intent, owed: 'dispatch', dispatched: sent && sent.head },
         out: [...restored, `the code ${since}, so ${rel} reads another tree; nothing recorded`,
-          `discard the unrecorded ${rel}, then run ${owed.reviewCommand(tree, options)} for a fresh dispatch of the delta`],
+          `discard the unrecorded ${rel}, then run ${intentReviewCall(tree, options)} for a fresh dispatch of the delta`],
       };
     }
     return record(tree, context, sent.head, restored);

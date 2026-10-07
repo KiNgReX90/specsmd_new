@@ -43,7 +43,7 @@ const { archivePaths, archivedIds } = archive;
 const { check } = require('./state-check.cjs');
 const block = require('./state-block.cjs');
 const review = require('./state-review.cjs');
-const { runCall } = require('./run-call.cjs');
+const { integrateCall } = require('./run-call.cjs');
 const { withStateLock, atomicWrite } = require('./state-store.cjs');
 const { main: runCli } = require('./state-cli.cjs');
 
@@ -125,7 +125,7 @@ function completeItem(options) {
   if (!proof) {
     throw new TransitionError(
       `refusing to complete ${options.item} with no integration proof. An item is completed by its ` +
-        `integration, never before it: ${runCall('integrate', options.tree || '<worktree>', options, ['--item', options.item])} folds the ` +
+        `integration, never before it: ${integrateCall(options.tree || '<worktree>', options, options.item)} folds the ` +
         'base in, runs the checks on the committed tree, and completes the item with the sha they proved.',
       'NO_PROOF'
     );
@@ -175,7 +175,7 @@ function closeIntent(options) {
     const detail = outstanding.map((item) => `${item.id} (${item.status || 'no status'})`).join(', ');
     throw new TransitionError(
       `refusing to close ${options.intent}: ${outstanding.length} work item(s) not completed: ${detail}. ` +
-        `Land each with ${runCall('integrate', options.tree || '<worktree>', options, ['--item', '<id>'])}`,
+        `Land each with ${integrateCall(options.tree || '<worktree>', options, '<id>')}`,
       'ITEMS_OUTSTANDING'
     );
   }

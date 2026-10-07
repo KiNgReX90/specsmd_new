@@ -15,7 +15,7 @@
 const {
   TransitionError, loadState, getIntent, statusOf, setField, removeField, nowIso, writeState,
 } = require('./state-ledger.cjs');
-const { writerCall } = require('./run-call.cjs');
+const { blockIntentCall, unclaimIntentCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -53,7 +53,7 @@ function blockIntent(options) {
   if (!reason) {
     throw new TransitionError(
       'refusing to block an intent with no reason: nobody can tell later whether the wait is ' +
-        `over. Say what it waits on: ${writerCall('block-intent', options, ['--reason', '"<why it cannot be built yet>"'])}.`,
+        `over. Say what it waits on: ${blockIntentCall(options)}.`,
       'NO_REASON'
     );
   }
@@ -68,7 +68,7 @@ function blockIntent(options) {
   if (previous !== 'pending') {
     const fix =
       previous === 'in_progress'
-        ? ` A run holds it. Release it first: ${writerCall('unclaim-intent', options)}.`
+        ? ` A run holds it. Release it first: ${unclaimIntentCall(options)}.`
         : '';
     throw new TransitionError(
       `refusing to block ${options.intent}: status is ${previous || 'unset'}, not pending.${fix}`,
