@@ -24,6 +24,8 @@ Options
   --run <run-id>  the run taking the intent, recorded as claimed_by (claim-intent)
   --reason <why>  what the intent waits on, recorded as blocked_reason (block-intent)
   --proof <sha>   the integrated tree run.cjs integrate ran the checks on (complete-item)
+  --tree <dir>    the worktree a complete-item refusal prints into the call it names
+  --config <file> the host config that call carries, so it runs on the caller's host
   --now <iso>     override the timestamp (tests / backfill)
   --json          machine-readable output
 

@@ -131,3 +131,25 @@ test("on Codex the ledger writer's refusals print the integrate and the review f
   assert.equal(unreviewed.code, 2, unreviewed.out + unreviewed.err);
   itemReviewer(asPrinted(fixture, filled(unreviewed.err), "review --item")[0]);
 });
+
+// Integrate checks every review before it folds, and the ledger writer checks again when it
+// completes the item. A base that reopened the item reaches the writer's own refusal after the
+// fold, which prints the review call with integrate's tree, intent and host.
+test("on Codex a review refusal the writer raises under integrate prints the review call for the caller's host", () => {
+  const fixture = repo({ state: completed("        completed_at: 2010-01-01T00:00:00Z\n"), files: codex() });
+  const tree = worktree(fixture, INTENT_TREE);
+  write(tree, "src/a.ts", "export const a = 4;\n");
+  git(tree, ["commit", "-qam", "a-one landed"]);
+  const ledger = path.join(fixture.root, ".specs-inferno/state.yaml");
+  fs.writeFileSync(ledger, fs.readFileSync(ledger, "utf8").replace("status: completed\n        completed_at: 2010-01-01T00:00:00Z\n", "status: pending\n"));
+  git(fixture.root, ["commit", "-qam", "a-one reopened"]);
+  const refused = run(fixture, ["integrate", "--tree", tree, "--item", "a-one", "--intent", "alpha", "--config", CODEX]);
+  assert.match(refused.err, /REVIEW_OWED/, refused.out + refused.err);
+  itemReviewer(asPrinted(fixture, refused.err, "review --item")[0]);
+});
+
+test("the ledger writer's usage names the tree and host config its refusals print", () => {
+  const usage = writer({ root: process.cwd() }, ["--help"]).out;
+  assert.match(usage, /^ {2}--tree <dir> {4}\S/m);
+  assert.match(usage, /^ {2}--config <file> \S/m);
+});
