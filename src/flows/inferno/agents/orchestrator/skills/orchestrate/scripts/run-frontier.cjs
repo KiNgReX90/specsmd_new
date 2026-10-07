@@ -23,6 +23,7 @@ const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./sta
 // The tier and the ladder live with the review that moves an item up it, so frontier and
 // `run.cjs review --item` print the same actor.
 const { actorLabel, hostActor, nextActor, nextLine, tierOf } = require('./run-review.cjs');
+const { runCall } = require('./run-intent-owed.cjs');
 
 /**
  * The hour the proof rule landed. Every ledger written before it carries completed items and
@@ -53,12 +54,12 @@ function itemIntegrated(item, since) {
   return isComplete(item.status) && itemProved(item) && itemReviewed(item, since);
 }
 
-function heldLine(item, tree, since) {
-  if (!itemProved(item)) {
-    return `HELD ${item.id}: completed with no integration proof, run run.cjs integrate --item ${item.id} --tree ${tree} to prove it`;
-  }
-  return `HELD ${item.id}: completed with no clean item review, run run.cjs review --item ${item.id} --tree ${tree}, ` +
-    `then integrate --item ${item.id}${since === null ? `. ${REINSTALL}` : ''}`;
+/** `calls` are the caller's options with the intent it named, so each printed call reaches this intent's item. */
+function heldLine(item, tree, since, calls) {
+  const integrate = runCall(`integrate --item ${item.id}`, tree, calls);
+  if (!itemProved(item)) return `HELD ${item.id}: completed with no integration proof, run ${integrate} to prove it`;
+  return `HELD ${item.id}: completed with no clean item review, run ${runCall(`review --item ${item.id}`, tree, calls)}, ` +
+    `then ${integrate}${since === null ? `. ${REINSTALL}` : ''}`;
 }
 
 function loadItems(tree, intent) {
@@ -194,7 +195,7 @@ function frontier(intentId, options) {
     const { actor } = nextActor(item);
     return { id: item.id, complexity: item.complexity, kind: item.kind, tier: actor, model: hostActor(actor, config).model };
   };
-  const out = held.map((item) => heldLine(item, tree, since));
+  const out = held.map((item) => heldLine(item, tree, since, { ...options, intent: intent.id }));
   for (const item of ready) {
     out.push(`ready ${item.id} ${item.complexity} ${item.kind || 'unset'} ${actorLabel(item, config)}`);
     if (item.review === 'fix') out.push(nextLine(item.id, item, config));

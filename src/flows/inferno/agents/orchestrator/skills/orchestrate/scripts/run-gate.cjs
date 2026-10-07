@@ -337,8 +337,9 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function waitCommand(tree, config) {
-  return `node ${path.join(__dirname, 'run.cjs')} gate --wait --tree ${tree}${config ? ` --config ${config}` : ''}`;
+/** The wait on the started gate, by this runner's own path, with the caller's tree, intent and host config. */
+function waitCommand(tree, options) {
+  return `node ${__dirname}${path.sep}${intentReview.runCall('gate --wait', tree, options)}`;
 }
 
 function gateDetach(options) {
@@ -349,7 +350,7 @@ function gateDetach(options) {
   const existing = readJson(paths.job);
   if (alive(existing)) {
     throw new RunError(
-      `a gate is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree, options.config)}`,
+      `a gate is already running for this tree (pid ${existing.pid}, started ${existing.started}); wait for it: ${waitCommand(tree, options)}`,
       'GATE_RUNNING'
     );
   }
@@ -383,7 +384,7 @@ function gateDetach(options) {
   return {
     exit: 0,
     payload: { started: true, folded: foldLines.length > 0, ...job },
-    out: [...folded, `gate started pid ${child.pid}`, `log ${paths.log}`, `result ${paths.result}`, `wait with: ${waitCommand(tree, options.config)}`],
+    out: [...folded, `gate started pid ${child.pid}`, `log ${paths.log}`, `result ${paths.result}`, `wait with: ${waitCommand(tree, options)}`],
   };
 }
 
@@ -405,7 +406,7 @@ function gateWait(options) {
   const tree = treeOf(options);
   const job = readJson(jobPaths(tree).job);
   if (!job) {
-    throw new RunError('no gate has been started for this tree; start one with gate --detach', 'NO_GATE_JOB');
+    throw new RunError(`no gate has been started for this tree; start one with ${intentReview.runCall('gate --detach', tree, options)}`, 'NO_GATE_JOB');
   }
   const selected = path.resolve(tree, options.config || `${lib.SPECS_DIR}/config.yaml`);
   const configured = path.resolve(tree, job.config || `${lib.SPECS_DIR}/config.yaml`);
@@ -419,7 +420,7 @@ function gateWait(options) {
       return {
         exit: 4,
         payload: { running: true, ...job, elapsed_minutes: elapsed },
-        out: [`gate still running pid ${job.pid}, ${elapsed} min so far`, `log ${job.log}`, 'call gate --wait again'],
+        out: [`gate still running pid ${job.pid}, ${elapsed} min so far`, `log ${job.log}`, `call ${waitCommand(tree, options)} again`],
       };
     }
     sleepSync(500);

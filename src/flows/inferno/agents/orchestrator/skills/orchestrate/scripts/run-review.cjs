@@ -23,6 +23,7 @@ const writer = require('./state-transition.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
+const { runCall } = require('./run-intent-owed.cjs');
 
 const { RunError } = lib;
 
@@ -130,7 +131,7 @@ function forkPoint(tree, config, intent) {
 }
 
 function owed(tree, context, reason, from, paths) {
-  const { intent, item, config, rel } = context;
+  const { intent, item, config, rel, options } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
   const spec = path.relative(tree, lib.readItemSpec(tree, intent.id, item.id).file);
@@ -145,16 +146,16 @@ function owed(tree, context, reason, from, paths) {
       `  spec ${spec}`,
       `  brief ${brief}`,
       `  write ${rel}`,
-      `then run.cjs review --item ${item.id} --tree ${tree} records it`,
+      `then ${runCall(`review --item ${item.id}`, tree, options)} records it`,
     ],
   };
 }
 
 function verdictResult(tree, context, review, head) {
-  const { item, config } = context;
+  const { item, config, options } = context;
   const out = [head];
   if (review.verdict === 'clean') {
-    out.push(`then run.cjs integrate --item ${item.id} --tree ${tree}`);
+    out.push(`then ${runCall(`integrate --item ${item.id}`, tree, options)}`);
     return { exit: 0, payload: { ok: true, item: item.id, verdict: 'clean' }, out };
   }
   for (const finding of review.findings) {
@@ -211,7 +212,7 @@ function review(options) {
   const { intent, item } = itemOf(ledger, options.item, options);
   const rel = reviewPath(intent.id, item.id);
   const config = lib.readConfig(tree, options.config);
-  const context = { intent, item, config, rel };
+  const context = { intent, item, config, rel, options };
   const manifest = lib.readItemSpec(tree, intent.id, item.id).manifest || {};
   const editable = (manifest.ownership && manifest.ownership.editable) || [];
 
@@ -266,7 +267,7 @@ function owedReviews(tree, ledger, ids, options) {
     const { intent, item } = itemOf(ledger, id, options);
     const complete = writer.isComplete(item.status);
     if (complete && completedBeforeReviewRule(item.completed_at, since)) continue;
-    const command = `run.cjs review --item ${id} --tree ${tree}${complete && since === null ? `. ${REINSTALL}` : ''}`;
+    const command = `${runCall(`review --item ${id}`, tree, options)}${complete && since === null ? `. ${REINSTALL}` : ''}`;
     if (item.review !== 'clean') {
       lines.push(`${id} ${item.review === 'fix' ? 'has a fix review' : 'has no clean review'}, run ${command}`);
       continue;

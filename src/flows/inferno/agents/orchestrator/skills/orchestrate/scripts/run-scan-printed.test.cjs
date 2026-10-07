@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
 
-const { INTENT_TREE, git, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { INTENT_TREE, asPrinted, git, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // Every scan, collect and review call the scan path prints carries the caller's tree, intent
 // and host config. Run as printed on Codex, each call stays on Codex: a scan dispatches the
@@ -26,20 +26,6 @@ function started(name = INTENT_TREE, files = HOST) {
   write(tree, "src/a.ts", "export const a = 3;\n");
   git(tree, ["commit", "-qam", "the work"]);
   return { fixture, tree };
-}
-
-/** The runner calls of one kind a text prints, each as the argv it names. */
-function printed(text, kind) {
-  const calls = [...text.matchAll(/run\.cjs ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\s,]+)?)*)/g)].map((match) => match[1].split(" "));
-  const kindOf = (argv) => (argv.includes("--collect") ? "collect" : argv.includes("--item") ? "item" : argv[0]);
-  return calls.filter((argv) => kindOf(argv) === kind);
-}
-
-/** Run every call of one kind the text prints, exactly as printed. */
-function asPrinted(fixture, text, kind) {
-  const calls = printed(text, kind);
-  assert.ok(calls.length > 0, `no ${kind} call printed in: ${text}`);
-  return calls.map((argv) => ({ argv, ...run(fixture, argv) }));
 }
 
 /** The call dispatched the Codex scanner for every question; returns each result path by id. */
@@ -152,7 +138,7 @@ test("on Codex the intent review's verdicts print the item review and the gate, 
   write(fixing.tree, review, `verdict: fix\n${finding}`);
   const fix = run(fixing.fixture, ["review", ...caller]);
   assert.equal(fix.code, 2, fix.out + fix.err);
-  const [item] = printed(fix.out, "item");
+  const [item] = printed(fix.out, "review --item");
   assert.ok(item, fix.out);
   const itemReview = run(fixing.fixture, item.map((arg) => (arg === "<id>" ? "a-one" : arg)));
   assert.equal(itemReview.code, 3, itemReview.out + itemReview.err);

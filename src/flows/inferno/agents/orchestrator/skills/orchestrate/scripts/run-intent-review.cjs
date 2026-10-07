@@ -88,7 +88,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then ${owed.runCall('gate', tree, context.options, ' --detach')}`],
+      out: [head, `then ${owed.runCall('gate --detach', tree, context.options)}`],
     };
   }
   const out = [head];
