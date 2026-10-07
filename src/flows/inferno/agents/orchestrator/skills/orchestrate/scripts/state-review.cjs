@@ -86,7 +86,7 @@ function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, optio
   if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
     `refusing to complete ${itemId}: its item review is not clean. Run ` +
-      `${runCall(`review --item ${itemId}`, options.tree || '<worktree>', options)}, have the builder fix every finding until the ` +
+      `${runCall('review', options.tree || '<worktree>', options, ['--item', itemId])}, have the builder fix every finding until the ` +
       `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );
@@ -108,7 +108,7 @@ function reviewItem(options) {
   }
   const hash = String(options.files_hash || '');
   if (!/^[0-9a-f]{64}$/.test(hash)) {
-    throw new TransitionError('refusing review-item: --files-hash must be the 64 hex digits run.cjs review computed.', 'BAD_HASH');
+    throw new TransitionError('refusing review-item: --files-hash must be the 64 hex digits the item review computed.', 'BAD_HASH');
   }
   const tier = String(options.tier || '');
   if (!TIERS.has(tier)) {

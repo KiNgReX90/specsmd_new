@@ -90,11 +90,11 @@ function required(value, usage) {
   return value;
 }
 
-const REGISTER = 'register-process <pid> --tree <dir> --run-id <id>';
+const REGISTER_USAGE = 'register-process <pid> --tree <dir> --run-id <id>';
 
 /** Only a process registered here, by its full identity, can receive teardown's signal. */
 function registerProcess(pid, tree, runId) {
-  if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER}`, 'BAD_ARGS', 1);
+  if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER_USAGE}`, 'BAD_ARGS', 1);
   processes.linkedTree(lib.primaryRoot(tree), tree);
   const record = processes.registerProcess(tree, Number(pid), runId);
   if (!record) {
@@ -122,7 +122,7 @@ const COMMANDS = {
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),
   teardown: (args, options) => teardown(options),
   'register-process': (args, options) =>
-    registerProcess(required(args[0], REGISTER), required(options.tree, REGISTER), required(options.run_id, REGISTER)),
+    registerProcess(required(args[0], REGISTER_USAGE), required(options.tree, REGISTER_USAGE), required(options.run_id, REGISTER_USAGE)),
   'dispatch-log': (args, options) =>
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
   'accept-dispatch': (args, options) =>

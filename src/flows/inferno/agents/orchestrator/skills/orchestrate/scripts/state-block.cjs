@@ -53,7 +53,7 @@ function blockIntent(options) {
   if (!reason) {
     throw new TransitionError(
       'refusing to block an intent with no reason: nobody can tell later whether the wait is ' +
-        `over. Say what it waits on: ${writerCall('block-intent', options, ' --reason "<why it cannot be built yet>"')}.`,
+        `over. Say what it waits on: ${writerCall('block-intent', options, ['--reason', '"<why it cannot be built yet>"'])}.`,
       'NO_REASON'
     );
   }

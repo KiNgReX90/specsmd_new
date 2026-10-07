@@ -115,8 +115,8 @@ const reviewCommand = (tree, options) => runCall('review', tree, options);
 
 /** The scan call for the same tree and host, or its collect. */
 function scanCommand(tree, options, collect = false) {
-  const plan = options.plan ? ` --only ${options.only || 'wiring'} --plan ${options.plan}` : '';
-  return runCall(collect ? 'scan --collect' : 'scan', tree, options, plan);
+  const plan = options.plan ? ['--only', options.only || 'wiring', '--plan', options.plan] : [];
+  return runCall('scan', tree, options, [...(collect ? ['--collect'] : []), ...plan]);
 }
 
 /**

@@ -12,6 +12,7 @@ const { attribute } = require('./run-attribute.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const processes = require('./run-processes.cjs');
 const intentReview = require('./run-intent-owed.cjs');
+const { RUNNER, RUNNER_PATH, nodeCall, runCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
@@ -321,7 +322,7 @@ function readJson(file) {
 function alive(job) {
   if (!job || !job.pid) return false;
   try {
-    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes('run.cjs')) return false;
+    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes(RUNNER)) return false;
   } catch (error) {
     if (error.code === 'ENOENT') return false;
   }
@@ -339,7 +340,7 @@ function sleepSync(ms) {
 
 /** The wait on the started gate, by this runner's own path, with the caller's tree, intent and host config. */
 function waitCommand(tree, options) {
-  return `node ${__dirname}${path.sep}${intentReview.runCall('gate --wait', tree, options)}`;
+  return nodeCall('gate', tree, options, ['--wait']);
 }
 
 function gateDetach(options) {
@@ -363,7 +364,7 @@ function gateDetach(options) {
   const unreviewed = intentReview.gateRefusal(tree, gateCommands(tree, options.config).config, intent, options, before, folded);
   if (unreviewed) return unreviewed;
   fs.mkdirSync(path.dirname(paths.job), { recursive: true });
-  const args = [path.join(__dirname, 'run.cjs'), 'gate', '--tree', tree, '--json'];
+  const args = [RUNNER_PATH, 'gate', '--tree', tree, '--json'];
   if (options.base) args.push('--base', options.base);
   if (options.intent) args.push('--intent', options.intent);
   if (options.config) args.push('--config', options.config);
@@ -406,7 +407,7 @@ function gateWait(options) {
   const tree = treeOf(options);
   const job = readJson(jobPaths(tree).job);
   if (!job) {
-    throw new RunError(`no gate has been started for this tree; start one with ${intentReview.runCall('gate --detach', tree, options)}`, 'NO_GATE_JOB');
+    throw new RunError(`no gate has been started for this tree; start one with ${runCall('gate', tree, options, ['--detach'])}`, 'NO_GATE_JOB');
   }
   const selected = path.resolve(tree, options.config || `${lib.SPECS_DIR}/config.yaml`);
   const configured = path.resolve(tree, job.config || `${lib.SPECS_DIR}/config.yaml`);

@@ -150,7 +150,7 @@ for (const [name, body, reason] of [
   ["evidence on a criterion a test proves", "verdict: clean\ncriteria:\n  - criterion: c\n    proof: test\n    where: t\n    evidence: x\n", /for an external proof only/],
   ["verdict clean with a finding", `verdict: clean\n${FINDING("a-one")}`, /verdict clean with 1 finding/],
   ["verdict clean with a surviving mutant", "verdict: clean\nmutants:\n  - criterion: c\n    test: t\n    caught: no\n", /caught: no/],
-  ["a tree the reviewer wrote itself", "verdict: clean\ntree: abc\n", /written by run\.cjs/],
+  ["a tree the reviewer wrote itself", "verdict: clean\ntree: abc\n", /is written when the review is recorded/],
   ["an answer to a scan line that does not exist", "verdict: clean\nscanner:\n  - id: s9\n    answer: struck\n    reason: r\n", /s9/],
 ]) {
   test(`review refuses ${name} and records nothing`, () => {
@@ -216,7 +216,7 @@ test("a JS-proven item owes a caught mutant for every criterion, by text or by i
   assert.match(refused.err, /a-one/);
   assert.match(refused.err, /a is exported/);
   assert.doesNotMatch(refused.err, /a is three/);
-  assert.match(refused.err, /run\.cjs mutate/);
+  assert.match(refused.err, /the runner's mutate step/);
   write(tree, REVIEW, `verdict: clean\n${mutantList([["a-one:2", "node --test src/a.test.ts"]])}`);
   const recorded = review(fixture, tree);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);

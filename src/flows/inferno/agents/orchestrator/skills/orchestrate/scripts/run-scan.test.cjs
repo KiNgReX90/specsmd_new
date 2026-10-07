@@ -190,7 +190,7 @@ test("--only goes with --plan and names wiring alone, and the refusal prints the
   for (const id of ["contract", "wires"]) {
     const refused = scan(fixture, fixture.root, ["--only", id, "--plan", "alpha"]);
     assert.equal(refused.code, 1, refused.out + refused.err);
-    assert.match(refused.err, new RegExp(`the plan-time scan asks wiring alone: run run\\.cjs scan --tree ${fixture.root} --only wiring --plan alpha$`, "m"));
+    assert.match(refused.err, new RegExp(`the plan-time scan asks wiring alone: run run\\.cjs scan --only wiring --plan alpha --tree ${fixture.root}$`, "m"));
   }
 });
 
@@ -206,7 +206,7 @@ test("collect refuses results of a dispatch that asked other questions than the 
   const refused = scan(fixture, fixture.root, ["--collect", "--plan", "alpha"]);
   assert.equal(refused.code, 3, refused.out + refused.err);
   assert.match(refused.out, /asked wiring, contract/);
-  assert.match(refused.out, /run\.cjs scan --tree .* --plan alpha for a fresh dispatch/);
+  assert.match(refused.out, /run\.cjs scan --only wiring --plan alpha --tree \S+ for a fresh dispatch/);
 });
 
 test("a role installed in the primary checkout alone lets a worktree cut before it scan", () => {

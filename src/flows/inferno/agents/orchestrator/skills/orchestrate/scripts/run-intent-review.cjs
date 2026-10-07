@@ -88,7 +88,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then ${owed.runCall('gate --detach', tree, context.options)}`],
+      out: [head, `then ${owed.runCall('gate', tree, context.options, ['--detach'])}`],
     };
   }
   const out = [head];
@@ -100,7 +100,7 @@ function verdict(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   out.push('send each item its findings as one correction to its warm builder, commit, ' +
-    `${owed.runCall('review --item <id>', tree, context.options)}, then ${owed.reviewCommand(tree, context.options)} again`);
+    `${owed.runCall('review', tree, context.options, ['--item', '<id>'])}, then ${owed.reviewCommand(tree, context.options)} again`);
   return {
     exit: 2,
     payload: { ok: false, intent, verdict: 'fix', owners, findings: review.findings, survivors: review.survivors },

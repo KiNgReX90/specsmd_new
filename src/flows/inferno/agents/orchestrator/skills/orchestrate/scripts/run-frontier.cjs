@@ -56,9 +56,9 @@ function itemIntegrated(item, since) {
 
 /** `calls` are the caller's options with the intent it named, so each printed call reaches this intent's item. */
 function heldLine(item, tree, since, calls) {
-  const integrate = runCall(`integrate --item ${item.id}`, tree, calls);
+  const integrate = runCall('integrate', tree, calls, ['--item', item.id]);
   if (!itemProved(item)) return `HELD ${item.id}: completed with no integration proof, run ${integrate} to prove it`;
-  return `HELD ${item.id}: completed with no clean item review, run ${runCall(`review --item ${item.id}`, tree, calls)}, ` +
+  return `HELD ${item.id}: completed with no clean item review, run ${runCall('review', tree, calls, ['--item', item.id])}, ` +
     `then ${integrate}${since === null ? `. ${REINSTALL}` : ''}`;
 }
 

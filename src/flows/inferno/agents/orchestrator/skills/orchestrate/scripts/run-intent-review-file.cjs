@@ -62,7 +62,7 @@ function parseIntentReview(tree, rel, { recorded, items, scanIds, proofs = [] })
   if (!isMap(doc)) throw bad(rel, `an intent review is a map of ${INTENT_KEYS.join(', ')}`);
   for (const key of Object.keys(doc)) {
     if (INTENT_KEYS.includes(key) || (recorded && RECORDED_KEYS.includes(key))) continue;
-    if (RECORDED_KEYS.includes(key)) throw bad(rel, `${key} is written by run.cjs when it records the review, so drop it`);
+    if (RECORDED_KEYS.includes(key)) throw bad(rel, `${key} is written when the review is recorded, so drop it`);
     throw bad(rel, `unknown key ${key}: an intent review holds ${INTENT_KEYS.join(', ')} only`);
   }
   if (doc.verdict !== 'clean' && doc.verdict !== 'fix') throw bad(rel, 'verdict must be clean or fix');
@@ -76,7 +76,7 @@ function parseIntentReview(tree, rel, { recorded, items, scanIds, proofs = [] })
   const scanner = scannerOf(rel, doc, scanIds);
   const gaps = doc.verdict === 'clean' ? mutantGaps(proofs, mutants) : [];
   if (gaps.length > 0) {
-    throw bad(rel, `verdict clean while ${gaps.join('; ')}. Break each with run.cjs mutate and record it under mutants, ` +
+    throw bad(rel, `verdict clean while ${gaps.join('; ')}. Break each with the runner's mutate step and record it under mutants, ` +
       'here as <item>:<n> or the criterion text, or in that item\'s review');
   }
   return {

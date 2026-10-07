@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 
 const lib = require('./run-lib.cjs');
+const { RUNNER } = require('./run-call.cjs');
 
 /** The kernel's start tick for a pid, or null when it is gone. Field 22 of /proc/pid/stat. */
 function processStart(pid) {
@@ -105,7 +106,7 @@ function gateJobAlive(tree) {
   }
   if (!job || !job.pid) return null;
   try {
-    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes('run.cjs')) return null;
+    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes(RUNNER)) return null;
   } catch (error) {
     return null;
   }
