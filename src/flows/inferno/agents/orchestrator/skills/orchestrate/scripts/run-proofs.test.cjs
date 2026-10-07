@@ -1,15 +1,15 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { tempDir } = require('./test-temp.cjs');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 
 function tempdir(prefix) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  return tempDir(prefix);
 }
 
 function hashTree(t) {
@@ -125,7 +125,7 @@ delivery:
 }
 
 function repo(t, body = config()) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-proof-'));
+  const dir = tempDir('inferno-proof-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const root = path.join(dir, 'app');
   fs.mkdirSync(root);

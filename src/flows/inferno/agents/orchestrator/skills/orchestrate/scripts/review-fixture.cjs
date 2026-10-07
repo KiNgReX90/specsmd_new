@@ -10,9 +10,9 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
+const { tempDir } = require('./test-temp.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const WRITER = path.join(__dirname, 'state-transition.cjs');
@@ -98,7 +98,7 @@ function git(cwd, args) {
 
 /** A host repository on main: a ledger, a config, a brief, two item specs, the install lock. */
 function repo(options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-review-'));
+  const dir = tempDir('inferno-review-');
   const root = path.join(dir, 'app');
   fs.mkdirSync(root);
   git(root, ['init', '-q', '-b', 'main']);

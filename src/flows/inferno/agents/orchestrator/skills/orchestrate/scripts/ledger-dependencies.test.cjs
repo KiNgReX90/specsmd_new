@@ -1,15 +1,15 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { tempDir } = require('./test-temp.cjs');
 const lib = require('./run-lib.cjs');
 const writer = require('./state-transition.cjs');
 const intents = require('./run-intents.cjs');
 
 function fixture(t, form = 'block') {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-deps-'));
+  const root = tempDir('inferno-deps-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);
   const list = (key, values, indent) => {

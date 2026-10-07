@@ -3,12 +3,12 @@
  * origin, a ledger and item specs, and a `run` that drives the CLI as a process.
  */
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
 
 const RUN = path.join(__dirname, "run.cjs");
 const WRITER = path.join(__dirname, "state-transition.cjs");
+const { tempDir } = require("./test-temp.cjs");
 const { LOCK_PATH, hostLock, markReviewed, reviewBefore } = require("./review-fixture.cjs");
 
 const STATE = `project:
@@ -147,7 +147,7 @@ function git(cwd, args, env = {}) {
 
 /** A throwaway repo shaped like a host project: a bare origin, a ledger, item specs. */
 function repo(options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-run-"));
+  const dir = tempDir("inferno-run-");
   const root = path.join(dir, "app");
   const remote = path.join(dir, "remote.git");
   fs.mkdirSync(root, { recursive: true });

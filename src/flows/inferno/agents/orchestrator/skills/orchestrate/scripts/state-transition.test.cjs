@@ -1,7 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 
 const {
@@ -19,6 +18,7 @@ const {
   findKeyLine,
   unquote,
 } = require("./state-transition.cjs");
+const { tempDir } = require("./test-temp.cjs");
 
 // Mirrors the real artifacts: load-bearing comment blocks, quoted and unquoted titles,
 // and per-entry field order that differs between intents (status before/after kind).
@@ -81,7 +81,7 @@ function multisetDifference(a, b) {
 }
 
 function sandbox(content = FIXTURE) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-state-"));
+  const dir = tempDir("inferno-state-");
   const file = path.join(dir, "state.yaml");
   fs.writeFileSync(file, content, "utf8");
   return { dir, file };
