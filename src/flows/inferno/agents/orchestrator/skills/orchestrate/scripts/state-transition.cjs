@@ -175,7 +175,7 @@ function closeIntent(options) {
     const detail = outstanding.map((item) => `${item.id} (${item.status || 'no status'})`).join(', ');
     throw new TransitionError(
       `refusing to close ${options.intent}: ${outstanding.length} work item(s) not completed: ${detail}. ` +
-        `Complete each with: complete-item --intent ${options.intent} --item <id>`,
+        `Land each with ${runCall('integrate --item <id>', options.tree || '<worktree>', options)}`,
       'ITEMS_OUTSTANDING'
     );
   }

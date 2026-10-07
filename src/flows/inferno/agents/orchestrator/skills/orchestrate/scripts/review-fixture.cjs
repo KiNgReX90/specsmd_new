@@ -137,13 +137,14 @@ function run(fixture, args, cwd = fixture.root) {
 }
 
 /**
- * The runner calls of one kind a text prints, each as the argv it names: `scan`, `collect`,
- * `review`, `review --item`, `integrate --item`, `gate` and so on. A sentence's closing period
- * is not part of the call.
+ * The calls of one kind a text prints, each as the argv it names: `scan`, `collect`, `review`,
+ * `review --item`, `integrate --item`, `gate` and so on, of run.cjs or of another script. A
+ * sentence's closing period is not part of the call.
  */
-function printed(text, kind) {
+function printed(text, kind, script = 'run') {
   const kindOf = (argv) => (argv.includes('--collect') ? 'collect' : argv.includes('--item') ? `${argv[0]} --item` : argv[0]);
-  return [...text.matchAll(/run\.cjs ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\s,]+)?)*)/g)]
+  const call = new RegExp(`(?<![\\w-])${script}\\.cjs ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\\s,]+)?)*)`, 'g');
+  return [...text.matchAll(call)]
     .map((match) => match[1].replace(/\.$/, '').split(' '))
     .filter((argv) => kindOf(argv) === kind);
 }

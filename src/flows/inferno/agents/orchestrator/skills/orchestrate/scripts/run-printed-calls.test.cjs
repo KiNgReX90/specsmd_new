@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { CONFIG, INTENT_TREE, STATE, asPrinted, git, intentReviewed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { CONFIG, INTENT_TREE, STATE, asPrinted, git, intentReviewed, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // Every runner call a step prints for its caller carries the caller's tree, intent and host
 // config. Run as printed on Codex, each call stays on Codex: an item review dispatches the
@@ -152,4 +152,22 @@ test("the ledger writer's usage names the tree and host config its refusals prin
   const usage = writer({ root: process.cwd() }, ["--help"]).out;
   assert.match(usage, /^ {2}--tree <dir> {4}\S/m);
   assert.match(usage, /^ {2}--config <file> \S/m);
+});
+
+// The writer's refusals point to writer and runner calls that carry the caller's intent and host
+// config. An archive of an open intent points to close-intent, whose refusal over an open item
+// points to the integrate that lands it, never to a complete-item that has no proof.
+test("on Codex the archive and close refusals point through close-intent to the integrate, on the caller's host", () => {
+  const fixture = repo({ state: SHARED, files: codex() });
+  write(fixture.root, "src/a.ts", "export const a = 4;\n");
+  git(fixture.root, ["commit", "-qam", "a-one landed"]);
+  const archived = writer(fixture, ["archive-intent", "--intent", "alpha", "--config", CODEX]);
+  assert.equal(archived.code, 2, archived.out + archived.err);
+  const [close] = printed(archived.err, "close-intent", "state-transition");
+  assert.ok(close, archived.err);
+  const closing = writer(fixture, close);
+  assert.equal(closing.code, 2, closing.out + closing.err);
+  assert.doesNotMatch(closing.err, /complete-item/);
+  const filled = closing.err.replace(/<worktree>/g, fixture.root).replace(/<id>/g, "a-one");
+  integrateOwesReview(fixture, asPrinted(fixture, filled, "integrate --item")[0]);
 });
