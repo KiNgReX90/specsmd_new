@@ -26,7 +26,7 @@ const CODEX_CONFIG = '--config .specs-inferno/config.codex.yaml';
 const WRITER = ['claim-intent', 'unclaim-intent', 'block-intent', 'unblock-intent', 'complete-item', 'close-intent', 'review-item', 'archive-intent', 'check'];
 const STEPS = [
   'select', 'claim', 'unclaim', 'worktree', 'frontier', 'probes', 'verify-item', 'review', 'scan', 'mutate', 'integrate',
-  'doubles', 'gate', 'green', 'ship', 'teardown', 'register-process', 'dispatch-log', 'accept-dispatch', ...WRITER,
+  'doubles', 'gate', 'green', 'smoke', 'windows', 'ship', 'teardown', 'register-process', 'dispatch-log', 'accept-dispatch', ...WRITER,
 ];
 /** A script file name, or a constant run-call.cjs exports that holds one. */
 const SCRIPT = /\b(?:run|state-transition)\.cjs\b|\b(?:RUNNER|RUNNER_PATH|WRITER_SCRIPT)\b/;

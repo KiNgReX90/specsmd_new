@@ -13,6 +13,7 @@ const { spawn } = require('child_process');
 const lib = require('./run-lib.cjs');
 const processes = require('./run-processes.cjs');
 const { LANES } = require('./run-lane-config.cjs');
+const { RUNNER, RUNNER_PATH } = require('./run-call.cjs');
 
 /** The gate's files, or a lane's when `lane` names one. */
 function jobPaths(tree, lane) {
@@ -34,11 +35,11 @@ function readJson(file) {
   }
 }
 
-/** Is the job's process still the run.cjs we started, and still running. */
+/** Is the job's process still the runner we started, and still running. */
 function alive(job) {
   if (!job || !job.pid) return false;
   try {
-    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes('run.cjs')) return false;
+    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes(RUNNER)) return false;
   } catch (error) {
     if (error.code === 'ENOENT') return false;
   }
@@ -69,7 +70,7 @@ function detach(tree, args, paths, fields) {
   fs.mkdirSync(path.dirname(paths.job), { recursive: true });
   const out = fs.openSync(paths.result, 'w');
   const err = fs.openSync(paths.log, 'w');
-  const child = spawn(process.execPath, [path.join(__dirname, 'run.cjs'), ...args], {
+  const child = spawn(process.execPath, [RUNNER_PATH, ...args], {
     cwd: tree, detached: true, stdio: ['ignore', out, err],
   });
   fs.closeSync(out);

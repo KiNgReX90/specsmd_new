@@ -19,6 +19,7 @@ const proofs = require('./run-proofs.cjs');
 const jobs = require('./run-jobs.cjs');
 const { configuredLanes } = require('./run-lane-config.cjs');
 const { resolveBase } = require('./run-intents.cjs');
+const { nodeCall, runCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 const DEFAULT_CONFIG = `${lib.SPECS_DIR}/config.yaml`;
@@ -125,8 +126,7 @@ function laneState(tree, name) {
 
 function acceptFix(tree, lane, selected) {
   const base = resolveBase(lib.readConfig(tree, selected), null, tree);
-  return `land the harness fix on ${base}, then: node ${path.join(__dirname, 'run.cjs')} ` +
-    `${lane} --accept --harness-fix <sha> --tree ${tree}${selected ? ` --config ${selected}` : ''}`;
+  return `land the harness fix on ${base}, then: ${nodeCall(lane, tree, {}, ['--accept', '--harness-fix', '<sha>'])}`;
 }
 
 /** The lines for a lane, and whether it holds (green or bounded), fails (2) or is unbounded. */
@@ -179,7 +179,7 @@ function waitAll(job, options, deadline, gateResult) {
       return {
         exit: 4,
         payload: { running: true, ...job, elapsed_minutes: elapsed, ...lanePayload },
-        out: fit(gateOut, ['call gate --wait again']),
+        out: fit(gateOut, [`call ${nodeCall('gate', tree, options, ['--wait'])} again`]),
       };
     }
     jobs.sleepSync(500);
@@ -203,7 +203,8 @@ function accept(name, options) {
   const proof = laneProof(tree, options.config, lane);
   const last = jobs.readJson(jobs.jobPaths(tree, name).result);
   if (!last || last.lane !== name || last.result !== 'instrument-red' || last.hash !== proof.hash || typeof last.run !== 'string') {
-    throw new RunError(`no instrument red of the ${name} lane on this tree to accept: run gate --detach, then gate --wait.`, 'NOTHING_TO_ACCEPT');
+    throw new RunError(`no instrument red of the ${name} lane on this tree to accept: run ${runCall('gate', tree, options, ['--detach'])}, ` +
+      `then ${nodeCall('gate', tree, options, ['--wait'])}.`, 'NOTHING_TO_ACCEPT');
   }
   const { file, ...identity } = proof;
   writeRecord(`${file}${ACCEPTED}`, { ...identity, harness_fix: sha, run: last.run, code: last.code, stamp: new Date().toISOString(), branch: lib.currentBranch(tree) });
@@ -212,7 +213,7 @@ function accept(name, options) {
     payload: { accepted: true, lane: name, harness_fix: sha, hash: proof.hash },
     out: [
       `accepted ${name} instrument red against harness fix ${sha.slice(0, 7)} for this tree`,
-      `wait with: node ${path.join(__dirname, 'run.cjs')} gate --wait --tree ${tree}${options.config ? ` --config ${options.config}` : ''}`,
+      `wait with: ${nodeCall('gate', tree, options, ['--wait'])}`,
     ],
   };
 }
@@ -226,7 +227,11 @@ function smokeOwed(tree, config, selected, changed) {
   if (proofs.readProof(proof)) return { owed: [], out: [] };
   const accepted = readAccepted(tree, 'smoke', proof);
   if (accepted) return { owed: [], out: [`ACCEPTED smoke instrument red, harness fix ${accepted.harness_fix.slice(0, 7)}`] };
-  return { owed: ['smoke'], out: ['smoke owed: no green or accepted instrument-red smoke run for this tree; run gate --detach, then gate --wait'] };
+  return {
+    owed: ['smoke'],
+    out: [`smoke owed: no green or accepted instrument-red smoke run for this tree; run ${runCall('gate', tree, {}, ['--detach'])}, ` +
+      `then ${nodeCall('gate', tree, {}, ['--wait'])}`],
+  };
 }
 
 module.exports = { accept, laneNow, laneProof, smokeOwed, startLanes, waitAll };
