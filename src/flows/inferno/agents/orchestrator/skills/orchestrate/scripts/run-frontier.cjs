@@ -77,6 +77,7 @@ function loadItems(tree, intent) {
         review: item.review,
         review_tier: item.review_tier,
         review_rejections: item.review_rejections,
+        review_weight: item.review_weight,
         context: manifest.context || {},
         ownership: manifest.ownership || {},
         reads: manifest.reads,

@@ -30,11 +30,24 @@ const FIXTURE = `intents:
         depends_on: []
 `;
 
-/** A host root with a ledger and, unless `lock` is null, the install lock and its cutover. */
+/** The review file a fix verdict is weighed by, with one finding of `severity`. */
+const REVIEW_FILE = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
+const findingOf = (severity, extra = "") =>
+  `item: a-one\nverdict: fix\nfiles: [src/a.ts]\nfindings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n` +
+  `    evidence: e\n    fix: f\n    severity: ${severity}\n${extra}`;
+const reviewFile = (file, body) => fs.writeFileSync(path.join(path.dirname(path.dirname(file)), REVIEW_FILE), body);
+
+/**
+ * A host root with a ledger, a fix review of a-one with one major finding and, unless `lock`
+ * is null, the install lock and its cutover.
+ */
 function sandbox(content = FIXTURE, lock = "2026-09-20T00:00:00.000Z") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-review-writer-"));
   const file = path.join(dir, ".specs-inferno", "state.yaml");
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.join(dir, path.dirname(REVIEW_FILE)), { recursive: true });
+  fs.mkdirSync(path.join(dir, "src"));
+  fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;\n");
+  fs.writeFileSync(path.join(dir, REVIEW_FILE), findingOf("major"));
   fs.writeFileSync(file, content);
   if (lock !== null) {
     fs.mkdirSync(path.join(dir, ".specsmd", "inferno"), { recursive: true });
@@ -61,7 +74,7 @@ test("review-item writes the verdict, the hash, the commit, the tier and the cou
     block(file),
     new RegExp(
       `status: pending\\n\\s+review: fix\\n\\s+review_hash: ${HASH}\\n\\s+review_commit: abc1234\\n` +
-        `\\s+review_tier: cheap\\n\\s+review_rejections: 1\\n\\s+reviewed_at: ${NOW}`,
+        `\\s+review_tier: cheap\\n\\s+review_rejections: 1\\n\\s+review_weight: serious\\n\\s+reviewed_at: ${NOW}`,
     ),
   );
   assert.match(fs.readFileSync(file, "utf8"), /# load-bearing comment/);
@@ -75,6 +88,29 @@ test("review-item counts rejections per tier and starts over when the tier chang
   assert.equal(review(file, { tier: "strong", verdict: "clean" }).rejections, 2);
   assert.equal(review(file, { tier: "escalate", verdict: "clean" }).rejections, 0);
   assert.equal((block(file).match(/review_rejections:/g) || []).length, 1, "one line per field");
+});
+
+test("a minor-only fix review keeps the count, and a repeat finding weighs repeat whatever it counts", () => {
+  const { file } = sandbox();
+  review(file, { tier: "strong" });
+  reviewFile(file, findingOf("minor"));
+  const minor = review(file, { tier: "strong" });
+  assert.equal(minor.rejections, 1);
+  assert.equal(minor.weight, "minor");
+  reviewFile(file, findingOf("minor", "    repeat: true\n"));
+  assert.deepEqual([review(file, { tier: "strong" }).rejections, block(file).match(/review_weight: (\w+)/)[1]], [1, "repeat"]);
+  reviewFile(file, findingOf("blocker", "    repeat: true\n"));
+  assert.equal(review(file, { tier: "strong" }).rejections, 2);
+  assert.equal(review(file, { tier: "strong", verdict: "clean" }).weight, "none");
+});
+
+test("review-item weighs a fix only by its review file, and refuses one it cannot read", () => {
+  const { file } = sandbox();
+  fs.rmSync(path.join(path.dirname(path.dirname(file)), REVIEW_FILE));
+  assert.throws(() => review(file), (error) => error.code === "NO_REVIEW_FILE" && /run\.cjs review --item a-one/.test(error.message));
+  reviewFile(file, findingOf("major").replace("verdict: fix", "verdict: clean").replace(/findings:[\s\S]*/, ""));
+  assert.throws(() => review(file), (error) => error.code === "VERDICT_MISMATCH" && /says clean/.test(error.message));
+  assert.doesNotMatch(fs.readFileSync(file, "utf8"), /review:/);
 });
 
 test("review-item refuses a verdict, a hash, a tier or a commit it cannot use", () => {

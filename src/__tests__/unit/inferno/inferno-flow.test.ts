@@ -151,7 +151,7 @@ describe('inferno flow', () => {
       return [...section.matchAll(/^\s+-?\s*([a-z_]+):/gm)].map((match) => match[1]);
     };
     expect(top(blocks[0])).toEqual(item.ITEM_KEYS);
-    expect(nested(blocks[0], 'findings')).toEqual(item.FINDING_KEYS);
+    expect(nested(blocks[0], 'findings')).toEqual([...item.FINDING_KEYS, 'repeat']);
     expect(nested(blocks[0], 'mutants')).toEqual(item.MUTANT_KEYS);
     expect(top(blocks[1])).toEqual(intent.INTENT_KEYS);
     expect(nested(blocks[1], 'criteria')).toEqual([...intent.CRITERION_KEYS, 'evidence']);
