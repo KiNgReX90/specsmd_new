@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
 
-const { INTENT_TREE, asPrinted, git, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { INTENT_TREE, asPrinted, asPrintedByPath, git, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // Every scan, collect and review call the scan path prints carries the caller's tree, intent
 // and host config. Run as printed on Codex, each call stays on Codex: a scan dispatches the
@@ -151,7 +151,7 @@ test("on Codex the intent review's verdicts print the item review and the gate, 
   assert.equal(passed.code, 0, passed.out + passed.err);
   const [gating] = asPrinted(clean.fixture, passed.out, "gate");
   assert.equal(gating.code, 0, gating.out + gating.err);
-  const [waited] = asPrinted(clean.fixture, gating.out, "gate");
+  const waited = asPrintedByPath(clean.fixture, gating.out);
   assert.equal(waited.code, 0, waited.out + waited.err);
   assert.match(waited.out, /PASS \d+s echo codex-gated/);
 });

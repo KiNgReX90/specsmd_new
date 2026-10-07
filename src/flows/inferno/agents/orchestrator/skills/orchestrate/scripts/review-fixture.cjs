@@ -157,6 +157,20 @@ function asPrinted(fixture, text, kind) {
 }
 
 /**
+ * Run the first line that names the runner by its own path exactly as printed: through a shell,
+ * from outside the scripts dir, so a line that names the runner without a usable path fails.
+ */
+function asPrintedByPath(fixture, text) {
+  const match = /\bnode (\S+) ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\s,]+)?)*)/.exec(text);
+  assert.ok(match, `no line naming the runner by its path in: ${text}`);
+  const line = `node ${match[1]} ${match[2].replace(/\.$/, '')}`;
+  const result = spawnSync('sh', ['-c', line], {
+    cwd: path.dirname(fixture.root), encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+  });
+  return { argv: [line], code: result.status, out: result.stdout || '', err: result.stderr || '' };
+}
+
+/**
  * Record a clean item review for each id through `run.cjs review`, so an integrate --item
  * call meets the review it requires. `runner` is the caller's own CLI driver.
  */
@@ -251,6 +265,6 @@ function markReviewed(state, ids, intent = 'alpha') {
 }
 
 module.exports = {
-  CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, asPrintedByPath, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
   printed, repo, reviewBefore, reviewed, run, worktree, write,
 };

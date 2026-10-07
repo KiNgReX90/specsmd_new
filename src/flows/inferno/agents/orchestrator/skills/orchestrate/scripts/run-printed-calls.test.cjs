@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { CONFIG, INTENT_TREE, STATE, asPrinted, git, intentReviewed, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { CONFIG, INTENT_TREE, STATE, asPrinted, asPrintedByPath, git, intentReviewed, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
 
 // Every runner call a step prints for its caller carries the caller's tree, intent and host
 // config. Run as printed on Codex, each call stays on Codex: an item review dispatches the
@@ -92,10 +92,10 @@ test("on Codex the gate's start, still-running and wait lines run as printed on 
   assert.equal(started.code, 0, started.out + started.err);
   const early = run(fixture, ["gate", "--wait", "--minutes", "0.01", "--tree", tree, "--config", CODEX]);
   assert.equal(early.code, 4, early.out + early.err);
-  const [waited] = asPrinted(fixture, early.out, "gate");
+  const waited = asPrintedByPath(fixture, early.out);
   assert.equal(waited.code, 0, waited.out + waited.err);
   assert.match(waited.out, /sleep 2/);
-  const [again] = asPrinted(fixture, started.out, "gate");
+  const again = asPrintedByPath(fixture, started.out);
   assert.equal(again.code, 0, again.out + again.err);
 });
 
