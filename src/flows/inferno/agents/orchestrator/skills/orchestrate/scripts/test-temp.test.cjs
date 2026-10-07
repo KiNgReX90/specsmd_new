@@ -9,12 +9,13 @@ const { tempDir } = require('./test-temp.cjs');
 
 // The flow's suites run in every host's gate, so a temp dir a suite leaves behind leaks on
 // every gate run on every machine. Tests and fixtures make their dirs through test-temp.cjs,
-// which removes them all when the process ends, however it ends.
+// which removes them when the process exits. What a killed process leaves, the next load removes.
 
 const FLOW = path.resolve(__dirname, '../../../../..');
 const HELPER = path.join(__dirname, 'test-temp.cjs');
 // Built in two halves so this file never matches its own rule.
 const DIRECT = new RegExp('\\bmk' + 'dtemp(?:Sync)?\\b');
+const SCRIPTS = path.relative(FLOW, __dirname);
 
 const isTestCode = (file) => file.endsWith('.test.cjs') || file.endsWith('-fixture.cjs');
 
@@ -65,7 +66,10 @@ test('the rule catches every direct temp dir call in tests and fixtures, and onl
 
 test('every flow test and fixture makes its temp dirs through test-temp.cjs', () => {
   const files = flowSources();
-  assert.ok(Object.keys(files).some(isTestCode), `no test code found under ${FLOW}`);
+  // The guard reaches only what it collects, so a test file and the fixtures most dirs come from are named here.
+  for (const name of ['test-temp.test.cjs', 'review-fixture.cjs', 'state-transition-fixture.cjs']) {
+    assert.ok(path.join(SCRIPTS, name) in files, `${name} is not collected from ${FLOW}`);
+  }
   const found = offenders(files);
   assert.deepEqual(found, [], refusal(found));
 });
@@ -80,30 +84,92 @@ function privateRoot() {
   return { tmp, env };
 }
 
-for (const [name, end] of [
-  ['a failing test', "require('node:test')('fails', () => { throw new Error('red'); });"],
-  ['an uncaught throw', "throw new Error('red');"],
-  ['an early exit', 'process.exit(3);'],
+for (const [name, end, status] of [
+  ['a passing run', '', 0],
+  ['a failing test', "require('node:test')('fails', () => { throw new Error('red'); });", 1],
+  ['an uncaught throw', "throw new Error('red');", 1],
+  ['an early exit', 'process.exit(3);', 3],
 ]) {
-  test(`the dirs go when the process ends on ${name}`, () => {
+  test(`the dirs go when the process ends on ${name}, and it still exits ${status}`, () => {
     const { tmp, env } = privateRoot();
     const run = spawnSync(process.execPath, ['-e', child(end)], { env, encoding: 'utf8' });
-    assert.notEqual(run.status, 0, run.stderr);
+    assert.equal(run.status, status, run.stderr);
     assert.deepEqual(fs.readdirSync(tmp), []);
   });
 }
 
-for (const signal of ['SIGTERM', 'SIGINT']) {
-  test(`the dirs go when the process is killed with ${signal}, and the signal still ends it`, async () => {
-    const { tmp, env } = privateRoot();
-    const proc = spawn(process.execPath, ['-e', child("process.stdout.write('ready'); setInterval(() => {}, 1000);")], { env });
-    await new Promise((resolve) => proc.stdout.once('data', resolve));
-    assert.equal(fs.readdirSync(tmp).length, 1);
-    const [code, ended] = await new Promise((resolve) => {
-      proc.on('exit', (...result) => resolve(result));
-      proc.kill(signal);
+const asRoot = process.getuid?.() === 0;
+test('a dir the exit hook cannot remove never turns a passing run red', { skip: asRoot && 'root ignores the read-only root' }, (t) => {
+  const { tmp, env } = privateRoot();
+  t.after(() => fs.chmodSync(tmp, 0o700));
+  // The child takes write access off the temp root after making its dir, so its own root cannot be removed.
+  const run = spawnSync(process.execPath, ['-e', child("require('node:fs').chmodSync(process.env.TMPDIR, 0o500);")], {
+    env,
+    encoding: 'utf8',
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(fs.readdirSync(tmp).length, 1);
+});
+
+// A child for a signal case. It is killed outright after the case, so a handler that keeps it alive fails the case
+// instead of holding the run open.
+function start(t, end, env) {
+  const proc = spawn(process.execPath, ['-e', child(end)], { env, stdio: ['pipe', 'pipe', 'ignore'] });
+  t.after(() => {
+    proc.kill('SIGKILL');
+    proc.stdin.destroy();
+  });
+  return proc;
+}
+
+const ready = (proc) => new Promise((resolve) => proc.stdout.once('data', resolve));
+
+/** How the process ended, or 'still running' when it outlives the wait. */
+function ending(proc, ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve('still running'), ms);
+    proc.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
     });
-    assert.deepEqual({ code, ended }, { code: null, ended: signal });
+  });
+}
+
+const CASE = { timeout: 10_000 };
+
+// A flow suite spends most of its time blocked in a synchronous call, where a JS signal handler cannot run.
+// The grandchild says ready once the child is blocked on it, and waits on the case's stdin, so it ends with
+// the case instead of outliving it.
+const GRANDCHILD = "process.stdout.write('ready'); process.stdin.resume();";
+const BLOCKED = "require('node:child_process')" +
+  `.spawnSync(process.execPath, ['-e', ${JSON.stringify(GRANDCHILD)}], { stdio: ['inherit', 'inherit', 'ignore'] });`;
+
+/** Loads the helper in a fresh process on the temp root `env` names, as the next suite on a machine does. */
+const nextLoad = (env) => spawnSync(process.execPath, ['-e', `require(${JSON.stringify(HELPER)});`], { env });
+
+// The scan's timeout sends SIGTERM to the suite alone, and a terminal sends SIGINT or SIGHUP. Each ends a blocked
+// process at once, by that signal. The process leaves its own root, and the next load removes it.
+for (const signal of ['SIGINT', 'SIGHUP', 'SIGTERM']) {
+  test(`a blocked process ends at once on ${signal}, and the next load removes its root`, CASE, async (t) => {
+    const { tmp, env } = privateRoot();
+    const proc = start(t, BLOCKED, env);
+    await ready(proc);
+    proc.kill(signal);
+    assert.deepEqual(await ending(proc, 5_000), { code: null, signal });
+    assert.deepEqual(fs.readdirSync(tmp), [`inferno-tests-${proc.pid}`]);
+    assert.equal(nextLoad(env).status, 0);
     assert.deepEqual(fs.readdirSync(tmp), []);
   });
 }
+
+test('the load removes a root whose process is gone, and leaves a live root and every other entry', () => {
+  const { tmp, env } = privateRoot();
+  const gone = spawnSync(process.execPath, ['-e', '']).pid;
+  // Pid 1 is alive under another user, so the check sees EPERM there unless the run is root. A pid past the
+  // range process.kill takes makes it throw a TypeError, which must never break the load.
+  const kept = [`inferno-tests-${process.pid}`, 'inferno-tests-1', 'inferno-tests-99999999999'];
+  kept.push(`inferno-tests-${gone}-x`, `x-inferno-tests-${gone}`);
+  for (const name of [...kept, `inferno-tests-${gone}`]) fs.mkdirSync(path.join(tmp, name));
+  assert.equal(nextLoad(env).status, 0);
+  assert.deepEqual(fs.readdirSync(tmp).sort(), kept.sort());
+});
