@@ -20,6 +20,15 @@ function sweep() {
 
 process.on('exit', sweep);
 
+// A fatal signal skips the exit event, so a suite killed by a timeout or Ctrl-C sweeps here.
+// The handler steps aside and raises the signal again, so the process still ends the way the signal ends it.
+function onSignal(signal) {
+  sweep();
+  process.kill(process.pid, signal);
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(signal, onSignal);
+
 function tempDir(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   made.add(dir);

@@ -11,9 +11,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { builtinModules } from 'module';
+import os from 'os';
 import path from 'path';
 
 const isBuiltin = (id: string) => builtinModules.includes(id);
@@ -327,12 +328,21 @@ describe('inferno flow', () => {
     expect(scriptSuites.length).toBeGreaterThan(0);
   });
 
-  it.each(scriptSuites)('flow script suite %s passes', (rel) => {
-    // throws (and fails the test) on non-zero exit
-    execFileSync(process.execPath, [path.join(INFERNO, rel)], {
-      stdio: 'pipe',
-      timeout: 180_000,
-    });
+  // Each suite gets its own empty temp root and must leave it empty, so a dir any suite leaks,
+  // by any route, fails the suite that leaked it.
+  it.each(scriptSuites)('flow script suite %s passes and leaves no temp entry', (rel) => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'inferno-suite-'));
+    try {
+      // throws (and fails the test) on non-zero exit
+      execFileSync(process.execPath, [path.join(INFERNO, rel)], {
+        stdio: 'pipe',
+        timeout: 180_000,
+        env: { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp },
+      });
+      expect(readdirSync(tmp)).toEqual([]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   }, 185_000);
 
   // The flow's scripts execute inside consumer projects (Rust apps, static sites) that have
