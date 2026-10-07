@@ -77,8 +77,9 @@ function completedBeforeReviewRule(completedAt, since) {
 
 /**
  * The backstop complete-item runs after its idempotent return: an item is completed only
- * over a clean review, unless it was already completed before the rule. `options` are the
- * writer's caller's, so the review call the refusal prints runs on its tree, intent and host.
+ * over a clean review, unless it was already completed before the rule. `options` name the
+ * tree and intent of the review call the refusal prints; its host config comes from the caller
+ * record.
  */
 function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, options = {}) {
   if (entryField(lines, item, 'review') === 'clean') return;

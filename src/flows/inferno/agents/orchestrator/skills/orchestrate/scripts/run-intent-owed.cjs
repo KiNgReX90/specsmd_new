@@ -83,7 +83,7 @@ function parseFor(tree, rel, intentId, recorded) {
 /**
  * The review as it holds for the tree: `owed` lists every reason it does not, empty when a
  * recorded review reads clean for the current content. `options` are the caller's, so the
- * scan calls a reason prints run on the caller's tree, intent and host.
+ * scan calls a reason prints name its intent; the host config comes from the caller record.
  */
 function intentReviewState(tree, config, intentId, options = {}) {
   const rel = intentReviewPath(tree, intentId);

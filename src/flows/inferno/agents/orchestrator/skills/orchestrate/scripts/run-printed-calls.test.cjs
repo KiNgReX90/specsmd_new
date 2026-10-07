@@ -214,6 +214,11 @@ test("on Codex the block, release and close lines the writer prints run as print
   assert.equal(drift.code, 1, drift.out + drift.err);
   const [close] = printed(drift.out + drift.err, "close-intent", "state-transition");
   assert.ok(close && close.join(" ").includes(`--config ${CODEX}`), drift.out + drift.err);
-  const closed = writer(done, close);
+  // The planner runs the check ledger-wide, with no --intent, so its close names the intent it found.
+  const wide = writer(done, ["check", "--config", CODEX]);
+  assert.equal(wide.code, 1, wide.out + wide.err);
+  const [wideClose] = printed(wide.out + wide.err, "close-intent", "state-transition");
+  assert.deepEqual(wideClose, close, wide.out + wide.err);
+  const closed = writer(done, wideClose);
   assert.equal(closed.code, 0, closed.out + closed.err);
 });

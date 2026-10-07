@@ -63,7 +63,8 @@ function commitLedger(tree, intentIds, message) {
 /**
  * Mark every item of this landing completed, each carrying the sha the checks ran on. The
  * proof is what `state-transition.cjs complete-item` refuses to be marked without. The tree
- * and host config go along, so a refusal the writer raises prints integrate's own calls.
+ * goes along and the host config comes from the caller record, so a refusal the writer raises
+ * prints integrate's own calls.
  */
 function completeItems(tree, ids, options) {
   const ledger = lib.readLedger(tree);
@@ -73,7 +74,7 @@ function completeItems(tree, ids, options) {
   for (const id of ids) {
     const intent = intentOf(ledger, id, options);
     intentIds.add(intent.id);
-    const result = writer.completeItem({ file: ledger.file, intent: intent.id, item: id, proof, tree, config: options.config });
+    const result = writer.completeItem({ file: ledger.file, intent: intent.id, item: id, proof, tree });
     out.push(result.changed ? `completed ${id} at ${proof}` : `${id} ${result.note}`);
   }
   const label = ids.length === 1 ? ids[0] : ids.join(', ');
