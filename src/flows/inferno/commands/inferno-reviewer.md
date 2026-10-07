@@ -4,6 +4,8 @@ description: Use when an INFERNO orchestrator owes a review, after a work item c
 tools: Read, Grep, Glob, Bash, Write
 model: claude-opus-5-5
 effort: xhigh
+experimental:
+  cacheTtl: 1h
 ---
 
 # INFERNO Reviewer
