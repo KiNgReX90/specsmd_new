@@ -18,6 +18,7 @@ const proofs = require('./run-proofs.cjs');
 const { intentOf } = require('./run-worktrees.cjs');
 const { parseIntentReview } = require('./run-intent-review-file.cjs');
 const { itemProofs } = require('./run-mutant-coverage.cjs');
+const { runCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -108,17 +109,6 @@ function intentReviewState(tree, config, intentId, options = {}) {
     owed.push('the review says fix and its findings are not fixed');
   }
   return { rel, review, owed };
-}
-
-/**
- * A runner call printed for the caller to run next. It carries the caller's tree, intent and
- * host config, so run as printed it reads the config the caller's call read and dispatches
- * that host's agents.
- */
-function runCall(step, tree, options, args = '') {
-  const intent = options.intent ? ` --intent ${options.intent}` : '';
-  const config = options.config ? ` --config ${options.config}` : '';
-  return `run.cjs ${step} --tree ${tree}${args}${intent}${config}`;
 }
 
 const reviewCommand = (tree, options) => runCall('review', tree, options);

@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { CONFIG, INTENT_TREE, STATE, asPrinted, git, intentReviewed, repo, run, worktree, write } = require("./review-fixture.cjs");
 
@@ -106,4 +108,26 @@ test("on Codex select's leftover line prints the teardown that reads the Codex b
   const [torn] = asPrinted(fixture, selected.out, "teardown");
   assert.equal(torn.code, 0, torn.out + torn.err);
   assert.equal(fs.existsSync(tree), false);
+});
+
+/** A ledger writer call from the project root; its refusal prints on stderr. */
+function writer(fixture, args) {
+  const result = spawnSync(process.execPath, [path.join(__dirname, "state-transition.cjs"), ...args], { cwd: fixture.root, encoding: "utf8" });
+  return { code: result.status, out: result.stdout || "", err: result.stderr || "" };
+}
+
+test("on Codex the ledger writer's refusals print the integrate and the review for the caller's host and intent", () => {
+  const fixture = repo({ state: SHARED, files: codex() });
+  write(fixture.root, "src/a.ts", "export const a = 4;\n");
+  git(fixture.root, ["commit", "-qam", "a-one landed"]);
+  const mark = ["complete-item", "--intent", "alpha", "--item", "a-one", "--file", ".specs-inferno/state.yaml", "--config", CODEX];
+  const filled = (text) => text.replace(/<worktree>/g, fixture.root);
+  const unproved = writer(fixture, mark);
+  assert.equal(unproved.code, 2, unproved.out + unproved.err);
+  integrateOwesReview(fixture, asPrinted(fixture, filled(unproved.err), "integrate --item")[0]);
+  const named = writer(fixture, [...mark, "--tree", fixture.root]);
+  integrateOwesReview(fixture, asPrinted(fixture, named.err, "integrate --item")[0]);
+  const unreviewed = writer(fixture, [...mark, "--proof", git(fixture.root, ["rev-parse", "HEAD"])]);
+  assert.equal(unreviewed.code, 2, unreviewed.out + unreviewed.err);
+  itemReviewer(asPrinted(fixture, filled(unreviewed.err), "review --item")[0]);
 });

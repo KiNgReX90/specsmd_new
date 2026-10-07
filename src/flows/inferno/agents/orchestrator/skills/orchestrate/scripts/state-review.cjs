@@ -16,6 +16,7 @@ const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
+const { runCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -76,15 +77,16 @@ function completedBeforeReviewRule(completedAt, since) {
 
 /**
  * The backstop complete-item runs after its idempotent return: an item is completed only
- * over a clean review, unless it was already completed before the rule.
+ * over a clean review, unless it was already completed before the rule. `options` are the
+ * writer's caller's, so the review call the refusal prints runs on its tree, intent and host.
  */
-function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile) {
+function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, options = {}) {
   if (entryField(lines, item, 'review') === 'clean') return;
   const since = reviewRuleSince(path.dirname(path.dirname(path.resolve(stateFile))));
   if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
-    `refusing to complete ${itemId}: its item review is not clean. Run run.cjs review ` +
-      `--item ${itemId} --tree <worktree>, have the builder fix every finding until the ` +
+    `refusing to complete ${itemId}: its item review is not clean. Run ` +
+      `${runCall(`review --item ${itemId}`, options.tree || '<worktree>', options)}, have the builder fix every finding until the ` +
       `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );

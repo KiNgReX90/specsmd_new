@@ -45,7 +45,7 @@ Continue in this thread from here.
    node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs check --intent <intent-id>
    ```
 
-   Mark with `complete-item` only work present on the branch but absent from the ledger; never redispatch landed work.
+   Integrate landed work the ledger lacks with `run.cjs integrate --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`; never redispatch it.
 5. For a fresh or stale-claim run, claim on the default branch before the worktree with `run.cjs claim <intent-id> --config .specs-inferno/config.codex.yaml`: it sets `in_progress` and `claimed_at`, sets `claimed_by` to the intended `inferno-intent/<id>-<timestamp>` branch, and commits `specsmd(<id>): claim intent for run`.
 6. Choose an explicit `<path>` inside the current writable roots, then create one clean worktree from that claim commit on branch `inferno-intent/<id>-<timestamp>` with `run.cjs worktree <intent-id> --config .specs-inferno/config.codex.yaml --path <path>`. It runs every `worktree.bootstrap` command there once, before the first dispatch. An in-place run needs an explicit user override.
 

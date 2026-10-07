@@ -43,6 +43,7 @@ const { archivePaths, archivedIds } = archive;
 const { check } = require('./state-check.cjs');
 const block = require('./state-block.cjs');
 const review = require('./state-review.cjs');
+const { runCall } = require('./run-call.cjs');
 const { withStateLock, atomicWrite } = require('./state-store.cjs');
 const { main: runCli } = require('./state-cli.cjs');
 
@@ -124,7 +125,7 @@ function completeItem(options) {
   if (!proof) {
     throw new TransitionError(
       `refusing to complete ${options.item} with no integration proof. An item is completed by its ` +
-        `integration, never before it: run.cjs integrate --item ${options.item} --tree <worktree> folds the ` +
+        `integration, never before it: ${runCall(`integrate --item ${options.item}`, options.tree || '<worktree>', options)} folds the ` +
         'base in, runs the checks on the committed tree, and completes the item with the sha they proved.',
       'NO_PROOF'
     );
@@ -135,7 +136,7 @@ function completeItem(options) {
   if (isComplete(previous) && proven) {
     return { changed: false, item: options.item, status: 'completed', note: 'already completed' };
   }
-  review.refuseUnreviewed(lines, item, options.item, isComplete(previous), file);
+  review.refuseUnreviewed(lines, item, options.item, isComplete(previous), file, options);
 
   const completedAt = nowIso(options.now);
   setFields(lines, item, [

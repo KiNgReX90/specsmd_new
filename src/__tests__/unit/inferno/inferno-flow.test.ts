@@ -123,6 +123,16 @@ describe('inferno flow', () => {
     );
   });
 
+  // A Codex recovery lands work the branch already holds through integrate on the Codex config.
+  // A hand complete-item has no proof and refuses, and a call without --config reads the Claude
+  // host's config, so its next printed call dispatches the Claude reviewer.
+  it('the Codex recovery step lands landed work through integrate on the Codex config', () => {
+    const text = readFileSync(path.join(INFERNO, 'codex/skills/specsmd-inferno/references/procedure.md'), 'utf8');
+    const step = text.slice(text.indexOf('4. For recovery'), text.indexOf('5. For a fresh'));
+    expect(step).toContain('`run.cjs integrate --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`');
+    expect(step).not.toContain('complete-item');
+  });
+
   // The reviewer judges and records nothing itself: it may write its review file, and run.cjs
   // commits it. The two file shapes it is taught are exactly the keys the scripts accept.
   it('the reviewer carries the tools of a judge and teaches exactly the review schemas', () => {
