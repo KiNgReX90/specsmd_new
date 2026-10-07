@@ -57,9 +57,10 @@ function scopeHash(tree, scope, options = {}) {
   return digest(JSON.stringify([scope ? [...scope].sort() : null, sorted]));
 }
 
-function commandProof(tree, config, selected, command) {
+/** A command's proof, keyed by its `finalize_scopes` entry unless the caller names a scope, as a lane does. */
+function commandProof(tree, config, selected, command,
+  scope = config.verification && config.verification.finalize_scopes && config.verification.finalize_scopes[command]) {
   const file = path.relative(tree, path.resolve(tree, selected || DEFAULT_CONFIG));
-  const scope = config.verification && config.verification.finalize_scopes && config.verification.finalize_scopes[command];
   const hash = scopeHash(tree, scope);
   const key = digest(JSON.stringify([command, file, hash]));
   return { command, config: file, hash, file: path.join(lib.cacheDir(tree), 'green-commands', key) };

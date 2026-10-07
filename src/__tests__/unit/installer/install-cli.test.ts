@@ -84,7 +84,8 @@ describe.sequential('scriptable install', { timeout: 30_000 }, () => {
   });
 });
 
-describe.sequential('check-lock.cjs', () => {
+// The case runs a two-host install and then two node spawns, which outlasts the default timeout on a loaded box.
+describe.sequential('check-lock.cjs', { timeout: 30_000 }, () => {
   let box: ReturnType<typeof openSandbox>;
 
   beforeEach(() => { box = openSandbox('specsmd-check-lock-'); });

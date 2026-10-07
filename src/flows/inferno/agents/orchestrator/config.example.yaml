@@ -52,6 +52,17 @@ verification:
   finalize_scopes:                # optional: a listed command runs only when the diff since the merge base touches a matching path, an unlisted command always runs
     "cargo test --workspace": ["src-tauri/**", "Cargo.*"]
     "npm run test:e2e": ["src/**", "src-tauri/**", "e2e/**", "package.json", "package-lock.json", "playwright.config.*"]
+  # Lanes, optional: gate --detach starts each lane whose scope the diff since the merge base touched, gate --wait waits
+  # for it, and green owes the smoke lane while it is in scope. A --config file inherits each lane it does not set.
+  # Exit contract of a lane command: 0 green, 10 product red, 11 instrument red, and any other code is instrument red.
+  # The host runner retries once itself and the flow never retries a lane. An instrument red passes only against a
+  # harness fix already on the base branch, through the step gate --wait prints.
+  smoke:                          # a short smoke run of the built app
+    command: npm run smoke
+    scope: ["src/**", "src-tauri/**"]
+  windows:                        # the suite on a Windows machine
+    command: npm run test:windows
+    scope: ["src/**", "src-tauri/**"]
 
 doubles:                          # optional: refuses a branch that raises the count of test files matching pattern, against the merge base; a --config file inherits it
   pattern: '__TAURI_INTERNALS__'  # a regex in single quotes for a hand-built double; paths and exclude are globs

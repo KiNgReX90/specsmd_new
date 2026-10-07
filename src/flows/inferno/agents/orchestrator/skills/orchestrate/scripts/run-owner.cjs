@@ -24,6 +24,7 @@ const path = require('path');
 
 const lib = require('./run-lib.cjs');
 const { RUNNER } = require('./run-call.cjs');
+const { everyJob } = require('./run-jobs.cjs');
 
 /** The kernel's start tick for a pid, or null when it is gone. Field 22 of /proc/pid/stat. */
 function processStart(pid) {
@@ -96,21 +97,16 @@ function ownerAlive(owner) {
   return owner.start === null || owner.start === undefined || start === owner.start;
 }
 
-/** The detached gate job still running for this tree's branch, whoever started it, or null. */
+/** The detached gate job or lane job still running for this tree's branch, whoever started it, or null. */
 function gateJobAlive(tree) {
-  let job;
-  try {
-    job = JSON.parse(fs.readFileSync(path.join(lib.cacheDir(tree), lib.currentBranch(tree), 'gate-job.json'), 'utf8'));
-  } catch (error) {
-    return null;
+  for (const job of everyJob(tree)) {
+    try {
+      if (fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes(RUNNER)) return job;
+    } catch (error) {
+      continue;
+    }
   }
-  if (!job || !job.pid) return null;
-  try {
-    if (!fs.readFileSync(`/proc/${job.pid}/cmdline`, 'utf8').includes(RUNNER)) return null;
-  } catch (error) {
-    return null;
-  }
-  return job;
+  return null;
 }
 
 /** What `select` says about a tree: a live owner, a live gate, or nothing. */
@@ -121,7 +117,7 @@ function ownership(tree, now = Date.now()) {
     return { kind: 'session', pid: owner.pid, step: owner.step, minutes };
   }
   const job = gateJobAlive(tree);
-  if (job) return { kind: 'gate', pid: job.pid, started: job.started };
+  if (job) return { kind: 'gate', pid: job.pid, started: job.started, ...(job.lane ? { lane: job.lane } : {}) };
   return null;
 }
 
