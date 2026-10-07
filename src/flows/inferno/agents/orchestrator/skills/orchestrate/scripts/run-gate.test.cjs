@@ -24,11 +24,13 @@ function git(tree, ...args) {
   return execFileSync('git', args, { cwd: tree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-function config(commands = [scoped, whole], integrate = [], scopes = { [scoped]: ['src/**'] }, reruns = {}) {
+function config(commands = [scoped, whole], integrate = [], keyed = { [scoped]: ['src/**'] }, reruns = {}) {
+  // A scope keyed by a command neither list runs is refused, so a fixture keeps only the live ones.
+  const scopes = Object.fromEntries(Object.entries(keyed).filter(([command]) => [...commands, ...integrate].includes(command)));
   const list = (values) => values.length ? `\n${values.map((value) => `    - ${value}`).join('\n')}` : ' []';
   return `delivery:\n  base_branch: main\nverification:\n  finalize:${list(commands)}\n  integrate:${list(integrate)}\n` +
-    `  finalize_scopes: ${Object.keys(scopes).length ? '\n' + Object.entries(scopes).map(([command, patterns]) =>
-      `    "${command}": ${JSON.stringify(patterns)}`).join('\n') : '{}'}\n` +
+    (Object.keys(scopes).length ? `  finalize_scopes:\n${Object.entries(scopes).map(([command, patterns]) =>
+      `    "${command}": ${JSON.stringify(patterns)}`).join('\n')}\n` : '') +
     (Object.keys(reruns).length ? `  flake_rerun:\n${Object.entries(reruns).map(([command, rerun]) =>
       `    ${JSON.stringify(command)}: ${JSON.stringify(rerun)}`).join('\n')}\n` : '');
 }

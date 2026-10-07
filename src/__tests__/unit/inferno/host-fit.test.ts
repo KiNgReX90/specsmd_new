@@ -17,8 +17,6 @@ const INFERNO = path.join(ROOT, 'flows/inferno');
 
 /** A host script the flow does not ship, and the host file a text must condition it on. */
 const HOST_SCRIPTS: Record<string, string> = { 'scripts/tester/reserve-cases.mjs': 'integration/TEST-CASES.md' };
-const HOST_FILES = ['integration/TEST-CASES.md', 'scripts/tester/reserve-cases.mjs'];
-const CONDITION = 'On a host with `integration/TEST-CASES.md`';
 const SCRIPT_PATH = /(?:\.\/|[\w.-]+\/)*scripts\/[\w./-]+\.(?:mjs|cjs|js)\b/g;
 
 function texts(): Array<{ file: string; text: string }> {
@@ -56,11 +54,11 @@ describe('inferno host fit', () => {
     expect(missing).toEqual([]);
   });
 
-  it('every step that needs a host tester file is conditioned on the host having it', () => {
-    const unconditioned = texts().flatMap(({ file, text }) =>
+  it('every step naming a host script or its host file is conditioned on the host having that file', () => {
+    const unconditioned = Object.entries(HOST_SCRIPTS).flatMap(([script, hostFile]) => texts().flatMap(({ file, text }) =>
       chunks(text)
-        .filter((chunk) => HOST_FILES.some((name) => chunk.includes(name)) && !chunk.includes(CONDITION))
-        .map((chunk) => `${file}: ${chunk.trim().split('\n')[0].slice(0, 80)}`));
+        .filter((chunk) => (chunk.includes(script) || chunk.includes(hostFile)) && !chunk.includes(`On a host with \`${hostFile}\``))
+        .map((chunk) => `${file}: ${script}: ${chunk.trim().split('\n')[0].slice(0, 80)}`)));
     expect(unconditioned).toEqual([]);
   });
 
