@@ -140,7 +140,7 @@ function selectDispatchableItems(items, options = {}) {
 
 function formatContextEntries(entries) {
   return asArray(entries)
-    .map((entry) => `- ${entry.path} — ${entry.reason}`)
+    .map((entry) => `- ${entry.path} - ${entry.reason}`)
     .join("\n");
 }
 /**
