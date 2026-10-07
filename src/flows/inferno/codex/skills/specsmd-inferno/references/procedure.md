@@ -39,13 +39,13 @@ Continue in this thread from here.
 1. In one batched read, load the applicable `AGENTS.md` files, state, Codex config, every pending work-item spec for this intent, the halt flag, UTC time, the worktree list and branch status.
 2. Read configuration once. Missing keys use canonical behavior: `delivery.mode: auto-close` and the discovered build and full tests for final verification. `verification.finalize_scopes` narrows a gate command to the paths worth running it on, `worktree.bootstrap` runs in a fresh worktree, and `dispatch.constraints` is pasted verbatim into every dispatch.
 3. Validate every pending work item before creating a worktree with `run.cjs frontier <intent-id> --tree <path> --config .specs-inferno/config.codex.yaml`. It checks the manifest fields and the dependency graph and names the exact missing field; hand a manifest defect to the planner skill for a bounded repair and never claim or dispatch an invalid item.
-4. For recovery, inspect the intent branch's commits and run:
+4. For recovery, inspect the branch's commits and run:
 
    ```sh
-   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs check --intent <intent-id>
+   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs check --intent <intent-id> --config .specs-inferno/config.codex.yaml
    ```
 
-   Mark with `complete-item` only work present on the branch but absent from the ledger; never redispatch landed work.
+   Integrate landed work the ledger lacks with `run.cjs integrate --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`; never redispatch it.
 5. For a fresh or stale-claim run, claim on the default branch before the worktree with `run.cjs claim <intent-id> --config .specs-inferno/config.codex.yaml`: it sets `in_progress` and `claimed_at`, sets `claimed_by` to the intended `inferno-intent/<id>-<timestamp>` branch, and commits `specsmd(<id>): claim intent for run`.
 6. Choose an explicit `<path>` inside the current writable roots, then create one clean worktree from that claim commit on branch `inferno-intent/<id>-<timestamp>` with `run.cjs worktree <intent-id> --config .specs-inferno/config.codex.yaml --path <path>`. It runs every `worktree.bootstrap` command there once, before the first dispatch. An in-place run needs an explicit user override.
 
@@ -70,7 +70,7 @@ Repeat until all items are completed or the run blocks or halts.
    - `dispatch.constraints` pasted verbatim;
    - firewall files by name with the sanctioned alternative for each;
    - already-landed dependency outputs, semantics that must survive, skipped items and known hazards;
-   - every `drift` line from `run.cjs probes <item-id> --tree <path>`, run in the dispatching round and again after every base fold.
+   - every `drift` line from `run.cjs probes <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`, run in the dispatching round and again after every base fold.
    Pass pointers, not file bodies or broad search instructions. Never ask for residual risks: that slot is how a builder parks a defect it could have fixed.
 7. Use `wait_agent` until every dispatched builder returns, tracking each outstanding worker by id.
 
@@ -105,9 +105,9 @@ A single item returns the envelope in the builder procedure. Allowed statuses ar
 
 ## Serialized integration
 
-Run `run.cjs dispatch-log <intent-id> --item <item-id> --tier <tier> --agent <name> --tree <path>` right before each builder starts, `--items <a,b>` for a batch, keeping its `dispatch_id`. Run `run.cjs accept-dispatch <dispatch_id> --changed-paths '<changed_files as JSON>' --tree <path>` for each `ready` item before `verify-item`, then process the results one at a time.
+Run `run.cjs dispatch-log <intent-id> --item <item-id> --tier <tier> --agent <name> --tree <path> --config .specs-inferno/config.codex.yaml` right before each builder starts, `--items <a,b>` for a batch, keeping its `dispatch_id`. Run `run.cjs accept-dispatch <dispatch_id> --changed-paths '<changed_files as JSON>' --tree <path> --config .specs-inferno/config.codex.yaml` for each `ready` item before `verify-item`, then process the results one at a time.
 
-1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path>` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only on evidence that the assigned change requires it.
+1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only on evidence that the assigned change requires it.
 2. `verify-item` and `integrate` confirm the builder's checks; do not replay a focused check by hand. For a `design_contract`, require verification against the cited source. A note naming a defect the builder saw and left, a residual or a product call is postponed work: send it back with `followup_task` before integrating, never into the ledger, the report or the user's lap.
 3. Stage only that item's changed files, never the entire tree, and commit directly on the intent branch for `auto-close`. Then `run.cjs review --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` prints the reviewer dispatch line (exit 3); after the reviewer writes its file, run it again: 0 clean, 2 findings and the `next` builder, who fixes before you commit and review again.
 4. Then run:
@@ -134,20 +134,20 @@ Finalize automatically once no work remains.
 2. Run ledger reconciliation:
 
    ```sh
-   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs check --intent <intent-id>
+   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs check --intent <intent-id> --config .specs-inferno/config.codex.yaml
    ```
 
    Reconcile only demonstrably integrated work, then require exit zero.
 3. Close through the single writer, committing only the resulting intent artifacts:
 
    ```sh
-   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs close-intent --intent <intent-id>
+   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs close-intent --intent <intent-id> --config .specs-inferno/config.codex.yaml
    ```
 
    Its refusal over open items is authoritative. Then archive, so the live ledger holds open work only:
 
    ```sh
-   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs archive-intent --intent <intent-id> --sweep
+   node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/state-transition.cjs archive-intent --intent <intent-id> --sweep --config .specs-inferno/config.codex.yaml
    ```
 
    Commit both as `specsmd(<intent-id>): close intent`, staging only the ledger, the archive and this intent's directory.
@@ -157,7 +157,7 @@ Finalize automatically once no work remains.
    node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs teardown --tree <worktree> --config .specs-inferno/config.codex.yaml
    ```
 
-   It stops the worktree's processes, removes the worktree and deletes the branch, and refuses while the base does not hold the branch, the tree is dirty, or the ledger has the intent in progress. The intent is not finished while its worktree stands.
+   It stops the worktree's processes, removes the worktree and deletes the branch, and its refusal names what blocks that. The intent is not finished while its worktree stands.
 5. In `merge-request`, keep the worktree and branch, push it, and open one intent-to-base request as the review gate, stopping only processes spawned in the worktree. Without a forge, report the head, base and title.
 6. Report the run in one shape. For an actually finished, verified and delivered intent the exact first line is `INTENT FINISHED {intent-id}`, with the full actual intent id substituted, emitted once and preserved verbatim. A blocked, halted, failed or delivery-pending intent, including one with an open merge request, uses `Intent HALTED <id>`, `Intent BLOCKED <id>`, `Intent FAILED <id>` or `Intent PENDING <id>` instead. Then a small block in plain language: what changed for the user of the product, what was verified, what shipped and its sha or why it did not, and only when something genuinely needs the user a last line starting `Needs you:`. No headers, no inventories, no process narration.
 

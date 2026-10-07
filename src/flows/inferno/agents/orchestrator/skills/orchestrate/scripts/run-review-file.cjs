@@ -104,7 +104,7 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
   if (!isMap(doc)) throw bad(rel, 'an item review is a map of item, verdict, files, findings and mutants');
   for (const key of Object.keys(doc)) {
     if (ITEM_KEYS.includes(key) || (recorded && RECORDED_KEYS.includes(key))) continue;
-    if (RECORDED_KEYS.includes(key)) throw bad(rel, `${key} is written by run.cjs when it records the review, so drop it`);
+    if (RECORDED_KEYS.includes(key)) throw bad(rel, `${key} is written when the review is recorded, so drop it`);
     throw bad(rel, `unknown key ${key}: an item review holds item, verdict, files, findings and mutants only`);
   }
   if (doc.item !== itemId) throw bad(rel, `item reads ${doc.item || 'nothing'}, and this is the review of ${itemId}`);

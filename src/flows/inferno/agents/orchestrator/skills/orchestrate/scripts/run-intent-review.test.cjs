@@ -11,11 +11,16 @@ const { CONFIG, INTENT_TREE, git, killedMutate, repo, run, worktree, write } = r
 
 const REVIEW = ".specs-inferno/intents/alpha/review.yaml";
 
-function started(options) {
+const SCAN = ".specs-inferno/intents/alpha/scan.yaml";
+
+/** An intent with its work committed and, unless `scanned` is false, an empty scan collected. */
+function started(options = {}) {
   const fixture = repo(options);
   const tree = worktree(fixture, INTENT_TREE);
   write(tree, "src/a.ts", "export const a = 3;\n");
-  git(tree, ["commit", "-qam", "the work"]);
+  if (options.scanned !== false) write(tree, SCAN, "lines: []\n");
+  git(tree, ["add", "-A"]);
+  git(tree, ["commit", "-qm", "the work"]);
   return { fixture, tree };
 }
 
@@ -61,11 +66,12 @@ test("a tree on no intent branch is refused until --intent names the intent", ()
   assert.equal(review(fixture, fixture.root, ["--intent", "alpha"]).code, 3);
 });
 
-test("the scan is owed first when the config names a scan model", () => {
-  const { fixture, tree } = opened({ config: `${CONFIG}scan:\n  model: model-scan\n` });
+test("the scan is owed first on any config, and the refusal prints the scan, the spawn and the collect", () => {
+  const { fixture, tree } = opened({ scanned: false });
   const result = review(fixture, tree);
   assert.equal(result.code, 3, result.out + result.err);
-  assert.match(result.out, /scan/);
+  assert.match(result.out, new RegExp(`run run\\.cjs scan --tree ${tree}, spawn the dispatch lines it prints in one message`));
+  assert.match(result.out, new RegExp(`run run\\.cjs scan --collect --tree ${tree}, then run\\.cjs review --tree ${tree} again`));
   assert.doesNotMatch(result.out, /dispatch specsmd-inferno-reviewer/);
 });
 
@@ -144,7 +150,7 @@ for (const [name, body, reason] of [
   ["evidence on a criterion a test proves", "verdict: clean\ncriteria:\n  - criterion: c\n    proof: test\n    where: t\n    evidence: x\n", /for an external proof only/],
   ["verdict clean with a finding", `verdict: clean\n${FINDING("a-one")}`, /verdict clean with 1 finding/],
   ["verdict clean with a surviving mutant", "verdict: clean\nmutants:\n  - criterion: c\n    test: t\n    caught: no\n", /caught: no/],
-  ["a tree the reviewer wrote itself", "verdict: clean\ntree: abc\n", /written by run\.cjs/],
+  ["a tree the reviewer wrote itself", "verdict: clean\ntree: abc\n", /is written when the review is recorded/],
   ["an answer to a scan line that does not exist", "verdict: clean\nscanner:\n  - id: s9\n    answer: struck\n    reason: r\n", /s9/],
 ]) {
   test(`review refuses ${name} and records nothing`, () => {
@@ -160,7 +166,7 @@ for (const [name, body, reason] of [
 
 test("review refuses a scan line nobody answered", () => {
   const { fixture, tree } = opened();
-  write(tree, ".specs-inferno/intents/alpha/scan.yaml", "lines:\n  - id: s1\n    scanner: wiring\n    file: src/a.ts\n    line: \"1\"\n    claim: c\n    proof: p\n");
+  write(tree, SCAN, "lines:\n  - id: s1\n    scanner: wiring\n    file: src/a.ts\n    line: \"1\"\n    claim: c\n    proof: p\n");
   git(tree, ["add", "-A"]);
   git(tree, ["commit", "-qm", "scan"]);
   write(tree, REVIEW, "verdict: clean\n");
@@ -210,7 +216,7 @@ test("a JS-proven item owes a caught mutant for every criterion, by text or by i
   assert.match(refused.err, /a-one/);
   assert.match(refused.err, /a is exported/);
   assert.doesNotMatch(refused.err, /a is three/);
-  assert.match(refused.err, /run\.cjs mutate/);
+  assert.match(refused.err, /the runner's mutate step/);
   write(tree, REVIEW, `verdict: clean\n${mutantList([["a-one:2", "node --test src/a.test.ts"]])}`);
   const recorded = review(fixture, tree);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);

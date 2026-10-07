@@ -1,0 +1,4 @@
+interface:
+  display_name: "Specsmd Inferno Scanner"
+  short_description: "Answer one INFERNO scan question cold"
+  default_prompt: "Use $specsmd-inferno-scanner to answer the dispatched INFERNO scan question."

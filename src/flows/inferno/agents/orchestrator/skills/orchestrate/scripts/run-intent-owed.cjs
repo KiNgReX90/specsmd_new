@@ -18,6 +18,7 @@ const proofs = require('./run-proofs.cjs');
 const { intentOf } = require('./run-worktrees.cjs');
 const { parseIntentReview } = require('./run-intent-review-file.cjs');
 const { itemProofs } = require('./run-mutant-coverage.cjs');
+const { intentReviewCall, scanCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -66,10 +67,9 @@ function scanIds(tree, intentId) {
   return lines.map((line) => (line && typeof line.id === 'string' ? line.id : null)).filter(Boolean);
 }
 
-/** The scan is owed while the config names a scanner model and no scan was collected. */
-function scanOwed(tree, config, intentId) {
-  const configured = Boolean(config.scan && typeof config.scan === 'object' && config.scan.model);
-  return configured && scanIds(tree, intentId) === null;
+/** The scan is owed on every host until `run.cjs scan --collect` recorded one for the intent. */
+function scanOwed(tree, intentId) {
+  return scanIds(tree, intentId) === null;
 }
 
 /** Validate a review file against the intent as it stands. */
@@ -87,7 +87,10 @@ function parseFor(tree, rel, intentId, recorded) {
 function intentReviewState(tree, config, intentId) {
   const rel = intentReviewPath(tree, intentId);
   const owed = [];
-  if (scanOwed(tree, config, intentId)) owed.push('the scan is owed: collect it before the review');
+  if (scanOwed(tree, intentId)) {
+    owed.push(`the scan is owed: run ${scanCall(tree)}, spawn the dispatch lines it prints, ` +
+      `then run ${scanCall(tree, null, true)} before the review`);
+  }
   if (!fs.existsSync(path.join(tree, rel))) return { rel, review: null, owed: [...owed, 'no intent review yet'] };
   if (lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0) {
     return { rel, review: null, owed: [...owed, `${rel} is written but not recorded`] };
@@ -107,17 +110,12 @@ function intentReviewState(tree, config, intentId) {
   return { rel, review, owed };
 }
 
-function reviewCommand(tree, options) {
-  const extra = `${options.intent ? ` --intent ${options.intent}` : ''}${options.config ? ` --config ${options.config}` : ''}`;
-  return `run.cjs review --tree ${tree}${extra}`;
-}
-
 /**
  * The gate's refusal after its fold, or null when the review holds. `before` is HEAD before
  * the fold: when the fold moved the tree, the reviewer reads the base delta from there.
  * `shown` are the lines the gate printed so far.
  */
-function gateRefusal(tree, config, intentId, options, before, shown) {
+function gateRefusal(tree, config, intentId, before, shown) {
   const state = intentReviewState(tree, config, intentId);
   if (state.owed.length === 0) return null;
   const out = [...shown, ...state.owed.map((reason) => `intent review owed: ${reason}`)];
@@ -125,7 +123,7 @@ function gateRefusal(tree, config, intentId, options, before, shown) {
   if (moved) {
     out.push(`the fold moved the tree from ${lib.git(tree, ['rev-parse', '--short', before])}; the reviewer reads the base delta from there`);
   }
-  out.push(`run ${reviewCommand(tree, options)} first, then gate again`);
+  out.push(`run ${intentReviewCall(tree)} first, then gate again`);
   return { exit: 3, payload: { ok: false, tree, owed: ['review'], reasons: state.owed, folded: moved }, out };
 }
 
@@ -166,6 +164,5 @@ function mergeOwed(tree, config, intentId) {
 }
 
 module.exports = {
-  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, reviewCommand,
-  scanOwed, scanPath,
+  gateRefusal, intentFor, intentItems, intentReviewPath, intentReviewState, mergeOwed, parseFor, scanOwed, scanPath,
 };

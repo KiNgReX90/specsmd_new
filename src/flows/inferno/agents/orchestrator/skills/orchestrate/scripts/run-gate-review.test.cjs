@@ -39,6 +39,45 @@ test("gate folds the base in and then refuses a tree with no intent review", () 
   assert.doesNotMatch(result.out, /echo gated/);
 });
 
+/** A clean review recorded the way the interim rule left one: tree and commit, and no scan. */
+function reviewedUnscanned(tree) {
+  const proofs = require("./run-proofs.cjs");
+  const rel = ".specs-inferno/intents/alpha/review.yaml";
+  write(tree, rel, `verdict: clean\ntree: ${proofs.scopeHash(tree)}\ncommit: ${git(tree, ["rev-parse", "HEAD"])}\n`);
+  git(tree, ["add", "--", rel]);
+  git(tree, ["commit", "-qm", "review with no scan", "--", rel]);
+}
+
+test("gate and green owe the scan for a clean review recorded without one", () => {
+  const { fixture, tree } = opened();
+  reviewedUnscanned(tree);
+  const gated = gate(fixture, tree);
+  assert.equal(gated.code, 3, gated.out + gated.err);
+  assert.match(gated.out, /intent review owed: the scan is owed/);
+  assert.match(gated.out, /run run\.cjs review --tree/);
+  assert.doesNotMatch(gated.out, /echo gated/);
+  const greened = run(fixture, ["green", "--tree", tree]);
+  assert.equal(greened.code, 3, greened.out + greened.err);
+  assert.match(greened.out, /the scan is owed/);
+});
+
+test("review refuses to record a review written while the scan is owed, and HEAD stays", () => {
+  const { fixture, tree } = opened();
+  const scan = ".specs-inferno/intents/alpha/scan.yaml";
+  write(tree, scan, "lines: []\n");
+  git(tree, ["add", "--", scan]);
+  git(tree, ["commit", "-qm", "scan"]);
+  assert.equal(run(fixture, ["review", "--tree", tree]).code, 3);
+  git(tree, ["rm", "-q", "--", scan]);
+  git(tree, ["commit", "-qm", "scan gone"]);
+  const before = git(tree, ["rev-parse", "HEAD"]);
+  write(tree, ".specs-inferno/intents/alpha/review.yaml", "verdict: clean\n");
+  const result = run(fixture, ["review", "--tree", tree]);
+  assert.equal(result.code, 3, result.out + result.err);
+  assert.match(result.out, /the scan of alpha is owed: run run\.cjs scan --tree/);
+  assert.equal(git(tree, ["rev-parse", "HEAD"]), before);
+});
+
 test("gate --detach refuses before it starts a process", () => {
   const { fixture, tree } = opened();
   const result = gate(fixture, tree, "--detach");

@@ -8,7 +8,7 @@ description: List current INFERNO intents from the canonical selector without cl
 Run this command from the repository root:
 
 ```bash
-node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs select --json
+node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs select --json --config .specs-inferno/config.codex.yaml
 ```
 
 Render the complete JSON output as one Markdown table with exactly these columns, and do not fence it:

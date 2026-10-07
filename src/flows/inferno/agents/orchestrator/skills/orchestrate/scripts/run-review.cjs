@@ -23,6 +23,7 @@ const writer = require('./state-transition.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
+const { integrateCall, itemReviewCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -30,12 +31,19 @@ const { RunError } = lib;
  * The key of each actor's `roles` entry on each host: the one the installer renders that
  * role's pins from. The host dispatches the agent the key names, `specsmd-inferno-<key>` on
  * Claude and `specsmd_inferno_<key>` on Codex, the agents the flow's own files define. The
- * reviewer's agents arrive with the reviewer role.
+ * reviewer's and the scanner's agents arrive with their roles.
  */
 const ROLES = {
-  claude: { cheap: 'builder-cheap', strong: 'builder', escalate: 'builder-escalate', oracle: 'oracle', reviewer: 'reviewer' },
-  codex: { cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer' },
+  claude: {
+    cheap: 'builder-cheap', strong: 'builder', escalate: 'builder-escalate', oracle: 'oracle', reviewer: 'reviewer', scanner: 'scanner',
+  },
+  codex: {
+    cheap: 'builder_cheap', strong: 'builder_strong', escalate: 'builder_escalate', oracle: 'oracle', reviewer: 'reviewer', scanner: 'scanner',
+  },
 };
+
+/** The config key that pins an actor's model on Claude ahead of its role entry. */
+const PINS = { reviewer: (config) => config.review && config.review.model, scanner: (config) => config.scan && config.scan.model };
 
 /** The tier that builds an item first. Complexity alone decides it. */
 function tierOf(item) {
@@ -69,7 +77,8 @@ function builtBy(item) {
  * The agent and model this host dispatches for an actor. The agent is always the host's own
  * for that role, since the installer pins the role's model on exactly that agent. On Codex the
  * model is the role entry's alone, because the spawned agent's pin wins. On Claude it is
- * `models.<tier>`, or `review.model` for the reviewer, before the role entry's.
+ * `models.<tier>`, `review.model` for the reviewer or `scan.model` for the scanner, before the
+ * role entry's.
  */
 function hostActor(actor, config = {}) {
   const host = config.host === 'codex' ? 'codex' : 'claude';
@@ -78,7 +87,7 @@ function hostActor(actor, config = {}) {
   const role = roles[key] && typeof roles[key] === 'object' ? roles[key] : {};
   const roleModel = (typeof role.model === 'string' && role.model) || null;
   if (host === 'codex') return { agent: `specsmd_inferno_${key}`, model: roleModel };
-  const pinned = actor === 'reviewer' ? config.review && config.review.model : config.models && config.models[actor];
+  const pinned = PINS[actor] ? PINS[actor](config) : config.models && config.models[actor];
   return { agent: `specsmd-inferno-${key}`, model: pinned || roleModel };
 }
 
@@ -137,7 +146,7 @@ function owed(tree, context, reason, from, paths) {
       `  spec ${spec}`,
       `  brief ${brief}`,
       `  write ${rel}`,
-      `then run.cjs review --item ${item.id} --tree ${tree} records it`,
+      `then ${itemReviewCall(tree, item.id)} records it`,
     ],
   };
 }
@@ -146,7 +155,7 @@ function verdictResult(tree, context, review, head) {
   const { item, config } = context;
   const out = [head];
   if (review.verdict === 'clean') {
-    out.push(`then run.cjs integrate --item ${item.id} --tree ${tree}`);
+    out.push(`then ${integrateCall(tree, item.id)}`);
     return { exit: 0, payload: { ok: true, item: item.id, verdict: 'clean' }, out };
   }
   for (const finding of review.findings) {
@@ -258,7 +267,7 @@ function owedReviews(tree, ledger, ids, options) {
     const { intent, item } = itemOf(ledger, id, options);
     const complete = writer.isComplete(item.status);
     if (complete && completedBeforeReviewRule(item.completed_at, since)) continue;
-    const command = `run.cjs review --item ${id} --tree ${tree}${complete && since === null ? `. ${REINSTALL}` : ''}`;
+    const command = `${itemReviewCall(tree, id)}${complete && since === null ? `. ${REINSTALL}` : ''}`;
     if (item.review !== 'clean') {
       lines.push(`${id} ${item.review === 'fix' ? 'has a fix review' : 'has no clean review'}, run ${command}`);
       continue;

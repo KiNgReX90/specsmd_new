@@ -16,6 +16,7 @@ const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
+const { itemReviewCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -76,15 +77,17 @@ function completedBeforeReviewRule(completedAt, since) {
 
 /**
  * The backstop complete-item runs after its idempotent return: an item is completed only
- * over a clean review, unless it was already completed before the rule.
+ * over a clean review, unless it was already completed before the rule. `options` name the
+ * tree and intent of the review call the refusal prints; its host config comes from the caller
+ * record.
  */
-function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile) {
+function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, options = {}) {
   if (entryField(lines, item, 'review') === 'clean') return;
   const since = reviewRuleSince(path.dirname(path.dirname(path.resolve(stateFile))));
   if (alreadyComplete && completedBeforeReviewRule(entryField(lines, item, 'completed_at'), since)) return;
   throw new TransitionError(
-    `refusing to complete ${itemId}: its item review is not clean. Run run.cjs review ` +
-      `--item ${itemId} --tree <worktree>, have the builder fix every finding until the ` +
+    `refusing to complete ${itemId}: its item review is not clean. Run ` +
+      `${itemReviewCall(options.tree || '<worktree>', itemId, options.intent)}, have the builder fix every finding until the ` +
       `review is clean, then integrate.${since === null ? ` ${REINSTALL}` : ''}`,
     'REVIEW_OWED'
   );
@@ -106,7 +109,7 @@ function reviewItem(options) {
   }
   const hash = String(options.files_hash || '');
   if (!/^[0-9a-f]{64}$/.test(hash)) {
-    throw new TransitionError('refusing review-item: --files-hash must be the 64 hex digits run.cjs review computed.', 'BAD_HASH');
+    throw new TransitionError('refusing review-item: --files-hash must be the 64 hex digits the item review computed.', 'BAD_HASH');
   }
   const tier = String(options.tier || '');
   if (!TIERS.has(tier)) {

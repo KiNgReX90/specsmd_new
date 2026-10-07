@@ -26,6 +26,7 @@ const { integrate } = require('./run-integrate.cjs');
 const { checkDoubles } = require('./check-doubles.cjs');
 const { review } = require('./run-review.cjs');
 const { reviewIntent } = require('./run-intent-review.cjs');
+const { scan } = require('./run-scan.cjs');
 const { mutate } = require('./run-mutate.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
@@ -34,6 +35,7 @@ const { LANES } = require('./run-lane-config.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
 const { TransitionError } = require('./state-transition.cjs');
 const processes = require('./run-processes.cjs');
+const { caller } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -48,6 +50,9 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs verify-item <item-id> [--tree <dir>]      the item's own check plus its ownership
   node run.cjs verify-item --items <a,b> [--tree <dir>]  the same for a batch, each item against its dispatch
   node run.cjs review --item <id> --tree <dir> [--intent <id>] the item's cold review: 3 dispatch the reviewer, 0 clean, 2 fix
+  node run.cjs scan [--tree <dir>] [--intent <id>]      the four scanner briefs before the intent review: 3 spawn the printed lines
+  node run.cjs scan --collect [--tree <dir>]            record and commit scan.yaml: 0 recorded, 3 a result missing, 2 a line without its proof
+  node run.cjs scan [--collect] --only wiring --plan <intent-id> the plan-time scan: 3 spawn, then 0 no gap, 2 every gap for the planner
   node run.cjs review --tree <dir> [--intent <id>]      the intent's cold review before the gate: 3 dispatch or owed, 0 clean, 2 fix
   node run.cjs mutate --file <f> --line <n> --replace <text> --test <cmd> [--tree <dir>] break one line, run the test, restore: caught yes|no
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
@@ -68,7 +73,7 @@ const USAGE = `INFERNO orchestrator runner
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
-  --config <file>   select, claim, unclaim, worktree, frontier, review, integrate, doubles, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
+  --config <file>   select, claim, unclaim, worktree, frontier, scan, review, integrate, doubles, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
   --base <branch>   integrate, doubles, gate, ship and teardown: the base branch to fold in (default: the config's base)
   --since <ref>     verify-item: compare against this ref instead of the item's accepted dispatch
   --dispatch-id <id> verify-item: the accepted dispatch to check (default the item's latest)
@@ -76,9 +81,11 @@ Options
   --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed
   --items <a,b>     integrate, verify-item and dispatch-log: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous;
-                    review, gate and green: the intent a tree on no intent branch builds
+                    scan, review, gate and green: the intent a tree on no intent branch builds
   --force           gate: rerun every finalize command, revoking each proof before its run
   --minutes <n>     gate --wait: how long one call blocks before exiting 4 (default 9)
+  --only wiring     scan with --plan: the one question the plan-time scan asks, its default
+  --plan <id>       scan: ask of the captured plan of this intent instead of its diff
   --lane <name>     gate: run one configured lane in this process, as gate --detach starts it
   --harness-fix <sha> smoke|windows --accept: the harness fix on the base branch the instrument red is accepted against
 
@@ -89,11 +96,11 @@ function required(value, usage) {
   return value;
 }
 
-const REGISTER = 'register-process <pid> --tree <dir> --run-id <id>';
+const REGISTER_USAGE = 'register-process <pid> --tree <dir> --run-id <id>';
 
 /** Only a process registered here, by its full identity, can receive teardown's signal. */
 function registerProcess(pid, tree, runId) {
-  if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER}`, 'BAD_ARGS', 1);
+  if (!/^[1-9]\d*$/.test(pid)) throw new RunError(`usage: node run.cjs ${REGISTER_USAGE}`, 'BAD_ARGS', 1);
   processes.linkedTree(lib.primaryRoot(tree), tree);
   const record = processes.registerProcess(tree, Number(pid), runId);
   if (!record) {
@@ -114,13 +121,14 @@ const COMMANDS = {
   integrate: (args, options) => integrate(options),
   doubles: (args, options) => checkDoubles(options),
   review: (args, options) => (options.item ? review(options) : reviewIntent(options)),
+  scan: (args, options) => scan(options),
   mutate: (args, options) => mutate(options),
   gate: (args, options) => gate.gate(options),
   green: (args, options) => gate.green(options),
   ship: (args, options) => ship(required(args[0], 'ship <intent-id> --tree <dir>'), options),
   teardown: (args, options) => teardown(options),
   'register-process': (args, options) =>
-    registerProcess(required(args[0], REGISTER), required(options.tree, REGISTER), required(options.run_id, REGISTER)),
+    registerProcess(required(args[0], REGISTER_USAGE), required(options.tree, REGISTER_USAGE), required(options.run_id, REGISTER_USAGE)),
   'dispatch-log': (args, options) =>
     intents.dispatchLog(required(args[0], 'dispatch-log <intent-id> --item <id> --tier <tier> --agent <name>'), options),
   'accept-dispatch': (args, options) =>
@@ -130,10 +138,10 @@ const COMMANDS = {
 };
 
 /** The steps that work inside an intent worktree, so running one is owning the tree. */
-const OWNING = new Set(['frontier', 'probes', 'verify-item', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch', ...LANES]);
+const OWNING = new Set(['frontier', 'probes', 'verify-item', 'scan', 'review', 'integrate', 'gate', 'green', 'ship', 'dispatch-log', 'accept-dispatch', ...LANES]);
 
 /** Options that take no value. Everything else starting with `--` takes the next argument. */
-const FLAGS = new Set(['--json', '--detach', '--wait', '--force', '--accept']);
+const FLAGS = new Set(['--json', '--detach', '--wait', '--force', '--collect', '--accept']);
 
 function parseArgs(argv) {
   const options = { cwd: process.cwd() };
@@ -162,6 +170,7 @@ function parseArgs(argv) {
 
 function main(argv) {
   const { command, args, options } = parseArgs(argv);
+  caller(options);
 
   if (!command || ['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`${USAGE}\n`);
@@ -176,8 +185,9 @@ function main(argv) {
 
   // Every step that works a tree stamps the session running it as that tree's owner, before
   // the step so a long gate is owned while it runs, and after `worktree` because that is the
-  // step that learns the path. `select` reads the stamp; see run-owner.cjs.
-  if (OWNING.has(command) && options.tree) recordOwner(options.tree, command);
+  // step that learns the path. `select` reads the stamp; see run-owner.cjs. A plan-time scan
+  // reads the primary checkout, which no run owns.
+  if (OWNING.has(command) && options.tree && !options.plan) recordOwner(options.tree, command);
   const result = handler(args, options);
   if (command === 'worktree' && result.payload && result.payload.path) recordOwner(result.payload.path, command);
   if (options.json) process.stdout.write(`${JSON.stringify(result.payload)}\n`);

@@ -71,7 +71,7 @@ function checkPeerChange(tree, run, file, own, editable) {
   }
   if (own.claimed.includes(file) || lib.ownedBy(file, editable, tree)) {
     throw dispatch.refuse(`dispatch ownership overlaps at ${file} with dispatch ${peer.dispatchId}: ` +
-      'a serial chain one builder builds takes one dispatch-log --items a,b');
+      'a serial chain one builder builds takes one dispatch-log for all its items, with --items a,b');
   }
 }
 

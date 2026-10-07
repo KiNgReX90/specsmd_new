@@ -18,6 +18,7 @@ const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
+const { gateStartCall, intentReviewCall, itemReviewCall, scanCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
@@ -43,12 +44,14 @@ function scanRefusal(tree, context, folded) {
   return {
     exit: 3,
     payload: { ok: false, intent: context.intent, owed: 'scan' },
-    out: [...folded, `the scan of ${context.intent} is owed: collect it, then run ${owed.reviewCommand(tree, context.options)} again`],
+    out: [...folded, `the scan of ${context.intent} is owed: run ${scanCall(tree)}, ` +
+      'spawn the dispatch lines it prints in one message per group it names, ' +
+      `run ${scanCall(tree, null, true)}, then ${intentReviewCall(tree)} again`],
   };
 }
 
 function dispatch(tree, context, reasons, from, folded) {
-  const { intent, config, rel, options } = context;
+  const { intent, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
   const dir = path.dirname(rel);
@@ -75,7 +78,7 @@ function dispatch(tree, context, reasons, from, folded) {
       `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
       ...(scanned ? [`  scan ${scan}`] : []),
       `  write ${rel}`,
-      `then ${owed.reviewCommand(tree, options)} records it`,
+      `then ${intentReviewCall(tree)} records it`,
     ],
   };
 }
@@ -86,7 +89,7 @@ function verdict(tree, context, review, head) {
     return {
       exit: 0,
       payload: { ok: true, intent, verdict: 'clean' },
-      out: [head, `then run.cjs gate --tree ${tree} --detach`],
+      out: [head, `then ${gateStartCall(tree)}`],
     };
   }
   const out = [head];
@@ -98,7 +101,7 @@ function verdict(tree, context, review, head) {
   }
   for (const mutant of review.survivors) out.push(`MUTANT ${mutant.criterion} survived: ${mutant.test}`);
   out.push('send each item its findings as one correction to its warm builder, commit, ' +
-    `run.cjs review --item <id> --tree ${tree}, then ${owed.reviewCommand(tree, context.options)} again`);
+    `${itemReviewCall(tree, '<id>')}, then ${intentReviewCall(tree)} again`);
   return {
     exit: 2,
     payload: { ok: false, intent, verdict: 'fix', owners, findings: review.findings, survivors: review.survivors },
@@ -123,7 +126,7 @@ function reviewIntent(options) {
   const intent = owed.intentFor(tree, options);
   const config = lib.readConfig(tree, options.config);
   const rel = owed.intentReviewPath(tree, intent);
-  const context = { intent, config, rel, options };
+  const context = { intent, config, rel };
 
   const pending = fs.existsSync(path.join(tree, rel)) && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   if (pending) {
@@ -135,7 +138,7 @@ function reviewIntent(options) {
         `refusing to record the intent review over uncommitted work in ${dirty.slice(0, 5).join(', ')}: ` +
           'commit or discard it, then run this command again.'), 'DIRTY');
     }
-    if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, restored);
+    if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, restored);
     const sent = readDispatch(tree, intent);
     if (!sent || sent.hash !== proofs.scopeHash(tree)) {
       const since = sent ? `moved since the dispatch at ${sent.head.slice(0, 7)}` : 'has no dispatch on record';
@@ -143,7 +146,7 @@ function reviewIntent(options) {
         exit: 3,
         payload: { ok: false, intent, owed: 'dispatch', dispatched: sent && sent.head },
         out: [...restored, `the code ${since}, so ${rel} reads another tree; nothing recorded`,
-          `discard the unrecorded ${rel}, then run ${owed.reviewCommand(tree, options)} for a fresh dispatch of the delta`],
+          `discard the unrecorded ${rel}, then run ${intentReviewCall(tree)} for a fresh dispatch of the delta`],
       };
     }
     return record(tree, context, sent.head, restored);
@@ -152,7 +155,7 @@ function reviewIntent(options) {
   const restored = gate.refuseDirty(tree);
   const base = options.base || resolveBase(config, null, tree);
   const folded = [...restored, ...gate.foldBase(tree, base)];
-  if (owed.scanOwed(tree, config, intent)) return scanRefusal(tree, context, folded);
+  if (owed.scanOwed(tree, intent)) return scanRefusal(tree, context, folded);
   const state = owed.intentReviewState(tree, config, intent);
   const current = state.review && state.review.tree === proofs.scopeHash(tree);
   if (current) {

@@ -1,6 +1,7 @@
 'use strict';
 
 const { TransitionError } = require('./state-ledger.cjs');
+const { caller } = require('./run-call.cjs');
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,8 @@ Options
   --run <run-id>  the run taking the intent, recorded as claimed_by (claim-intent)
   --reason <why>  what the intent waits on, recorded as blocked_reason (block-intent)
   --proof <sha>   the integrated tree run.cjs integrate ran the checks on (complete-item)
+  --tree <dir>    the worktree a complete-item refusal prints into the call it names
+  --config <file> the host config that call carries, so it runs on the caller's host
   --now <iso>     override the timestamp (tests / backfill)
   --json          machine-readable output
 
@@ -76,6 +79,7 @@ function main(argv, commands) {
     archiveIntent, check, reviewItem,
   } = commands;
   const { command, options } = parseArgs(argv);
+  caller(options);
 
   if (!command || ['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`${USAGE}\n`);

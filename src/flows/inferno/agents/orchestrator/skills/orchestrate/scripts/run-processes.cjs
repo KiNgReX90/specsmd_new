@@ -112,7 +112,7 @@ function canIdentify(transport = {}) {
 function registerProcess(tree, pid, runId, transport = {}) {
   const record = loadOwnership(tree);
   if (!record || record.run_id !== runId) {
-    throw new RunError(`registering a process needs the run that owns ${tree}; open it with run.cjs worktree first`, 'PROCESS_OWNER');
+    throw new RunError(`registering a process needs the run that owns ${tree}; open the tree with the worktree step first`, 'PROCESS_OWNER');
   }
   if (!canIdentify(transport)) return null;
   const identity = (transport.inspect || processIdentity)(pid);

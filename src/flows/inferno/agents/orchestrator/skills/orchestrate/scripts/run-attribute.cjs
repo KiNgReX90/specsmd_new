@@ -122,7 +122,7 @@ function peerRecords(tree, peers) {
       ids = null;
     }
   }
-  if (!Array.isArray(ids)) throw new RunError('verify-item --peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
+  if (!Array.isArray(ids)) throw new RunError('--peers requires a JSON array of dispatch ids', 'BAD_ARGS', 1);
   return ids.map((id) => dispatch.loadDispatch(tree, { dispatch_id: id }));
 }
 

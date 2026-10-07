@@ -22,6 +22,7 @@ const {
   loadState, locateIntents, locateWorkItems, getIntent, statusOf, isComplete, isOpen,
 } = require('./state-ledger.cjs');
 const { archivePaths, archivedIds } = require('./state-archive.cjs');
+const { closeIntentCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -104,7 +105,7 @@ function check(options) {
         intent: intent.id,
         kind: 'all-items-completed-intent-open',
         detail: `all ${items.length} work items are completed but the intent is ${intentStatus || 'unset'}. ` +
-          `Close it with: close-intent --intent ${intent.id}`,
+          `Close it with: ${closeIntentCall(intent.id)}`,
       });
     }
 

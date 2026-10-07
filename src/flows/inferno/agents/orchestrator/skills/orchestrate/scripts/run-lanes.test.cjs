@@ -109,7 +109,7 @@ test('green owes the smoke lane in scope, and skips it with no lane configured',
   const owed = run(f, 'green', '--json');
   assert.equal(owed.code, 3, owed.out + owed.err);
   assert.deepEqual(JSON.parse(owed.out).owed, ['smoke']);
-  assert.match(run(f, 'green').out, /smoke owed: .*gate --detach/);
+  assert.match(run(f, 'green').out, /smoke owed: .*gate --detach.*then node \S+run\.cjs gate --wait/);
   passed(gated(f));
   passed(run(f, 'green'));
 
@@ -207,6 +207,8 @@ test('smoke --accept binds only the tree the instrument red ran on', (t) => {
   const refused = run(f, 'smoke', '--accept', '--harness-fix', fix);
   assert.equal(refused.code, 2, refused.out + refused.err);
   assert.match(refused.err, /no instrument red of the smoke lane on this tree to accept/);
+  assert.ok(refused.err.includes(`run.cjs gate --detach --tree ${f.tree}`), refused.err);
+  assert.ok(refused.err.includes(`then node `) && refused.err.includes(` gate --wait --tree ${f.tree}`), refused.err);
   const verdict = run(f, 'green', '--json');
   assert.equal(verdict.code, 3);
   assert.deepEqual(JSON.parse(verdict.out).owed, ['smoke']);

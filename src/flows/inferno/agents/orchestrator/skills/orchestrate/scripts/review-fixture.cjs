@@ -137,6 +137,40 @@ function run(fixture, args, cwd = fixture.root) {
 }
 
 /**
+ * The calls of one kind a text prints, each as the argv it names: `scan`, `collect`, `review`,
+ * `review --item`, `integrate --item`, `gate` and so on, of run.cjs or of another script. A
+ * sentence's closing period is not part of the call.
+ */
+function printed(text, kind, script = 'run') {
+  const kindOf = (argv) => (argv.includes('--collect') ? 'collect' : argv.includes('--item') ? `${argv[0]} --item` : argv[0]);
+  const call = new RegExp(`(?<![\\w-])${script}\\.cjs ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\\s,]+)?)*)`, 'g');
+  return [...text.matchAll(call)]
+    .map((match) => match[1].replace(/\.$/, '').split(' '))
+    .filter((argv) => kindOf(argv) === kind);
+}
+
+/** Run every call of one kind the text prints, exactly as printed, from the project root. */
+function asPrinted(fixture, text, kind) {
+  const calls = printed(text, kind);
+  assert.ok(calls.length > 0, `no ${kind} call printed in: ${text}`);
+  return calls.map((argv) => ({ argv, ...run(fixture, argv) }));
+}
+
+/**
+ * Run the first line that names the runner by its own path exactly as printed: through a shell,
+ * from outside the scripts dir, so a line that names the runner without a usable path fails.
+ */
+function asPrintedByPath(fixture, text) {
+  const match = /\bnode (\S+) ([a-z-]+(?: --[a-z-]+(?: (?!--)[^\s,]+)?)*)/.exec(text);
+  assert.ok(match, `no line naming the runner by its path in: ${text}`);
+  const line = `node ${match[1]} ${match[2].replace(/\.$/, '')}`;
+  const result = spawnSync('sh', ['-c', line], {
+    cwd: path.dirname(fixture.root), encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+  });
+  return { argv: [line], code: result.status, out: result.stdout || '', err: result.stderr || '' };
+}
+
+/**
  * Record a clean item review for each id through `run.cjs review`, so an integrate --item
  * call meets the review it requires. `runner` is the caller's own CLI driver.
  */
@@ -153,15 +187,22 @@ const INTENT_TREE = 'alpha-00000000T000000Z';
 
 /**
  * Record an intent review for the tree as it stands, the way `run.cjs review` records one:
- * the reviewer's body plus the tree hash and commit, committed through a pathspec.
+ * the reviewer's body plus the tree hash and commit, committed through a pathspec. The scan
+ * the review owes first is recorded with no lines when none was collected.
  */
 function intentReviewed(tree, intent = 'alpha', body = 'verdict: clean\n') {
   const proofs = require('./run-proofs.cjs');
-  const { intentReviewPath } = require('./run-intent-owed.cjs');
+  const { intentReviewPath, scanPath } = require('./run-intent-owed.cjs');
   const rel = intentReviewPath(tree, intent);
+  const scan = scanPath(tree, intent);
+  const paths = [rel];
+  if (!fs.existsSync(path.join(tree, scan))) {
+    write(tree, scan, 'lines: []\n');
+    paths.push(scan);
+  }
   write(tree, rel, `${body}tree: ${proofs.scopeHash(tree)}\ncommit: ${git(tree, ['rev-parse', 'HEAD'])}\n`);
-  git(tree, ['add', '--', rel]);
-  git(tree, ['commit', '-qm', `intent review ${intent}`, '--', rel]);
+  git(tree, ['add', '--', ...paths]);
+  git(tree, ['commit', '-qm', `intent review ${intent}`, '--', ...paths]);
 }
 
 /**
@@ -224,6 +265,6 @@ function markReviewed(state, ids, intent = 'alpha') {
 }
 
 module.exports = {
-  CONFIG, INTENT_TREE, LOCK_PATH, STATE, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed, repo,
-  reviewBefore, reviewed, run, worktree, write,
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, asPrintedByPath, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
+  printed, repo, reviewBefore, reviewed, run, worktree, write,
 };
