@@ -131,7 +131,7 @@ function scannedAndDispatched(fixture, caller) {
 
 test("on Codex the intent review's verdicts print the item review and the gate, and run as printed they stay on Codex", () => {
   const review = ".specs-inferno/intents/alpha/review.yaml";
-  const finding = 'findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    owner: a-one\n';
+  const finding = 'findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    severity: minor\n    owner: a-one\n';
   const fixing = started();
   const caller = ["--tree", fixing.tree, "--config", CODEX];
   scannedAndDispatched(fixing.fixture, caller);

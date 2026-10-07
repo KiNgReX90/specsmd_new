@@ -97,7 +97,7 @@ test("a fold that moves a reviewed tree names the commit the base delta starts f
 
 test("a fix review blocks the gate, a clean one lets it run", () => {
   const { fixture, tree } = opened();
-  const finding = "findings:\n  - criterion: c\n    file: src/a.ts\n    line: \"1\"\n    evidence: e\n    fix: f\n    owner: a-one\n";
+  const finding = "findings:\n  - criterion: c\n    file: src/a.ts\n    line: \"1\"\n    evidence: e\n    fix: f\n    severity: minor\n    owner: a-one\n";
   intentReviewed(tree, "alpha", `verdict: fix\n${finding}`);
   assert.equal(gate(fixture, tree).code, 3);
   intentReviewed(tree);

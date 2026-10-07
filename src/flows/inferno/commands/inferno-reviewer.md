@@ -25,9 +25,11 @@ Read the brief and the spec first, then `git diff <range>`, then the full code e
 
 Every finding names the file and line, what you ran or read and what it showed, and a fix concrete enough that a builder can make it without asking you.
 
+Every finding carries a `severity`. `blocker`: the change breaks a criterion or other behaviour. `major`: a criterion is unproven, or a test proves nothing. `minor`: any other defect. A finding that is one case of a kind, such as an untested flag or an unguarded path, lists every case of that kind in the diff, so one round finds them all.
+
 ## Delta review
 
-With an earlier review, the range starts at the commit it recorded. Read only that range, re-check every earlier finding, and apply the six checks to whatever the fix touched. Write the whole file again; `run.cjs` replaces the old one.
+With an earlier review, the range starts at the commit it recorded. Read only that range, re-check every earlier finding, and apply the six checks to whatever the fix touched. A finding of a kind an earlier round of this item already reported carries `repeat: true`. Write the whole file again; `run.cjs` replaces the old one.
 
 ## Intent mode
 
@@ -47,6 +49,8 @@ findings:
     line: <n>
     evidence: <what you ran or read, and what it showed>
     fix: <the fix>
+    severity: blocker | major | minor
+    repeat: true, only on a kind an earlier round reported
 mutants:
   - criterion: <criterion>
     test: <the command you ran>
@@ -68,6 +72,7 @@ findings:
     line: <n>
     evidence: <what you ran or read, and what it showed>
     fix: <the fix>
+    severity: blocker | major | minor
     owner: <work item id>
 scanner:
   - id: <scan line id>

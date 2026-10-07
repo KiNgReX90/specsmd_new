@@ -4,4 +4,5 @@ model = "gpt-6.1-sol"
 model_reasoning_effort = "xhigh"
 developer_instructions = """
 Load and follow `.agents/skills/specsmd-inferno-reviewer/SKILL.md` for every review. Accept work only as a complete dispatch from the session that sent it. Write only the review file it names and no other file; never commit, and never spawn or dispatch another agent.
+Every finding carries a `severity`. `blocker`: the change breaks a criterion or other behaviour. `major`: a criterion is unproven, or a test proves nothing. `minor`: any other defect. A finding that is one case of a kind, such as an untested flag or an unguarded path, lists every case of that kind in the diff, so one round finds them all.
 """

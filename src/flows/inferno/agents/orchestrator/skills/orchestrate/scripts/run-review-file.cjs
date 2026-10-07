@@ -19,7 +19,11 @@ const { RunError } = lib;
 const ITEM_KEYS = ['item', 'verdict', 'files', 'findings', 'mutants'];
 /** What run.cjs adds when it records a review. A reviewer that writes them is refused. */
 const RECORDED_KEYS = ['tree', 'commit'];
-const FINDING_KEYS = ['criterion', 'file', 'line', 'evidence', 'fix'];
+const FINDING_KEYS = ['criterion', 'file', 'line', 'evidence', 'fix', 'severity'];
+/** The severities a finding may carry, as the refusal of a finding without one names them. */
+const SEVERITIES = ['blocker', 'major', 'minor'];
+const SEVERITY_FIX = 'blocker when the change breaks a criterion or other behaviour, major when a criterion is unproven ' +
+  'or a test proves nothing, minor for any other defect';
 const MUTANT_KEYS = ['criterion', 'test', 'caught'];
 
 function reviewPath(intentId, itemId) {
@@ -111,18 +115,40 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
   if (doc.verdict !== 'clean' && doc.verdict !== 'fix') throw bad(rel, 'verdict must be clean or fix');
 
   const files = boundFiles(tree, rel, doc);
-  const { findings, mutants, survivors } = verdictParts(rel, doc, FINDING_KEYS);
+  const { findings, mutants, survivors } = verdictParts(rel, doc, FINDING_KEYS, ['repeat']);
+  for (const [index, finding] of findings.entries()) {
+    if (finding.repeat !== undefined && finding.repeat !== 'true') {
+      throw bad(rel, `findings entry ${index + 1} repeat reads ${finding.repeat}; write repeat: true when an earlier ` +
+        'round of this item reported the same kind, or leave it out');
+    }
+  }
   return { item: itemId, verdict: doc.verdict, files, findings, mutants, survivors };
+}
+
+/**
+ * What a fix review weighs on the ladder. It counts when a finding is blocker or major, or a
+ * mutant survived; minor findings alone do not. A finding that repeats an earlier round
+ * sends the review to the oracle, whatever it counts.
+ */
+function weightOf(review) {
+  const serious = review.survivors.length > 0 || review.findings.some((finding) => finding.severity !== 'minor');
+  const repeat = review.findings.some((finding) => finding.repeat === 'true');
+  return { serious, weight: repeat ? 'repeat' : serious ? 'serious' : 'minor' };
 }
 
 /**
  * The findings and mutants of an item or intent review, held to its verdict. A surviving
  * mutant is a finding too: a test that misses a broken criterion proves nothing.
  */
-function verdictParts(rel, doc, findingKeys) {
-  const findings = entries(rel, doc, 'findings', findingKeys);
-  for (const finding of findings) {
+function verdictParts(rel, doc, findingKeys, optional = []) {
+  // Severity is held below, so a finding without one is refused with the three it may carry.
+  const required = findingKeys.filter((key) => key !== 'severity');
+  const findings = entries(rel, doc, 'findings', required, ['severity', ...optional]);
+  for (const [index, finding] of findings.entries()) {
     if (!/^\d+$/.test(finding.line)) throw bad(rel, `finding line must be a line number, not ${finding.line}`);
+    if (!SEVERITIES.includes(finding.severity)) {
+      throw bad(rel, `findings entry ${index + 1} severity reads ${finding.severity || 'nothing'}; it must be ${SEVERITY_FIX}`);
+    }
   }
   const mutants = entries(rel, doc, 'mutants', MUTANT_KEYS);
   for (const mutant of mutants) {
@@ -142,5 +168,6 @@ function verdictParts(rel, doc, findingKeys) {
 }
 
 module.exports = {
-  FINDING_KEYS, ITEM_KEYS, MUTANT_KEYS, RECORDED_KEYS, bad, entries, isMap, parseItemReview, readDoc, relativePath, reviewPath, verdictParts,
+  FINDING_KEYS, ITEM_KEYS, MUTANT_KEYS, RECORDED_KEYS, SEVERITIES, bad, entries, isMap, parseItemReview, readDoc, relativePath, reviewPath,
+  verdictParts, weightOf,
 };

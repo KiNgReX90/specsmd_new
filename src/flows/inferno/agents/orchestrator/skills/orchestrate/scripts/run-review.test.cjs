@@ -70,6 +70,7 @@ findings:
     line: 1
     evidence: read src/a.ts, it exports 1
     fix: export 2
+    severity: major
 mutants:
   - criterion: AC1 the value reads two
     test: node --test src/a.test.ts
