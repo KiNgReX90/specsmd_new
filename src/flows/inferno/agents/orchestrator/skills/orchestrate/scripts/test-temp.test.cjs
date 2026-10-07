@@ -9,7 +9,7 @@ const { tempDir } = require('./test-temp.cjs');
 
 // The flow's suites run in every host's gate, so a temp dir a suite leaves behind leaks on
 // every gate run on every machine. Tests and fixtures make their dirs through test-temp.cjs,
-// which removes them when the process exits. What a killed process leaves, the next load removes.
+// which removes them when the process exits. What a killed process leaves goes on the first load a day later.
 
 const FLOW = path.resolve(__dirname, '../../../../..');
 const HELPER = path.join(__dirname, 'test-temp.cjs');
@@ -147,29 +147,69 @@ const BLOCKED = "require('node:child_process')" +
 /** Loads the helper in a fresh process on the temp root `env` names, as the next suite on a machine does. */
 const nextLoad = (env) => spawnSync(process.execPath, ['-e', `require(${JSON.stringify(HELPER)});`], { env });
 
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Sets the mtime of `entry` to `ms` ago. */
+function age(entry, ms) {
+  const then = new Date(Date.now() - ms);
+  fs.utimesSync(entry, then, then);
+}
+
 // The scan's timeout sends SIGTERM to the suite alone, and a terminal sends SIGINT or SIGHUP. Each ends a blocked
-// process at once, by that signal. The process leaves its own root, and the next load removes it.
+// process at once, by that signal. The process leaves its own root, which a load removes once it is a day old.
 for (const signal of ['SIGINT', 'SIGHUP', 'SIGTERM']) {
-  test(`a blocked process ends at once on ${signal}, and the next load removes its root`, CASE, async (t) => {
+  test(`a blocked process ends at once on ${signal}, and its root stays until it ages out`, CASE, async (t) => {
     const { tmp, env } = privateRoot();
     const proc = start(t, BLOCKED, env);
     await ready(proc);
     proc.kill(signal);
     assert.deepEqual(await ending(proc, 5_000), { code: null, signal });
-    assert.deepEqual(fs.readdirSync(tmp), [`inferno-tests-${proc.pid}`]);
+    const left = fs.readdirSync(tmp);
+    assert.match(left.join(' '), /^inferno-tests-\w{6}$/);
+    assert.equal(nextLoad(env).status, 0);
+    assert.deepEqual(fs.readdirSync(tmp), left);
+    age(path.join(tmp, left[0]), 2 * DAY);
     assert.equal(nextLoad(env).status, 0);
     assert.deepEqual(fs.readdirSync(tmp), []);
   });
 }
 
-test('the load removes a root whose process is gone, and leaves a live root and every other entry', () => {
+// A sandbox with its own pid namespace shares the temp dir with the host, so two processes on one temp dir can
+// see the same pid. Neither may touch the other's dirs.
+test('two processes that see the same pid each keep their own dirs', CASE, async (t) => {
   const { tmp, env } = privateRoot();
-  const gone = spawnSync(process.execPath, ['-e', '']).pid;
-  // Pid 1 is alive under another user, so the check sees EPERM there unless the run is root. A pid past the
-  // range process.kill takes makes it throw a TypeError, which must never break the load.
-  const kept = [`inferno-tests-${process.pid}`, 'inferno-tests-1', 'inferno-tests-99999999999'];
-  kept.push(`inferno-tests-${gone}-x`, `x-inferno-tests-${gone}`);
-  for (const name of [...kept, `inferno-tests-${gone}`]) fs.mkdirSync(path.join(tmp, name));
+  const samePid = `Object.defineProperty(process, 'pid', { value: 2 }); const { tempDir } = require(${JSON.stringify(HELPER)});`;
+  const holder = spawn(process.execPath, ['-e', `${samePid} process.stdout.write(tempDir('inferno-a-')); process.stdin.resume();`], {
+    env,
+    stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  t.after(() => holder.kill('SIGKILL'));
+  const dir = String(await ready(holder));
+  assert.equal(spawnSync(process.execPath, ['-e', `${samePid} tempDir('inferno-b-');`], { env }).status, 0);
+  assert.ok(fs.existsSync(dir), 'the other process removed this one\'s dir');
+  assert.deepEqual(fs.readdirSync(tmp), [path.basename(path.dirname(dir))]);
+  holder.stdin.end();
+  assert.deepEqual(await ending(holder, 5_000), { code: 0, signal: null });
+  assert.deepEqual(fs.readdirSync(tmp), []);
+});
+
+test('the load removes only roots untouched for a day, and leaves every other entry', () => {
+  const { tmp, env } = privateRoot();
+  const entries = [
+    ['inferno-tests-aaaaaa', 0, 'kept'], // a root another process is using now
+    ['inferno-tests-bbbbbb', DAY - 60_000, 'kept'],
+    ['inferno-tests-cccccc', 2 * DAY, 'removed'],
+    ['inferno-tests-dddddd-x', 2 * DAY, 'kept'],
+    ['x-inferno-tests-eeeeee', 2 * DAY, 'kept'],
+    ['inferno-tests-ffffff', 2 * DAY, 'kept', 'file'],
+  ];
+  for (const [name, ms, , kind] of entries) {
+    const entry = path.join(tmp, name);
+    if (kind === 'file') fs.writeFileSync(entry, '');
+    else fs.mkdirSync(path.join(entry, 'inside'), { recursive: true });
+    age(entry, ms);
+  }
   assert.equal(nextLoad(env).status, 0);
+  const kept = entries.filter(([, , fate]) => fate === 'kept').map(([name]) => name);
   assert.deepEqual(fs.readdirSync(tmp).sort(), kept.sort());
 });
