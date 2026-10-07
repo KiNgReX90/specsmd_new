@@ -19,8 +19,11 @@ const { RunError } = lib;
 const ITEM_KEYS = ['item', 'verdict', 'files', 'findings', 'mutants'];
 /** What run.cjs adds when it records a review. A reviewer that writes them is refused. */
 const RECORDED_KEYS = ['tree', 'commit', 'reviewer'];
-/** A reviewer's agent id as the host returns it: one token, so never the placeholder a record call prints. */
-const AGENT_ID = /^[\w.:-]+$/;
+/**
+ * A reviewer's agent id as the host returns it: the id on Claude, the task path such as
+ * /root/review_a_one on Codex. One token, so never the placeholder a record call prints.
+ */
+const AGENT_ID = /^[\w./:-]+$/;
 const FINDING_KEYS = ['criterion', 'file', 'line', 'evidence', 'fix', 'severity'];
 /** The severities a finding may carry, as the refusal of a finding without one names them. */
 const SEVERITIES = ['blocker', 'major', 'minor'];

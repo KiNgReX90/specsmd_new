@@ -67,7 +67,7 @@ function dispatch(tree, context, reasons, from, folded, reviewer = null) {
   return {
     exit: 3,
     payload: {
-      ok: false, intent, owed: reasons, agent, model, resume: reviewer, range, brief,
+      ok: false, intent, owed: reasons, agent, model, range, brief,
       specs: items.map((id) => path.join(specs, `${id}.md`)), scan: scanned ? scan : null, write: rel,
     },
     out: [

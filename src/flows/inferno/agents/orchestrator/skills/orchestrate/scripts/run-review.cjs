@@ -165,7 +165,7 @@ function owed(tree, context, reason, from, paths, reviewer = null) {
   const brief = path.join(lib.SPECS_DIR, 'intents', intent.id, 'brief.md');
   return {
     exit: 3,
-    payload: { ok: false, item: item.id, owed: reason, agent, model, resume: reviewer, range, paths, spec, brief, write: rel },
+    payload: { ok: false, item: item.id, owed: reason, agent, model, range, paths, spec, brief, write: rel },
     out: [
       `review owed for ${item.id}: ${reason}`,
       ...reviewerLines(config, `item ${item.id}`, reviewer, [

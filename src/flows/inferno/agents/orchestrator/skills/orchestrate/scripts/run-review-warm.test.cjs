@@ -92,12 +92,12 @@ test("a review owed after a recorded one resumes that reviewer with the same lin
   assert.equal(clean.code, 0, shown(clean));
 });
 
-test("on Codex the resume is a followup_task to the recorded reviewer", () => {
+test("on Codex the record takes the task path spawn_agent returns, and the resume is a followup_task to it", () => {
   const fixture = repo({ files: { [CODEX]: "verification:\n  integrate:\n    - echo codex\ndelivery:\n  base_branch: main\n" } });
-  fixedAfter(fixture, "rev-x9");
+  fixedAfter(fixture, "/root/review_a_one");
   const delta = itemReview(fixture, ["--config", CODEX]);
   assert.equal(delta.code, 3, shown(delta));
-  assert.match(delta.out, /^resume rev-x9 item a-one with followup_task$/m);
+  assert.match(delta.out, /^resume \/root\/review_a_one item a-one with followup_task$/m);
   assert.match(delta.out, /^ {2}if it does not answer, dispatch a fresh specsmd_inferno_reviewer with these lines$/m);
 });
 
