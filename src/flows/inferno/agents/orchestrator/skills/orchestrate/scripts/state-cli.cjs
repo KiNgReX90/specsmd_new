@@ -1,6 +1,7 @@
 'use strict';
 
 const { TransitionError } = require('./state-ledger.cjs');
+const { caller } = require('./run-call.cjs');
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,7 @@ function main(argv, commands) {
     archiveIntent, check, reviewItem,
   } = commands;
   const { command, options } = parseArgs(argv);
+  caller(options);
 
   if (!command || ['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`${USAGE}\n`);

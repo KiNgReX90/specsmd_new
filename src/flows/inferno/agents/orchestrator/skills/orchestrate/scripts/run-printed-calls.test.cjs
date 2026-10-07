@@ -171,3 +171,49 @@ test("on Codex the archive and close refusals point through close-intent to the 
   const filled = closing.err.replace(/<worktree>/g, fixture.root).replace(/<id>/g, "a-one");
   integrateOwesReview(fixture, asPrinted(fixture, filled, "integrate --item")[0]);
 });
+
+// The carried flags are the process's own: the runner and the writer record the flags they were
+// called with once, and every printed call reads the host config from that record, so no site
+// can drop or replace it. A site may still name its own intent, as the frontier does.
+test("the printed calls carry the config and intent the process was called with, whatever a site passes", () => {
+  const { caller, nodeCall, runCall, writerCall } = require("./run-call.cjs");
+  const config = new RegExp(` --config ${CODEX.replace(/[.]/g, "\\.")}( |$)`);
+  caller({ config: CODEX, intent: "alpha", tree: "/t" });
+  try {
+    for (const line of [runCall("gate", "/t", {}), nodeCall("gate", "/t", {}, ["--wait"]), writerCall("close-intent", {})]) {
+      assert.match(line, / --intent alpha( |$)/, line);
+      assert.match(line, config, line);
+    }
+    assert.match(writerCall("close-intent", {}), / --tree \/t( |$)/);
+    for (const line of [runCall("gate", "/t", { config: "other" }), nodeCall("gate", "/t", { config: "other" }), writerCall("close-intent", { config: "other" })]) {
+      assert.match(line, config, line);
+      assert.doesNotMatch(line, /--config other/, line);
+    }
+    assert.match(runCall("integrate", "/t", { intent: "beta" }), / --intent beta( |$)/);
+  } finally {
+    caller({});
+  }
+});
+
+test("on Codex the block, release and close lines the writer prints run as printed and carry the Codex config", () => {
+  const fixture = repo({ files: codex() });
+  const unreasoned = writer(fixture, ["block-intent", "--intent", "alpha", "--reason", " ", "--config", CODEX]);
+  assert.equal(unreasoned.code, 2, unreasoned.out + unreasoned.err);
+  const [block] = printed(unreasoned.err.replace('"<why it cannot be built yet>"', "vendor-fix"), "block-intent", "state-transition");
+  assert.ok(block && block.join(" ").includes(`--config ${CODEX}`), unreasoned.err);
+  const held = writer(fixture, block);
+  assert.equal(held.code, 2, held.out + held.err);
+  const [release] = printed(held.err, "unclaim-intent", "state-transition");
+  assert.ok(release && release.join(" ").includes(`--config ${CODEX}`), held.err);
+  assert.equal(writer(fixture, release).code, 0);
+  const blocked = writer(fixture, block);
+  assert.equal(blocked.code, 0, blocked.out + blocked.err);
+  assert.match(fs.readFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), "utf8"), /blocked_reason: "?vendor-fix/);
+  const done = repo({ state: STATE.replace(/status: pending/g, "status: completed\n        integrated_sha: abc1234\n        review: clean"), files: codex() });
+  const drift = writer(done, ["check", "--intent", "alpha", "--config", CODEX]);
+  assert.equal(drift.code, 1, drift.out + drift.err);
+  const [close] = printed(drift.out + drift.err, "close-intent", "state-transition");
+  assert.ok(close && close.join(" ").includes(`--config ${CODEX}`), drift.out + drift.err);
+  const closed = writer(done, close);
+  assert.equal(closed.code, 0, closed.out + closed.err);
+});

@@ -33,6 +33,7 @@ const { recordOwner } = require('./run-owner.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
 const { TransitionError } = require('./state-transition.cjs');
 const processes = require('./run-processes.cjs');
+const { caller } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -162,6 +163,7 @@ function parseArgs(argv) {
 
 function main(argv) {
   const { command, args, options } = parseArgs(argv);
+  caller(options);
 
   if (!command || ['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`${USAGE}\n`);
