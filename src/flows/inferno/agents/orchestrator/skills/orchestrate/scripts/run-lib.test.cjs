@@ -281,7 +281,7 @@ test("a finalize_scopes entry holding one glob instead of a list is refused", ()
 });
 
 test("a finalize_scopes entry holding a blank glob is refused", () => {
-  refusesScope('    "echo a": [""]', /must be a list of path globs, none blank/);
+  refusesScope('    "echo a":\n      - "src/**"\n      - ""', /must be a list of path globs, none blank/);
 });
 
 test("a finalize_scopes entry holding no glob is refused", () => {
