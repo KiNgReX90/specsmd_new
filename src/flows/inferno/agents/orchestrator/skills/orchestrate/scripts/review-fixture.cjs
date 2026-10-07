@@ -177,7 +177,7 @@ function asPrintedByPath(fixture, text) {
 function reviewed(runner, fixture, tree, ids, files = ['src/a.ts'], intent = 'alpha') {
   for (const id of ids) {
     write(tree, `.specs-inferno/intents/${intent}/reviews/${id}.yaml`, `item: ${id}\nverdict: clean\nfiles: [${files.join(', ')}]\n`);
-    const result = runner(fixture, ['review', '--item', id, '--tree', tree]);
+    const result = runner(fixture, ['review', '--item', id, '--tree', tree, '--reviewer', 'rev-1']);
     assert.equal(result.code, 0, result.out + result.err);
   }
 }

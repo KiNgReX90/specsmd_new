@@ -16,9 +16,10 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
-const { hostActor } = require('./run-review.cjs');
+const { hostActor, reviewerLines } = require('./run-review.cjs');
+const { reviewerId } = require('./run-review-file.cjs');
 const owed = require('./run-intent-owed.cjs');
-const { gateStartCall, intentReviewCall, itemReviewCall, scanCall } = require('./run-call.cjs');
+const { gateStartCall, intentRecordCall, intentReviewCall, itemReviewCall, scanCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 
 const { RunError } = lib;
@@ -50,7 +51,7 @@ function scanRefusal(tree, context, folded) {
   };
 }
 
-function dispatch(tree, context, reasons, from, folded) {
+function dispatch(tree, context, reasons, from, folded, reviewer = null) {
   const { intent, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
@@ -66,19 +67,20 @@ function dispatch(tree, context, reasons, from, folded) {
   return {
     exit: 3,
     payload: {
-      ok: false, intent, owed: reasons, agent, model, range, brief,
+      ok: false, intent, owed: reasons, agent, model, resume: reviewer, range, brief,
       specs: items.map((id) => path.join(specs, `${id}.md`)), scan: scanned ? scan : null, write: rel,
     },
     out: [
       ...folded,
       ...reasons.map((reason) => `intent review owed for ${intent}: ${reason}`),
-      `dispatch ${agent}${model ? ` model ${model}` : ''} intent ${intent}`,
-      `  range ${range}`,
-      `  brief ${brief}`,
-      `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
-      ...(scanned ? [`  scan ${scan}`] : []),
-      `  write ${rel}`,
-      `then ${intentReviewCall(tree)} records it`,
+      ...reviewerLines(config, `intent ${intent}`, reviewer, [
+        `  range ${range}`,
+        `  brief ${brief}`,
+        `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
+        ...(scanned ? [`  scan ${scan}`] : []),
+        `  write ${rel}`,
+      ]),
+      `then ${intentRecordCall(tree)} records it`,
     ],
   };
 }
@@ -111,10 +113,11 @@ function verdict(tree, context, review, head) {
 
 function record(tree, context, commit, restored) {
   const { intent, rel } = context;
+  const reviewer = reviewerId(context.reviewer, intentRecordCall(tree));
   const review = owed.parseFor(tree, rel, intent, false);
   const abs = path.join(tree, rel);
   const text = fs.readFileSync(abs, 'utf8');
-  fs.appendFileSync(abs, `${text.endsWith('\n') ? '' : '\n'}tree: ${proofs.scopeHash(tree)}\ncommit: ${commit}\n`);
+  fs.appendFileSync(abs, `${text.endsWith('\n') ? '' : '\n'}tree: ${proofs.scopeHash(tree)}\ncommit: ${commit}\nreviewer: ${reviewer}\n`);
   lib.git(tree, ['add', '--', rel]);
   lib.git(tree, ['commit', '-q', '-m', `specsmd(${intent}): intent review ${review.verdict}`, '--', rel]);
   const result = verdict(tree, context, review, `intent review ${review.verdict}, recorded at ${short(tree, commit)}`);
@@ -126,7 +129,7 @@ function reviewIntent(options) {
   const intent = owed.intentFor(tree, options);
   const config = lib.readConfig(tree, options.config);
   const rel = owed.intentReviewPath(tree, intent);
-  const context = { intent, config, rel };
+  const context = { intent, config, rel, reviewer: options.reviewer };
 
   const pending = fs.existsSync(path.join(tree, rel)) && lib.gitLines(tree, ['status', '--porcelain', '--', rel]).length > 0;
   if (pending) {
@@ -163,7 +166,7 @@ function reviewIntent(options) {
     return verdict(tree, context, state.review, `${folded.length ? `${folded[0]}; ` : ''}${head}`);
   }
   const from = state.review && state.review.commit ? state.review.commit : gate.mergeBase(tree, base);
-  return dispatch(tree, context, state.owed, from, folded);
+  return dispatch(tree, context, state.owed, from, folded, state.review && state.review.reviewer);
 }
 
 module.exports = { reviewIntent };

@@ -60,7 +60,7 @@ test("on Codex the item review's calls run as printed on Codex, from the integra
   const [dispatched] = asPrinted(fixture, refused.err, "review --item");
   itemReviewer(dispatched);
   write(fixture.root, ".specs-inferno/intents/alpha/reviews/a-one.yaml", "item: a-one\nverdict: clean\nfiles: [src/a.ts]\n");
-  const [recorded] = asPrinted(fixture, dispatched.out, "review --item");
+  const [recorded] = asPrinted(fixture, dispatched.out.replace("<agent-id>", "rev-a1"), "review --item");
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   const [landed] = asPrinted(fixture, recorded.out, "integrate --item");
   assert.equal(landed.code, 0, landed.out + landed.err);
@@ -194,7 +194,12 @@ test("each call builder prints its exact line from its own flags, the site's dec
       [["/w", "a-one"], `run.cjs integrate --item a-one --tree /w${tail}`],
       [["/w", "a-one", "beta"], `run.cjs integrate --item a-one --tree /w --intent beta --config ${CODEX}`],
     ],
+    itemRecordCall: [
+      [["/w", "a-one"], `run.cjs review --item a-one --reviewer <agent-id> --tree /w${tail}`],
+      [["/w", "a-one", "beta"], `run.cjs review --item a-one --reviewer <agent-id> --tree /w --intent beta --config ${CODEX}`],
+    ],
     intentReviewCall: [[["/w"], `run.cjs review --tree /w${tail}`]],
+    intentRecordCall: [[["/w"], `run.cjs review --reviewer <agent-id> --tree /w${tail}`]],
     scanCall: [
       [["/w"], `run.cjs scan --tree /w${tail}`],
       [["/w", null, true], `run.cjs scan --collect --tree /w${tail}`],
