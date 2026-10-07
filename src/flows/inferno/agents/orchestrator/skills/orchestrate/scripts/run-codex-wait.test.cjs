@@ -43,8 +43,10 @@ const passes = (codex, extra = []) => {
 // The refusals, word for word.
 const E = "ERROR [NO_WAIT_FLOOR] ";
 const same = (primary) => `Codex applies no wait floor in ${primary}, so wait_agent can wake the orchestrator before a builder returns.`;
-const R3 = (c) => `${E}${same(c.primary)} Append this table at the end of ${c.P}, creating the file if it is missing:\n${FLOOR}`;
-const R4 = (c, cause) => `${E}${same(c.primary)} Codex cannot load ${c.P} with this table appended (${cause}). Rewrite every ` +
+const trusted = (c) => `Codex reads a project config only in a trusted project. If ${c.primary} is not one yet, start codex in ` +
+  `${c.primary} and accept the trust prompt, or set trust_level = "trusted" in the [projects] entry for ${c.primary} in ${c.home}.`;
+const R3 = (c) => `${E}${same(c.primary)} ${trusted(c)} Append this table at the end of ${c.P}, creating the file if it is missing:\n${FLOOR}`;
+const R4 = (c, cause) => `${E}${same(c.primary)} ${trusted(c)} Codex cannot load ${c.P} with this table appended (${cause}). Rewrite every ` +
   "multi_agent_v2 setting in that file as this one table, keeping the other keys it sets, and turn an inline features = { } " +
   `into a [features] table:\n${FLOOR}`;
 const R2 = (c) => `${E}${c.P} holds the wait floor, but Codex reads a project config only in a trusted project, and ` +
@@ -74,6 +76,21 @@ test("no floor anywhere asks for the table appended to the project config", real
   const c = codexRepo();
   assert.equal(refused(c), R3(c));
   write(c.primary, ".codex/config.toml", FLOOR);
+  passes(c);
+});
+
+test("an untrusted project without the floor asks for the table and the trust in one refusal", real, () => {
+  const c = codexRepo({ trusted: false });
+  assert.equal(refused(c), R3(c));
+  write(c.primary, ".codex/config.toml", FLOOR);
+  trust(c);
+  passes(c);
+});
+
+test("a project config without a final newline gets the table on a line of its own", real, () => {
+  const c = codexRepo({ project: 'model = "m"' });
+  assert.equal(refused(c), R3(c));
+  fs.appendFileSync(c.P, `\n${FLOOR}`);
   passes(c);
 });
 
@@ -122,9 +139,9 @@ test("a floor in an untrusted project asks for the trust", real, () => {
   passes(c);
 });
 
-test("a Codex home that does not parse names what Codex names", real, () => {
+test("a Codex home that does not parse names the file and line Codex names", real, () => {
   const c = codexRepo({ home: "[features\n" });
-  assert.equal(refused(c), R1(c, "unclosed table, expected `]`"));
+  assert.equal(refused(c), R1(c, `${c.home}:1:10: unclosed table, expected \`]\``));
   fs.writeFileSync(c.home, FLOOR);
   trust(c);
   passes(c);
@@ -151,11 +168,22 @@ test("a load that fails on the minimum gets the floor's fix, any other failure n
   assert.equal(refused(floor), R4(floor, "features.multi_agent_v2.default_wait_timeout_ms must be at least " +
     "features.multi_agent_v2.min_wait_timeout_ms"));
   const broken = stub(codexRepo(), '#!/bin/sh\nprintf "Caused by:\\n    0: /x/config.toml:1:10: unclosed table\\n" >&2\nexit 1', "broken");
-  assert.equal(refused(broken), R1(broken, "unclosed table"));
+  assert.equal(refused(broken), R1(broken, "/x/config.toml:1:10: unclosed table"));
 });
 
 test("a check that fails for another reason than the minimum is no floor", () => {
   assert.match(refused(stub(codexRepo(), OTHER, "other")), /^ERROR \[NO_WAIT_FLOOR\] /);
+});
+
+test("the scratch home a fix is judged in is removed afterwards", () => {
+  const c = codexRepo();
+  const tmp = path.join(c.fixture.dir, "tmp");
+  const log = path.join(c.fixture.dir, "homes.log");
+  fs.mkdirSync(tmp);
+  const logs = stub(c, `#!/bin/sh\necho "$CODEX_HOME" >> "${log}"\necho "multi_agent_v2  stable  false"`, "logs");
+  refused({ ...logs, env: { ...logs.env, TMPDIR: tmp } });
+  assert.ok(fs.readFileSync(log, "utf8").split("\n").some((home) => home.startsWith(tmp + path.sep)), "no scratch home under TMPDIR");
+  assert.deepEqual(fs.readdirSync(tmp), []);
 });
 
 test("a codex that is not there is named with the way to point at it", () => {

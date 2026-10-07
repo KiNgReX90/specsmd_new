@@ -34,12 +34,13 @@ function features(cmd, cwd, env, extra = []) {
   return { missing, ok: result.status === 0 && !result.error, out: `${result.stdout || ''}${result.stderr || ''}` };
 }
 
-/** Codex's first "Caused by" line, without its index and its path:line:col. */
-function cause(out) {
+/** Codex's first "Caused by" line without its index, and without its path:line:col when that path is a scratch home. */
+function cause(out, scratch = false) {
   const lines = out.split(/\r?\n/);
   const at = lines.findIndex((line) => line.trim() === 'Caused by:');
   const first = at < 0 ? '' : lines.slice(at + 1).find((line) => line.trim().length > 0) || '';
-  return first.trim().replace(/^\d+:\s*/, '').replace(/^.*?:\d+:\d+:\s*/, '');
+  const line = first.trim().replace(/^\d+:\s*/, '');
+  return scratch ? line.replace(/^.*?:\d+:\d+:\s*/, '') : line;
 }
 
 /** Whether the floor holds where `cwd` and `env` point codex, and why not when it does not load. */
@@ -78,22 +79,26 @@ function waitFloorRefusal(primary, env = process.env) {
   const P = path.join(primary, '.codex', 'config.toml');
   const project = fs.existsSync(P) ? fs.readFileSync(P, 'utf8') : '';
   const home = env.CODEX_HOME || path.join(os.homedir(), '.codex');
+  const step = `codex in ${primary} and accept the trust prompt, or set trust_level = "trusted" in the [projects] entry for ` +
+    `${primary} in ${path.join(home, 'config.toml')}.`;
   if (project && judgeAlone(cmd, project, env).holds) {
     return `${P} holds the wait floor, but Codex reads a project config only in a trusted project, and ${primary} is ` +
-      `not one. Start codex in ${primary} and accept the trust prompt, or set trust_level = "trusted" in the [projects] ` +
-      `entry for ${primary} in ${path.join(home, 'config.toml')}.`;
+      `not one. Start ${step}`;
   }
+  // Codex shows no trust while the project config lacks the floor, so every fix to that file names the trust step.
   const same = `Codex applies no wait floor in ${primary}, so wait_agent can wake the orchestrator before a builder returns.`;
+  const trusted = `Codex reads a project config only in a trusted project. If ${primary} is not one yet, start ${step}`;
   const table = FRAGMENT.join('\n');
   const appended = judgeAlone(cmd, `${project}${project && !project.endsWith('\n') ? '\n' : ''}${table}\n`, env);
-  if (appended.holds) return `${same} Append this table at the end of ${P}, creating the file if it is missing:\n${table}`;
+  if (appended.holds) return `${same} ${trusted} Append this table at the end of ${P}, creating the file if it is missing:\n${table}`;
   if (appended.loads) {
     return `${same} Codex loads ${P} with this table appended and the floor still does not hold, so a config layer ` +
       `outside ${P} and ${path.join(home, 'config.toml')} turns it off. Remove the multi_agent_v2 setting from that layer, ` +
       'then run the frontier again.';
   }
-  return `${same} Codex cannot load ${P} with this table appended (${cause(appended.out)}). Rewrite every multi_agent_v2 setting in that ` +
-    `file as this one table, keeping the other keys it sets, and turn an inline features = { } into a [features] table:\n${table}`;
+  return `${same} ${trusted} Codex cannot load ${P} with this table appended (${cause(appended.out, true)}). Rewrite ` +
+    'every multi_agent_v2 setting in that file as this one table, keeping the other keys it sets, and turn an inline ' +
+    `features = { } into a [features] table:\n${table}`;
 }
 
 module.exports = { FLOOR, FRAGMENT, waitFloorRefusal };
