@@ -21,9 +21,9 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const writer = require('./state-transition.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
-const { parseItemReview, reviewPath } = require('./run-review-file.cjs');
+const { bad, parseItemReview, reviewPath, reviewerId } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
-const { integrateCall, itemReviewCall } = require('./run-call.cjs');
+const { integrateCall, itemRecordCall, itemReviewCall } = require('./run-call.cjs');
 
 const { RunError } = lib;
 
@@ -54,23 +54,28 @@ function tierOf(item) {
  * Who acts on the item next. Cheap rejected once goes to a fresh strong builder, strong
  * rejected twice to a fresh escalate builder, and every two rejections on the escalate
  * builder go to the oracle, whose decision returns to that warm builder as a correction.
- * The count is per tier, recorded by state-review.cjs.
+ * The count is per tier, recorded by state-review.cjs, and only a serious fix review adds
+ * to it. The weight of the last fix review overrides the count: minor findings stay with
+ * the warm builder of the same tier, and a repeated finding goes to the oracle at once,
+ * since another round at any tier repeats a fix design that is wrong.
  */
 function nextActor(item, config = {}) {
   const tier = item.review_tier || tierOf(item);
   const rejections = Number(item.review_rejections) || 0;
   let actor = tier;
   let fresh = false;
-  if (tier === 'cheap' && rejections >= 1) [actor, fresh] = ['strong', true];
+  if (item.review_weight === 'repeat') actor = 'oracle';
+  else if (item.review_weight === 'minor') actor = tier;
+  else if (tier === 'cheap' && rejections >= 1) [actor, fresh] = ['strong', true];
   else if (tier === 'strong' && rejections >= 2) [actor, fresh] = ['escalate', true];
   else if (tier === 'escalate' && rejections >= 2 && rejections % 2 === 0) actor = 'oracle';
   return { actor, agent: hostActor(actor, config).agent, fresh, rejections };
 }
 
-/** The tier that built the version a review read: the oracle decides, the escalate builder builds. */
+/** The tier that built the version a review read: the oracle decides, the warm builder it answered builds. */
 function builtBy(item) {
   const { actor } = nextActor(item);
-  return actor === 'oracle' ? 'escalate' : actor;
+  return actor === 'oracle' ? item.review_tier || 'escalate' : actor;
 }
 
 /**
@@ -91,6 +96,23 @@ function hostActor(actor, config = {}) {
   return { agent: `specsmd-inferno-${key}`, model: pinned || roleModel };
 }
 
+/** The host's tool that resumes an agent it spawned. */
+const RESUME = { claude: 'SendMessage', codex: 'followup_task' };
+
+/**
+ * The lines that reach the reviewer of a review owed, `subject` naming the item or the intent.
+ * `reviewer` is the agent id the last recorded review of that same subject names: it already
+ * holds what it read, so it is resumed on the delta, with a fresh dispatch as the fallback. A
+ * first review, and one whose record names no reviewer, is a fresh dispatch.
+ */
+function reviewerLines(config, subject, reviewer, body) {
+  const { agent, model } = hostActor('reviewer', config);
+  const named = `${agent}${model ? ` model ${model}` : ''}`;
+  if (!reviewer) return [`dispatch ${named} ${subject}`, ...body];
+  return [`resume ${reviewer} ${subject} with ${RESUME[config.host === 'codex' ? 'codex' : 'claude']}`, ...body,
+    `  if it does not answer, dispatch a fresh ${named} with these lines`];
+}
+
 /** The actor with the model the host names for it, as frontier and review print it. */
 function actorLabel(item, config) {
   const { actor } = nextActor(item);
@@ -104,9 +126,14 @@ function nextLine(id, item, config) {
   const label = `${actorLabel(item, config)} ${next.agent}`;
   const loop = 'then commit and run review again';
   if (next.actor === 'oracle') {
-    return `next ${label}: ask it about ${id} with every finding so far; its decision goes to the warm escalate builder as a correction, ${loop}`;
+    const why = item.review_weight === 'repeat' ? 'a finding repeats an earlier round, so ' : '';
+    return `next ${label}: ${why}ask it about ${id} with every finding so far; its decision goes to the warm ` +
+      `${item.review_tier || 'escalate'} builder as a correction, ${loop}`;
   }
   if (next.fresh) return `next ${label}: a fresh builder takes ${id} over with every finding so far, ${loop}`;
+  if (item.review_weight === 'minor') {
+    return `next ${label}: every finding is minor, so send them to the warm builder of ${id} as one correction, ${loop}`;
+  }
   return `next ${label}: send every finding to the warm builder of ${id} as one correction, ${loop}`;
 }
 
@@ -130,7 +157,7 @@ function forkPoint(tree, config, intent) {
   return lib.git(tree, ['merge-base', 'HEAD', base], { tolerate: true }) || 'HEAD';
 }
 
-function owed(tree, context, reason, from, paths) {
+function owed(tree, context, reason, from, paths, reviewer = null) {
   const { intent, item, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
   const range = `${short(tree, from)}..${short(tree, 'HEAD')}`;
@@ -141,12 +168,13 @@ function owed(tree, context, reason, from, paths) {
     payload: { ok: false, item: item.id, owed: reason, agent, model, range, paths, spec, brief, write: rel },
     out: [
       `review owed for ${item.id}: ${reason}`,
-      `dispatch ${agent}${model ? ` model ${model}` : ''} item ${item.id}`,
-      `  range ${range} paths ${paths.join(' ') || '(the whole range)'}`,
-      `  spec ${spec}`,
-      `  brief ${brief}`,
-      `  write ${rel}`,
-      `then ${itemReviewCall(tree, item.id)} records it`,
+      ...reviewerLines(config, `item ${item.id}`, reviewer, [
+        `  range ${range} paths ${paths.join(' ') || '(the whole range)'}`,
+        `  spec ${spec}`,
+        `  brief ${brief}`,
+        `  write ${rel}`,
+      ]),
+      `then ${itemRecordCall(tree, item.id)} records it`,
     ],
   };
 }
@@ -173,7 +201,11 @@ function verdictResult(tree, context, review, head) {
 
 function record(tree, context, ledger) {
   const { intent, item, rel } = context;
+  const reviewer = reviewerId(context.reviewer, itemRecordCall(tree, item.id));
   const review = parseItemReview(tree, rel, item.id, { recorded: false });
+  if (!item.review && review.findings.some((finding) => finding.repeat === 'true')) {
+    throw bad(rel, 'repeat: true marks a kind an earlier round of this item reported, and this is its first review, so drop repeat: true');
+  }
   const commit = lib.git(tree, ['rev-parse', 'HEAD']);
   const hash = filesHash(tree, review.files);
   const result = writer.reviewItem({
@@ -182,7 +214,7 @@ function record(tree, context, ledger) {
   });
   const abs = path.join(tree, rel);
   const text = fs.readFileSync(abs, 'utf8');
-  fs.appendFileSync(abs, `${text.endsWith('\n') ? '' : '\n'}tree: ${hash}\ncommit: ${commit}\n`);
+  fs.appendFileSync(abs, `${text.endsWith('\n') ? '' : '\n'}tree: ${hash}\ncommit: ${commit}\nreviewer: ${reviewer}\n`);
   const paths = [path.join(lib.SPECS_DIR, 'state.yaml'), rel];
   lib.git(tree, ['add', '--', ...paths]);
   lib.git(tree, ['commit', '-q', '-m', `specsmd(${intent.id}): review ${item.id} ${review.verdict}`, '--', ...paths]);
@@ -205,14 +237,14 @@ function pendingFiles(tree, rel, id) {
 /** The step itself. Every call first puts back a killed mutate's leftover and refuses this item's uncommitted work. */
 function review(options) {
   if (!options.item) {
-    throw new RunError('usage: node run.cjs review --item <id> --tree <dir> [--intent <id>]', 'BAD_ARGS', 1);
+    throw new RunError('usage: node run.cjs review --item <id> --tree <dir> [--intent <id>] [--reviewer <agent-id>]', 'BAD_ARGS', 1);
   }
   const tree = options.tree || lib.repoRoot(options.cwd);
   const ledger = lib.readLedger(tree);
   const { intent, item } = itemOf(ledger, options.item, options);
   const rel = reviewPath(intent.id, item.id);
   const config = lib.readConfig(tree, options.config);
-  const context = { intent, item, config, rel };
+  const context = { intent, item, config, rel, reviewer: options.reviewer };
   const manifest = lib.readItemSpec(tree, intent.id, item.id).manifest || {};
   const editable = (manifest.ownership && manifest.ownership.editable) || [];
 
@@ -253,7 +285,8 @@ function step(tree, context, { ledger, editable, exists, pending, current }) {
     return verdictResult(tree, context, current, head);
   }
   const paths = [...new Set([...current.files, ...touched])];
-  return owed(tree, context, 'the item changed since the last review', item.review_commit || forkPoint(tree, config, intent), paths);
+  return owed(tree, context, 'the item changed since the last review', item.review_commit || forkPoint(tree, config, intent), paths,
+    current.reviewer);
 }
 
 /**
@@ -286,4 +319,4 @@ function owedReviews(tree, ledger, ids, options) {
   return lines;
 }
 
-module.exports = { actorLabel, hostActor, nextActor, nextLine, owedReviews, review, tierOf };
+module.exports = { actorLabel, hostActor, nextActor, nextLine, owedReviews, review, reviewerLines, tierOf };

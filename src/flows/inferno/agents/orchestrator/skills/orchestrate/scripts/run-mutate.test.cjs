@@ -1,7 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawn, spawnSync } = require("node:child_process");
 
@@ -11,6 +10,7 @@ const { execFileSync, spawn, spawnSync } = require("node:child_process");
 const RUN = path.join(__dirname, "run.cjs");
 const FILE = "src/m.js";
 const ORIGINAL = "module.exports = 1;\n";
+const { tempDir } = require("./test-temp.cjs");
 const CHECK = "node -e \"process.exit(require('./src/m.js') === 1 ? 0 : 1)\"";
 
 function git(cwd, ...args) {
@@ -18,7 +18,7 @@ function git(cwd, ...args) {
 }
 
 function fixture(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-mutate-"));
+  const dir = tempDir("inferno-mutate-");
   t.after(() => {
     spawnSync("chmod", ["-R", "u+w", dir]);
     fs.rmSync(dir, { recursive: true, force: true });

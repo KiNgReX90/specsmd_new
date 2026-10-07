@@ -16,7 +16,7 @@ const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
-const { itemReviewCall } = require('./run-call.cjs');
+const { itemRecordCall, itemReviewCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -97,9 +97,11 @@ function refuseUnreviewed(lines, item, itemId, alreadyComplete, stateFile, optio
  * Record one review verdict on a work item.
  *
  * The count of rejections is kept per tier, because the ladder asks how often the builder
- * now holding the item was sent back: it goes up by one on `fix` and starts over when the
- * tier that built the reviewed version is not the one recorded. `run.cjs review --item` is
- * the caller: it validates the reviewer's file and hashes the files the review binds first.
+ * now holding the item was sent back: it goes up by one on a `fix` that weighs serious and
+ * starts over when the tier that built the reviewed version is not the one recorded. The
+ * weight comes from the review file itself (weightOf in run-review-file.cjs), so no caller
+ * can forget it. `run.cjs review --item` is the caller: it validates the reviewer's file and
+ * hashes the files the review binds first.
  */
 function reviewItem(options) {
   const file = options.file || DEFAULT_STATE_PATH;
@@ -127,15 +129,17 @@ function reviewItem(options) {
     throw new TransitionError(`work item not found: ${options.item} in intent ${options.intent}.`, 'ITEM_NOT_FOUND');
   }
 
+  const { serious, weight } = verdict === 'fix' ? fixWeight(file, options) : { serious: false, weight: 'none' };
   const previous = entryField(lines, item, 'review_tier') === tier
     ? Number(entryField(lines, item, 'review_rejections')) || 0
     : 0;
-  const rejections = previous + (verdict === 'fix' ? 1 : 0);
+  const rejections = previous + (serious ? 1 : 0);
   const reviewedAt = nowIso(options.now);
   // Each insert lands directly under `status:`, so write back to front to leave the order
-  // review, review_hash, review_commit, review_tier, review_rejections, reviewed_at.
+  // review, review_hash, review_commit, review_tier, review_rejections, review_weight, reviewed_at.
   for (const [key, value] of [
     ['reviewed_at', reviewedAt],
+    ['review_weight', weight],
     ['review_rejections', String(rejections)],
     ['review_tier', tier],
     ['review_commit', commit],
@@ -148,7 +152,31 @@ function reviewItem(options) {
   }
   writeState(file, lines);
 
-  return { changed: true, item: options.item, verdict, tier, rejections, reviewed_at: reviewedAt };
+  return { changed: true, item: options.item, verdict, tier, rejections, weight, reviewed_at: reviewedAt };
+}
+
+/**
+ * The weight of a fix verdict, read from the item's review file beside the ledger: whether
+ * it counts, and whether it weighs minor, serious or repeat. Required here, not at the top: run-review-file loads run-lib, which
+ * loads the writer that loads this file.
+ */
+function fixWeight(file, options) {
+  const { parseItemReview, reviewPath, weightOf } = require('./run-review-file.cjs');
+  const root = path.dirname(path.dirname(path.resolve(file)));
+  const rel = reviewPath(options.intent, options.item);
+  const fix = `Record the review through ${itemRecordCall(root, options.item, options.intent)}, which validates the file first.`;
+  let review;
+  try {
+    review = parseItemReview(root, rel, options.item, { recorded: true });
+  } catch (error) {
+    if (error.code !== 'BAD_REVIEW' && error.code !== 'ENOENT') throw error;
+    throw new TransitionError(`refusing review-item: a fix verdict is weighed by the findings in ${rel}, which cannot be read. ${fix}`,
+      'NO_REVIEW_FILE');
+  }
+  if (review.verdict !== 'fix') {
+    throw new TransitionError(`refusing review-item: --verdict fix, and ${rel} says ${review.verdict}. ${fix}`, 'VERDICT_MISMATCH');
+  }
+  return weightOf(review);
 }
 
 module.exports = { REINSTALL, completedBeforeReviewRule, refuseUnreviewed, reviewItem, reviewRuleSince };

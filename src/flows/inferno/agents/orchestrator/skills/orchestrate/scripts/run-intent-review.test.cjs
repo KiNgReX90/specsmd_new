@@ -31,7 +31,7 @@ function opened(options) {
   return { fixture, tree };
 }
 
-const review = (fixture, tree, args = []) => run(fixture, ["review", "--tree", tree, ...args]);
+const review = (fixture, tree, args = []) => run(fixture, ["review", "--tree", tree, "--reviewer", "rev-1", ...args]);
 const head = (tree) => git(tree, ["rev-parse", "HEAD"]);
 
 test("review without --item dispatches the intent reviewer with the range, the brief and every item spec", () => {
@@ -101,12 +101,14 @@ test("a fix review prints every finding under the item that owns it and exits 2"
     "    line: \"1\"",
     "    evidence: read it",
     "    fix: make it four",
+    "    severity: major",
     "    owner: a-one",
     "  - criterion: docs say so",
     "    file: docs/b.md",
     "    line: \"1\"",
     "    evidence: read it",
     "    fix: say so",
+    "    severity: minor",
     "    owner: a-two",
     "",
   ].join("\n"));
@@ -141,11 +143,12 @@ test("review refuses to record over other uncommitted work", () => {
 });
 
 const FINDING = (owner) =>
-  `findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    owner: ${owner}\n`;
+  `findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    severity: blocker\n    owner: ${owner}\n`;
 
 for (const [name, body, reason] of [
   ["an unknown key", "verdict: clean\nnotes: later\n", /unknown key notes/],
   ["a finding whose owner is no item of the intent", `verdict: fix\n${FINDING("zeta")}`, /owner zeta/],
+  ["a finding without a severity", `verdict: fix\n${FINDING("a-one").replace("    severity: blocker\n", "")}`, /severity reads nothing; it must be blocker/],
   ["an external criterion without evidence", "verdict: clean\ncriteria:\n  - criterion: c\n    proof: external\n    where: by hand\n", /evidence/],
   ["evidence on a criterion a test proves", "verdict: clean\ncriteria:\n  - criterion: c\n    proof: test\n    where: t\n    evidence: x\n", /for an external proof only/],
   ["verdict clean with a finding", `verdict: clean\n${FINDING("a-one")}`, /verdict clean with 1 finding/],

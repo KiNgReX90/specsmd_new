@@ -5,11 +5,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { tempDir } = require('./test-temp.cjs');
 const lib = require('./run-lib.cjs');
 const scheduler = require('./team-scheduler.cjs');
 
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-owned-'));
+  const root = tempDir('inferno-owned-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }

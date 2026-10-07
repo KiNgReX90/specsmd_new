@@ -53,11 +53,11 @@ test("the intent review reads the collected scan and records once every line is 
   assert.match(dispatch.out, /dispatch specsmd-inferno-reviewer/);
   assert.match(dispatch.out, /scan \.specs-inferno\/intents\/alpha\/scan\.yaml/);
   write(tree, REVIEW, "verdict: clean\n");
-  const open = run(fixture, ["review", "--tree", tree]);
+  const open = run(fixture, ["review", "--tree", tree, "--reviewer", "rev-1"]);
   assert.equal(open.code, 2, open.out + open.err);
   assert.match(open.err, /scan line wiring-1 has no answer/);
   write(tree, REVIEW, "verdict: clean\nscanner:\n  - id: wiring-1\n    answer: confirmed\n    reason: the producer is missing\n");
-  const recorded = run(fixture, ["review", "--tree", tree]);
+  const recorded = run(fixture, ["review", "--tree", tree, "--reviewer", "rev-1"]);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   assert.match(recorded.out, /intent review clean, recorded/);
 });

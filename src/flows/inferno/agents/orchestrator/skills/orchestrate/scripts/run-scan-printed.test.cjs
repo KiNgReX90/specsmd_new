@@ -131,12 +131,12 @@ function scannedAndDispatched(fixture, caller) {
 
 test("on Codex the intent review's verdicts print the item review and the gate, and run as printed they stay on Codex", () => {
   const review = ".specs-inferno/intents/alpha/review.yaml";
-  const finding = 'findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    owner: a-one\n';
+  const finding = 'findings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n    evidence: e\n    fix: f\n    severity: minor\n    owner: a-one\n';
   const fixing = started();
   const caller = ["--tree", fixing.tree, "--config", CODEX];
   scannedAndDispatched(fixing.fixture, caller);
   write(fixing.tree, review, `verdict: fix\n${finding}`);
-  const fix = run(fixing.fixture, ["review", ...caller]);
+  const fix = run(fixing.fixture, ["review", ...caller, "--reviewer", "rev-1"]);
   assert.equal(fix.code, 2, fix.out + fix.err);
   const [item] = printed(fix.out, "review --item");
   assert.ok(item, fix.out);
@@ -147,7 +147,7 @@ test("on Codex the intent review's verdicts print the item review and the gate, 
   const cleanCaller = ["--tree", clean.tree, "--config", CODEX];
   scannedAndDispatched(clean.fixture, cleanCaller);
   write(clean.tree, review, "verdict: clean\n");
-  const passed = run(clean.fixture, ["review", ...cleanCaller]);
+  const passed = run(clean.fixture, ["review", ...cleanCaller, "--reviewer", "rev-1"]);
   assert.equal(passed.code, 0, passed.out + passed.err);
   const [gating] = asPrinted(clean.fixture, passed.out, "gate");
   assert.equal(gating.code, 0, gating.out + gating.err);

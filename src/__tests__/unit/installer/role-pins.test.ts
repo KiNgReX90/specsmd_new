@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { openSandbox, readLock, sha256, snapshot, write } from './sandbox';
 
 const { installFlow } = require('../../../lib/installer');
@@ -39,6 +39,19 @@ function pins(rel: string) {
   return [fm.match(/^model:\s*(\S+)\s*$/m)?.[1], fm.match(/^effort:\s*(\S+)\s*$/m)?.[1]];
 }
 
+// Subagents write the 5 minute cache by default. The three roles that wait on a warm resume ask for 1 hour.
+const CACHE_1H_ROLES = ['builder', 'builder-escalate', 'reviewer'];
+const CACHE_5M_ROLES = ['builder-cheap', 'config', 'oracle', 'planner', 'scanner'];
+
+function cacheTtl(rel: string) {
+  const fm = (readFileSync(rel, 'utf8').match(/^---\n([\s\S]*?)\n---/) || ['', ''])[1];
+  return fm.match(/^experimental:\n {2}cacheTtl: (\S+)$/m)?.[1];
+}
+
+function installed(role: string) {
+  return [`.claude/commands/specsmd-inferno-${role}.md`, `.claude/agents/specsmd-inferno-${role}.md`];
+}
+
 function tomlPins(rel: string) {
   const text = readFileSync(rel, 'utf8');
   return [text.match(/^model = "([^"]*)"$/m)?.[1], text.match(/^model_reasoning_effort = "([^"]*)"$/m)?.[1]];
@@ -71,6 +84,26 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
     for (const [role, files] of Object.entries(CLAUDE_ROLE_FILES)) {
       for (const rel of files) expect(pins(rel), rel).toEqual(expected[role]);
     }
+  });
+
+  it('asks for the 1 hour cache on the builder, builder-escalate and reviewer agents only', async () => {
+    await installFlow('inferno', ['claude']);
+    for (const role of CACHE_1H_ROLES) for (const rel of installed(role)) expect(cacheTtl(rel), rel).toBe('1h');
+    for (const role of CACHE_5M_ROLES) {
+      for (const rel of installed(role)) {
+        if (existsSync(rel)) expect(readFileSync(rel, 'utf8'), rel).not.toMatch(/^experimental:/m);
+      }
+    }
+  });
+
+  it('keeps the 1 hour cache when a role pins its model and effort', async () => {
+    write('.specs-inferno/config.yaml', 'roles:\n  builder: {model: claude-test-model, effort: low}\n  reviewer: {effort: max}\n');
+    await installFlow('inferno', ['claude']);
+    for (const rel of installed('builder')) {
+      expect(pins(rel), rel).toEqual(['claude-test-model', 'low']);
+      expect(cacheTtl(rel), rel).toBe('1h');
+    }
+    for (const rel of installed('reviewer')) expect(cacheTtl(rel), rel).toBe('1h');
   });
 
   it('renders a Claude role entry into every file of that role and records the rendered bytes', async () => {

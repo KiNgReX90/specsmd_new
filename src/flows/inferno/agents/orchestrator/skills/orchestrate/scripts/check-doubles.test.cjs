@@ -1,9 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { tempDir } = require("./test-temp.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 const CHECK = path.join(__dirname, "check-doubles.cjs");
@@ -41,7 +41,7 @@ function git(cwd, args) {
 
 /** A repo on main with `files`, then a feature branch checked out on top of it. */
 function repo(config, files, options = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-doubles-"));
+  const dir = tempDir("inferno-doubles-");
   const root = path.join(dir, "app");
   fs.mkdirSync(root);
   git(root, ["init", "-q", "-b", "main"]);

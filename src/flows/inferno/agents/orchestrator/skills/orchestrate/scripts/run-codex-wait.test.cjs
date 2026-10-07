@@ -6,6 +6,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { git, repo, run, write } = require("./run-fixture.cjs");
 const { codexStub } = require("./review-fixture.cjs");
+const { tempDir } = require("./test-temp.cjs");
 
 // A Codex orchestrator waits on its builders with wait_agent. Asked for 60 s it wakes every
 // minute while a builder runs, so the floor lives in Codex config, where prose cannot lower it,
@@ -58,7 +59,7 @@ const R5 = (cmd) => `${E}The wait floor check runs codex features list, and ${cm
 const trust = (c) => fs.appendFileSync(c.home, `\n[projects."${c.primary}"]\ntrust_level = "trusted"\n`);
 
 // --- on the real codex: each refusal applied as printed, then the frontier runs ---------------
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "codex-probe-"));
+const scratch = tempDir("inferno-codex-probe-");
 const probe = spawnSync("codex", ["features", "list"], { encoding: "utf8", cwd: scratch, env: { ...process.env, CODEX_HOME: scratch } });
 fs.rmSync(scratch, { recursive: true, force: true });
 const real = { skip: probe.status === 0 ? false : `codex features list fails here (${probe.error ? probe.error.code : `exit ${probe.status}`})` };

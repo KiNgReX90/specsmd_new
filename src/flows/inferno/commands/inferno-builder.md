@@ -4,6 +4,8 @@ description: Use when an INFERNO orchestrator assigns exactly one work item, or 
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob, TodoWrite, Skill
 model: claude-opus-5-5
 effort: high
+experimental:
+  cacheTtl: 1h
 ---
 
 # INFERNO Builder

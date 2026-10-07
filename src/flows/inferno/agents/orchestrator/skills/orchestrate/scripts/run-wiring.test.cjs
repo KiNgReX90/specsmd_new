@@ -1,10 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { codexStub } = require("./review-fixture.cjs");
+const { tempDir } = require("./test-temp.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -88,7 +88,7 @@ const WIRING = `wiring:
 const MOD_RS = "fn run() {\n  tauri::generate_handler![\n    commands::dossier::save_dossier,\n    open_project,\n  ];\n}\n";
 
 function fixture({ provider = "pending", provides = "", config, codex, modRs = MOD_RS } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inferno-wiring-"));
+  const dir = tempDir("inferno-wiring-");
   const root = path.join(dir, "app");
   const write = (rel, body) => {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });

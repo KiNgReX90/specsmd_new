@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const { tempDir } = require("./test-temp.cjs");
 const { parseYaml } = require("./run-yaml.cjs");
 const impact = require("./run-e2e-impact.cjs");
 
@@ -84,11 +85,10 @@ test("a project with no e2e section selects nothing at all", () => {
 // repo no longer does: the browser suite runs once, at finalize. See .specs-inferno/config.yaml.
 const path = require("node:path");
 const fs = require("node:fs");
-const os = require("node:os");
 const lib = require("./run-lib.cjs");
 
 function repository(t) {
-  const tree = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-impact-"));
+  const tree = tempDir("e2e-impact-");
   t.after(() => fs.rmSync(tree, { recursive: true, force: true }));
   const git = (...args) => lib.git(tree, args);
   git("init", "-q", "-b", "main");

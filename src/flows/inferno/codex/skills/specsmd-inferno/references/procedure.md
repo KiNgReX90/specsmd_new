@@ -109,7 +109,7 @@ Run `run.cjs dispatch-log <intent-id> --item <item-id> --tier <tier> --agent <na
 
 1. Reject noisy output. Review from the result block, `run.cjs verify-item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` and `git diff --stat`, and open a changed file only when one of those raises a question. Check `changed_files` against `ownership.editable`; accept an extra file only on evidence that the assigned change requires it.
 2. `verify-item` and `integrate` confirm the builder's checks; do not replay a focused check by hand. For a `design_contract`, require verification against the cited source. A note naming a defect the builder saw and left, a residual or a product call is postponed work: send it back with `followup_task` before integrating, never into the ledger, the report or the user's lap.
-3. Stage only that item's changed files, never the entire tree, and commit directly on the intent branch for `auto-close`. Then `run.cjs review --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` prints the reviewer dispatch line (exit 3); after the reviewer writes its file, run it again: 0 clean, 2 findings and the `next` builder, who fixes before you commit and review again.
+3. Stage only that item's changed files, never the entire tree, and commit directly on the intent branch for `auto-close`. Then `run.cjs review --item <item-id> --tree <path> --config .specs-inferno/config.codex.yaml` prints the reviewer dispatch line (exit 3); after the reviewer writes, run the printed `then` line: 0 clean, 2 findings and the `next` builder, who fixes before you commit and review again.
 4. Then run:
 
    ```sh

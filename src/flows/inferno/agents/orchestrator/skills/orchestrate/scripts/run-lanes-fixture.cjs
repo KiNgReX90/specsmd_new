@@ -9,11 +9,11 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
+const { tempDir } = require('./test-temp.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 
 const BRANCH = 'inferno-intent/demo-00000000T000000Z';
@@ -43,7 +43,7 @@ function config(lanes = { smoke: '0' }, finalize = [whole], scope = ['src/**']) 
 }
 
 function fixture(t, source = config()) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-lanes-'));
+  const dir = tempDir('inferno-lanes-');
   t.after(() => {
     fs.writeFileSync(path.join(dir, 'release'), '');
     fs.rmSync(dir, { recursive: true, force: true });

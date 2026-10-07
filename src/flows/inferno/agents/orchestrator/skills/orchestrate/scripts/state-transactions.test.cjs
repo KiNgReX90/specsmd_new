@@ -12,9 +12,10 @@ const { spawn, spawnSync, execFileSync } = require('node:child_process');
 
 const runtime = require.resolve('./state-transition.cjs');
 const writer = require(runtime);
+const { tempDir } = require('./test-temp.cjs');
 
 function fixture(t, body) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-transactions-'));
+  const dir = tempDir('inferno-transactions-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'state.yaml');
   fs.writeFileSync(file, body);
@@ -147,7 +148,7 @@ test('conflicting artifact destinations are refused as repairable', (t) => {
 });
 
 function claimRepo(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inferno-claim-commit-'));
+  const dir = tempDir('inferno-claim-commit-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const root = path.join(dir, 'repo');
   fs.mkdirSync(root);
