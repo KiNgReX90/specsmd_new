@@ -76,7 +76,7 @@ Repeat until all items are completed or the run blocks or halts.
 
 ## Recovery
 
-Call `wait_agent` with `timeout_ms: 1200000`, exactly. A builder returns once, so a wake with no envelope is answered by waiting again, never by a status request or a nudge. A timeout wake is one `git -C <tree> diff --stat` compared with the previous one, the stall criteria below, and `wait_agent` again; the one other thing it may do is review an item that already returned. A dispatched item's spec is frozen until its builder returns, and the turn never ends while a worker is out.
+Call `wait_agent` only while workers run. A builder returns once, so a wake with no envelope is answered by waiting again, never by a status request or a nudge. A timeout wake is one `git -C <tree> diff --stat` compared with the previous one, the stall criteria below, and `wait_agent` again; the one other thing it may do is review an item that already returned. A dispatched item's spec is frozen until its builder returns, and the turn never ends while a worker is out.
 
 A builder is stuck when any one of these holds:
 
