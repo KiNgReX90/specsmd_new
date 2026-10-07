@@ -1,10 +1,10 @@
 # Codex INFERNO configuration procedure
 
-Configure only `.specs-inferno/config.codex.yaml`. The parent conversation owns display and confirmation; the delegated `specsmd_inferno_config` custom agent applies the approved change on `gpt-5.6-terra` with `high` reasoning.
+Configure only `.specs-inferno/config.codex.yaml`. The parent conversation owns display and confirmation; the delegated `specsmd_inferno_config` custom agent applies the approved change.
 
 ## Schema
 
-All keys are optional except that a created file should include the fixed Codex role matrix. The orchestrator has no role entry: it is the session's main thread and runs on the session's own model and effort.
+All keys are optional except that a created file should include the Codex role matrix. The orchestrator has no role entry: it is the session's main thread and runs on the session's own model and effort.
 
 ```yaml
 host: codex
@@ -15,28 +15,28 @@ autonomy:
 roles:
   planner:
     agent: specsmd_inferno_planner
-    model: gpt-5.6-sol
-    reasoning_effort: xhigh
+    model: <pin>
+    reasoning_effort: <pin>
   builder_strong:
     agent: specsmd_inferno_builder_strong
-    model: gpt-6.1-sol
-    reasoning_effort: xhigh
+    model: <pin>
+    reasoning_effort: <pin>
   builder_escalate:
     agent: specsmd_inferno_builder_escalate
-    model: gpt-6.1-sol
-    reasoning_effort: xhigh
+    model: <pin>
+    reasoning_effort: <pin>
   config:
     agent: specsmd_inferno_config
-    model: gpt-5.6-terra
-    reasoning_effort: high
+    model: <pin>
+    reasoning_effort: <pin>
   builder_cheap:
     agent: specsmd_inferno_builder_cheap
-    model: gpt-5.6-terra
-    reasoning_effort: high
+    model: <pin>
+    reasoning_effort: <pin>
   oracle:
     agent: specsmd_inferno_oracle
-    model: gpt-6-astra
-    reasoning_effort: xhigh
+    model: <pin>
+    reasoning_effort: <pin>
 
 verification:
   finalize:
@@ -76,14 +76,14 @@ Allowed values:
 - `delivery.base_branch`: a real branch confirmed by the user.
 - halt paths and knowledge index: project-relative paths when present.
 
-The role names, custom agent names, models, and reasoning efforts above are fixed compatibility values. Do not silently substitute aliases or downgrade a role. There is no writer role: the planner writes its own work items, so a `roles.writer` block from an older config is dropped.
+Role and agent names above are fixed. An existing `<pin>` stays unless the user changes it; a created one copies `model` and `model_reasoning_effort` from `.codex/agents/<agent>.toml`. There is no writer role: the planner writes its own work items, so a `roles.writer` block from an older config is dropped.
 
 ## Parent-thread review
 
 1. Read applicable `AGENTS.md` instructions and the current Codex config if it exists.
 2. If absent, discover likely production build and full-test commands from project manifests and discover the repository default branch. Treat discoveries as proposals, not confirmed choices.
 3. Display effective settings in plain language:
-   - the fixed role assignments;
+   - the roles and their pins;
    - ordered final verification commands, and any path scopes that let one be skipped;
    - worktree bootstrap commands and the machine rules pasted into every dispatch;
    - delivery mode and proposed base branch;
@@ -98,7 +98,7 @@ The role names, custom agent names, models, and reasoning efforts above are fixe
 3. Preserve unknown top-level and nested keys, comments, and existing settings the user did not change.
 4. Use a focused `apply_patch`; do not rewrite the entire file when a local edit is sufficient.
 5. Write no file other than `.specs-inferno/config.codex.yaml`.
-6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that the file declares `host: codex`, that every fixed role contains the exact `agent`, `model`, and `reasoning_effort` values, and that no `writer` role remains.
+6. Parse the result using the project's available YAML parser or configuration consumer. Also confirm with `rg` that the file declares `host: codex`, that every role names its exact `agent` and its pins as approved, and that no `writer` role remains.
 7. Return:
 
 ```yaml

@@ -61,7 +61,10 @@ Proofs from different config files remain separate.
 - `.specs-inferno/config.yaml` and `.claude/**`: Claude-only host settings and
   adapters.
 
-## Codex model matrix
+## Codex model defaults
+
+The source defaults of each role. A `roles:` entry in
+`.specs-inferno/config.codex.yaml` overrides them for that host.
 
 | Role | Model | Reasoning |
 |---|---|---|

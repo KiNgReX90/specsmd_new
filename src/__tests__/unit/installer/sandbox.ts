@@ -1,7 +1,9 @@
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, lstatSync, readlinkSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, readdirSync, lstatSync, readlinkSync, rmSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
-import os from 'os';
 import path from 'path';
+
+// Tests never call mkdtemp directly; the flow's temp helper owns every test dir.
+const { tempDir } = require('../../../flows/inferno/agents/orchestrator/skills/orchestrate/scripts/test-temp.cjs');
 
 export const SRC = path.resolve(__dirname, '../../..');
 export const LOCK = '.specsmd/inferno/flow.lock';
@@ -15,7 +17,7 @@ const ENV_KEYS = ['INFERNO_FLOW_BUDGET', 'XDG_DATA_HOME', 'DO_NOT_TRACK'];
 export function openSandbox(prefix: string) {
   const originalCwd = process.cwd();
   const saved = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
-  const base = mkdtempSync(path.join(os.tmpdir(), prefix));
+  const base = tempDir(prefix);
   const root = path.join(base, 'host');
   const data = path.join(base, 'data');
   mkdirSync(root);

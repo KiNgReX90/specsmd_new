@@ -155,6 +155,25 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
     expect(lock.files[rel].sha256).toBe(sha256(readFileSync(rel)));
   });
 
+  it('names no model but the host pin in any Codex skill text, so a config run keeps the pin', async () => {
+    const defaults = ['gpt-5.6-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-5.6-terra'];
+    const roles = ['planner', 'builder_strong', 'builder_escalate', 'config', 'builder_cheap', 'oracle', 'reviewer', 'scanner'];
+    write('.specs-inferno/config.codex.yaml', [
+      'roles:',
+      ...roles.map((role) => `  ${role}: {agent: specsmd_inferno_${role}, model: gpt-test-${role}, reasoning_effort: max}`),
+      '',
+    ].join('\n'));
+    await installFlow('inferno', ['codex']);
+
+    for (const role of roles) expect(tomlPins(`.codex/agents/specsmd_inferno_${role}.toml`)).toEqual([`gpt-test-${role}`, 'max']);
+    const texts = Object.keys(snapshot(box.root)).filter((rel) => rel.startsWith('.agents/') && rel.endsWith('.md'));
+    expect(texts.length).toBeGreaterThan(0);
+    for (const rel of texts) {
+      const text = readFileSync(rel, 'utf8');
+      for (const model of defaults) expect(text.includes(model), `${rel} names ${model}`).toBe(false);
+    }
+  });
+
   it('matches a Codex toml by the agent key before the role name', async () => {
     write('.specs-inferno/config.codex.yaml', [
       'roles:',
