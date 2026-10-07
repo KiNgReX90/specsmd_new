@@ -31,7 +31,7 @@ function opened(options) {
   return { fixture, tree };
 }
 
-const review = (fixture, tree, args = []) => run(fixture, ["review", "--tree", tree, ...args]);
+const review = (fixture, tree, args = []) => run(fixture, ["review", "--tree", tree, "--reviewer", "rev-1", ...args]);
 const head = (tree) => git(tree, ["rev-parse", "HEAD"]);
 
 test("review without --item dispatches the intent reviewer with the range, the brief and every item spec", () => {

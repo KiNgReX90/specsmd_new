@@ -13,7 +13,7 @@ const { STATE, git, repo, run, write } = require("./review-fixture.cjs");
 
 const REVIEW = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
 const ledger = (fixture) => fs.readFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), "utf8");
-const review = (fixture, args = []) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root, ...args]);
+const review = (fixture, args = []) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root, "--reviewer", "rev-1", ...args]);
 
 const finding = (extra) => `  - criterion: AC1 the value reads two
     file: src/a.ts

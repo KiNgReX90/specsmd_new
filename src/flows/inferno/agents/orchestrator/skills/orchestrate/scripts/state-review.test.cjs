@@ -107,7 +107,10 @@ test("a minor-only fix review keeps the count, and a repeat finding weighs repea
 test("review-item weighs a fix only by its review file, and refuses one it cannot read", () => {
   const { file } = sandbox();
   fs.rmSync(path.join(path.dirname(path.dirname(file)), REVIEW_FILE));
-  assert.throws(() => review(file), (error) => error.code === "NO_REVIEW_FILE" && /run\.cjs review --item a-one/.test(error.message));
+  const root = path.dirname(path.dirname(path.resolve(file)));
+  assert.throws(() => review(file), (error) => error.code === "NO_REVIEW_FILE" && error.message === "refusing review-item: a fix verdict is " +
+    `weighed by the findings in ${REVIEW_FILE}, which cannot be read. Record the review through run.cjs review --item a-one ` +
+    `--reviewer <agent-id> --tree ${root} --intent alpha, which validates the file first.`);
   reviewFile(file, findingOf("major").replace("verdict: fix", "verdict: clean").replace(/findings:[\s\S]*/, ""));
   assert.throws(() => review(file), (error) => error.code === "VERDICT_MISMATCH" && /says clean/.test(error.message));
   assert.doesNotMatch(fs.readFileSync(file, "utf8"), /review:/);

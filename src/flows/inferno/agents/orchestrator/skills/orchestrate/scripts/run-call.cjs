@@ -70,11 +70,20 @@ const gateWaitCall = (tree) => nodeCall('gate', tree, null, ['--wait']);
 /** The cold review of one item, of `intent` when it is not the caller's. */
 const itemReviewCall = (tree, id, intent = null) => runCall('review', tree, intent, ['--item', id]);
 
+/**
+ * Record the item review its reviewer wrote, under that reviewer's agent id, which only the
+ * host knows; of `intent` when it is not the caller's.
+ */
+const itemRecordCall = (tree, id, intent = null) => runCall('review', tree, intent, ['--item', id, '--reviewer', '<agent-id>']);
+
 /** Land one item: fold, the cheap checks, then its completion; of `intent` when it is not the caller's. */
 const integrateCall = (tree, id, intent = null) => runCall('integrate', tree, intent, ['--item', id]);
 
 /** The cold review of the whole intent. */
 const intentReviewCall = (tree) => runCall('review', tree, null);
+
+/** Record the intent review its reviewer wrote, under that reviewer's agent id. */
+const intentRecordCall = (tree) => runCall('review', tree, null, ['--reviewer', '<agent-id>']);
 
 /**
  * The scan before the intent review, or its collect. Given the plan's intent it is the
@@ -100,6 +109,6 @@ const blockIntentCall = (intent) => writerCall('block-intent', intent, ['--reaso
 const unclaimIntentCall = (intent) => writerCall('unclaim-intent', intent);
 
 module.exports = {
-  RUNNER, RUNNER_PATH, caller, blockIntentCall, closeIntentCall, gateStartCall, gateWaitCall, integrateCall, intentReviewCall,
-  itemReviewCall, laneAcceptCall, scanCall, teardownCall, unclaimIntentCall,
+  RUNNER, RUNNER_PATH, caller, blockIntentCall, closeIntentCall, gateStartCall, gateWaitCall, integrateCall, intentRecordCall,
+  intentReviewCall, itemRecordCall, itemReviewCall, laneAcceptCall, scanCall, teardownCall, unclaimIntentCall,
 };

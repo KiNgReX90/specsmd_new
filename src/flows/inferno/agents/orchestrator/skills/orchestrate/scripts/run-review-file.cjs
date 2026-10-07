@@ -18,7 +18,12 @@ const { RunError } = lib;
 
 const ITEM_KEYS = ['item', 'verdict', 'files', 'findings', 'mutants'];
 /** What run.cjs adds when it records a review. A reviewer that writes them is refused. */
-const RECORDED_KEYS = ['tree', 'commit'];
+const RECORDED_KEYS = ['tree', 'commit', 'reviewer'];
+/**
+ * A reviewer's agent id as the host returns it: the id on Claude, the task path such as
+ * /root/review_a_one on Codex. One token, so never the placeholder a record call prints.
+ */
+const AGENT_ID = /^[\w./:-]+$/;
 const FINDING_KEYS = ['criterion', 'file', 'line', 'evidence', 'fix', 'severity'];
 /** The severities a finding may carry, as the refusal of a finding without one names them. */
 const SEVERITIES = ['blocker', 'major', 'minor'];
@@ -29,6 +34,19 @@ const MUTANT_KEYS = ['criterion', 'test', 'caught'];
 function reviewPath(intentId, itemId) {
   return path.join(lib.SPECS_DIR, 'intents', intentId, 'reviews', `${itemId}.yaml`);
 }
+
+/**
+ * The agent id a review is recorded under, so the next review of the same item or intent
+ * resumes that reviewer. `call` is the record call to run instead.
+ */
+function reviewerId(value, call) {
+  if (typeof value === 'string' && AGENT_ID.test(value)) return value;
+  throw new RunError(`refusing to record the review without the agent id of the reviewer that wrote it${value ? `, and ${value} is none` : ''}: ` +
+    `run ${call} with <agent-id> replaced by the id the host returned when it spawned the reviewer, or the id it resumed.`, 'NO_REVIEWER', 2);
+}
+
+/** The reviewer a recorded review names, or null for a record written before reviewers were. */
+const recordedReviewer = (doc) => (typeof doc.reviewer === 'string' && AGENT_ID.test(doc.reviewer) ? doc.reviewer : null);
 
 function bad(rel, problem) {
   return new RunError(`${rel}: ${problem}. send this back to the reviewer that wrote the file, then run the same command again.`, 'BAD_REVIEW', 2);
@@ -129,7 +147,7 @@ function parseItemReview(tree, rel, itemId, { recorded }) {
         'round of this item reported the same kind, or leave it out');
     }
   }
-  return { item: itemId, verdict: doc.verdict, files, findings, mutants, survivors };
+  return { item: itemId, verdict: doc.verdict, files, findings, mutants, survivors, reviewer: recorded ? recordedReviewer(doc) : null };
 }
 
 /**
@@ -175,6 +193,6 @@ function verdictParts(rel, doc, findingKeys, optional = []) {
 }
 
 module.exports = {
-  FINDING_KEYS, ITEM_KEYS, MUTANT_KEYS, RECORDED_KEYS, SEVERITIES, bad, entries, isMap, parseItemReview, readDoc, relativePath, reviewPath,
-  verdictParts, weightOf,
+  FINDING_KEYS, ITEM_KEYS, MUTANT_KEYS, RECORDED_KEYS, SEVERITIES, bad, entries, isMap, parseItemReview, readDoc, recordedReviewer, relativePath,
+  reviewPath, reviewerId, verdictParts, weightOf,
 };

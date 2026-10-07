@@ -57,7 +57,7 @@ test("two rejections on the escalate builder go to the oracle, and every two aft
 
 const REVIEW = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
 const ledger = (fixture) => fs.readFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), "utf8");
-const review = (fixture, args = []) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root, ...args]);
+const review = (fixture, args = []) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root, "--reviewer", "rev-1", ...args]);
 
 const CLEAN = "item: a-one\nverdict: clean\nfiles: [src/a.ts]\nfindings: []\n";
 const FIX = `item: a-one
@@ -408,7 +408,7 @@ test("a Codex config with no host key names the Codex agents on every rung, in a
   const fixture = repo({ files: { ".specs-inferno/config.codex.yaml": ROLES_NO_HOST } });
   const tree = worktree(fixture);
   const inTree = (args) => run(fixture, [...args, "--tree", tree, ...CODEX_ARGS]);
-  const reviewTree = (extra = []) => inTree(["review", "--item", "a-one", ...extra]);
+  const reviewTree = (extra = []) => inTree(["review", "--item", "a-one", "--reviewer", "rev-1", ...extra]);
   assert.match(reviewTree().out, /^dispatch specsmd_inferno_reviewer item a-one$/m);
   write(tree, REVIEW, FIX);
   reviewTree();

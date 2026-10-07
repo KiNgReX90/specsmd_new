@@ -16,7 +16,7 @@ const { spawnSync } = require('child_process');
 const {
   TransitionError, findKeyLine, unquote, loadState, locateWorkItems, getIntent, setField, nowIso, writeState,
 } = require('./state-ledger.cjs');
-const { itemReviewCall } = require('./run-call.cjs');
+const { itemRecordCall, itemReviewCall } = require('./run-call.cjs');
 
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
@@ -164,7 +164,7 @@ function fixWeight(file, options) {
   const { parseItemReview, reviewPath, weightOf } = require('./run-review-file.cjs');
   const root = path.dirname(path.dirname(path.resolve(file)));
   const rel = reviewPath(options.intent, options.item);
-  const fix = `Record the review through ${itemReviewCall(root, options.item, options.intent)}, which validates the file first.`;
+  const fix = `Record the review through ${itemRecordCall(root, options.item, options.intent)}, which validates the file first.`;
   let review;
   try {
     review = parseItemReview(root, rel, options.item, { recorded: true });

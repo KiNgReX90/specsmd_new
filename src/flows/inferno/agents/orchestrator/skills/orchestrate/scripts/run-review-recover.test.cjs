@@ -11,7 +11,7 @@ const { CONFIG, git, heldMutate, killedMutate, repo, run, write } = require("./r
 
 const REVIEW = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
 const CLEAN = "item: a-one\nverdict: clean\nfiles: [src/a.ts]\n";
-const review = (fixture) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root]);
+const review = (fixture) => run(fixture, ["review", "--item", "a-one", "--tree", fixture.root, "--reviewer", "rev-1"]);
 const read = (fixture, file) => fs.readFileSync(path.join(fixture.root, file), "utf8");
 
 test("an item review restores a killed mutate's mutant before its dirty check, then records", async () => {
@@ -68,8 +68,8 @@ for (const [name, args, config, code] of [
 // owns the file, and nothing is written. A leftover that can go back goes back first, and the
 // refusal of the other work beside it still says so.
 for (const [step, args, pending] of [
-  ["review --item", ["review", "--item", "a-one"], REVIEW],
-  ["the intent review's record", ["review", "--intent", "alpha"], ".specs-inferno/intents/alpha/review.yaml"],
+  ["review --item", ["review", "--item", "a-one", "--reviewer", "rev-1"], REVIEW],
+  ["the intent review's record", ["review", "--intent", "alpha", "--reviewer", "rev-1"], ".specs-inferno/intents/alpha/review.yaml"],
   ["gate", ["gate", "--intent", "alpha"], null],
 ]) {
   const killed = async () => {

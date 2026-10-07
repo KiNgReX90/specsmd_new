@@ -10,7 +10,7 @@
  */
 
 const {
-  FINDING_KEYS, RECORDED_KEYS, bad, entries, isMap, readDoc, relativePath, verdictParts,
+  FINDING_KEYS, RECORDED_KEYS, bad, entries, isMap, readDoc, recordedReviewer, relativePath, verdictParts,
 } = require('./run-review-file.cjs');
 const { mutantGaps } = require('./run-mutant-coverage.cjs');
 
@@ -83,6 +83,7 @@ function parseIntentReview(tree, rel, { recorded, items, scanIds, proofs = [] })
     verdict: doc.verdict, criteria, findings, mutants, survivors, scanner,
     tree: typeof doc.tree === 'string' ? doc.tree : null,
     commit: typeof doc.commit === 'string' ? doc.commit : null,
+    reviewer: recorded ? recordedReviewer(doc) : null,
   };
 }
 
