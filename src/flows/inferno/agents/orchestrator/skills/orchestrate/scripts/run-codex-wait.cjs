@@ -22,8 +22,7 @@ const path = require('path');
 const FLOOR = 1200000;
 const TABLE = 'features.multi_agent_v2';
 const WANTED = { enabled: true, min_wait_timeout_ms: FLOOR, default_wait_timeout_ms: FLOOR };
-const assign = (key, value) => `${key} = ${value}`;
-const FRAGMENT = [`[${TABLE}]`, ...Object.entries(WANTED).map(([key, value]) => assign(key, value))];
+const FRAGMENT = [`[${TABLE}]`, ...Object.entries(WANTED).map(([key, value]) => `${key} = ${value}`)];
 
 /** A dotted key or header as its bare segments: spaces around dots and quotes dropped. */
 const segments = (text) => text.split('.').map((part) => part.trim().replace(/^(["'])(.*)\1$/, '$2'));
@@ -45,12 +44,14 @@ function inlinePairs(text) {
 }
 
 /**
- * What one file says about the table: the keys it sets, and the spelling it defines the table
- * in (`table`, `features`, `top`, `inline` or `switch`), or null when it never names it.
+ * What one file says about the table: the keys it sets, the spelling it defines the table in
+ * (`table`, `features`, `top`, `inline` or `switch`, null when it never names it), and whether
+ * it sets features as an inline table, which Codex reads but this leaf does not look into.
  */
 function readTable(text) {
   const keys = {};
   let form = null;
+  let inlineFeatures = false;
   let table = [];
   let open = null;
   for (const raw of text.split(/\r?\n/)) {
@@ -67,6 +68,7 @@ function readTable(text) {
     if (at <= 0) continue;
     const name = [...table, ...segments(line.slice(0, at))].join('.');
     const right = line.slice(at + 1).trim();
+    if (name === 'features' && right.startsWith('{')) inlineFeatures = true;
     if (name === TABLE) {
       form = form || (right.startsWith('{') ? 'inline' : 'switch');
       if (right.startsWith('{')) Object.assign(keys, inlinePairs(right));
@@ -76,7 +78,7 @@ function readTable(text) {
       keys[name.slice(TABLE.length + 1)] = value(right);
     }
   }
-  return { form, keys };
+  return { form, inlineFeatures, keys };
 }
 
 /** The two files Codex reads, the project's first because its keys win. */
@@ -85,33 +87,24 @@ function configFiles(primary, env) {
   return [path.join(primary, '.codex', 'config.toml'), path.join(home, 'config.toml')];
 }
 
-/** Where the missing keys go in a file that already spells the table, and how they read there. */
-function inPlace({ form, keys: has }, wrong) {
-  const keys = wrong.map(([key, want]) => assign(key, want));
-  if (form === 'switch') {
-    const whole = Object.entries(WANTED).map(([key, want]) => assign(key, want)).join(', ');
-    return { where: `replace multi_agent_v2 = ${has.enabled} under [features] with this line`, lines: [`multi_agent_v2 = { ${whole} }`] };
-  }
-  if (form === 'inline') return { where: 'set these keys inside the braces of multi_agent_v2 = { } under [features]', lines: [keys.join(', ')] };
-  if (form === 'top') return { where: 'set these keys at the top level, before any table header', lines: keys.map((key) => `${TABLE}.${key}`) };
-  if (form === 'features') return { where: 'set these keys under [features]', lines: keys.map((key) => `multi_agent_v2.${key}`) };
-  return { where: `set these keys under [${TABLE}]`, lines: keys };
-}
-
-/** Null when the floor holds, else the refusal with its fix. */
+/**
+ * Null when the floor holds, else the one refusal. It names the file that defines the table, or
+ * the project's when none does, and asks for the canonical table in place of every other
+ * spelling, so applied as written the file holds one definition Codex reads.
+ */
 function waitFloorRefusal(primary, env = process.env) {
   const files = configFiles(primary, env).map((file) => ({ file, ...readTable(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') }));
   const merged = Object.assign({}, ...files.slice().reverse().map((entry) => entry.keys));
-  const wrong = Object.entries(WANTED).filter(([key, want]) => key === 'enabled' ? merged[key] !== true : !(merged[key] >= want));
-  if (wrong.length === 0) return null;
-  const target = files.find((entry) => entry.form);
-  if (!target) {
-    return `a Codex host needs a wait floor, so wait_agent never wakes the orchestrator before ${FLOOR} ms: ` +
-      `add these lines to ${files[0].file}:\n${FRAGMENT.join('\n')}`;
-  }
-  const fix = inPlace(target, wrong);
-  return `${target.file} defines ${TABLE} without a wait floor Codex applies, so wait_agent can wake the orchestrator ` +
-    `before a builder returns: ${fix.where}, changing a key it has and adding one it lacks:\n${fix.lines.join('\n')}`;
+  const holds = Object.entries(WANTED).every(([key, want]) => (key === 'enabled' ? merged[key] === true : merged[key] >= want));
+  if (holds) return null;
+  const target = files.find((entry) => entry.form) || files[0];
+  // A [features.multi_agent_v2] table cannot extend an inline features table, so that one moves first.
+  const inline = target.inlineFeatures
+    ? ' It sets features = { } inline, so first move the keys that stay in it under a [features] table at the end of the file.'
+    : '';
+  return `${target.file} holds no wait floor Codex applies, so wait_agent can wake the orchestrator before a builder ` +
+    `returns.${inline} Remove every other multi_agent_v2 setting in that file, a table, a dotted key or an inline ` +
+    `table, and append this table at its end:\n${FRAGMENT.join('\n')}`;
 }
 
 module.exports = { FLOOR, FRAGMENT, readTable, waitFloorRefusal };
