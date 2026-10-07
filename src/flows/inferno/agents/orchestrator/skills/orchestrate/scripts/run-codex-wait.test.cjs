@@ -1,159 +1,179 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { git, repo, run, write } = require("./run-fixture.cjs");
+const { codexStub } = require("./review-fixture.cjs");
 
 // A Codex orchestrator waits on its builders with wait_agent. Asked for 60 s it wakes every
 // minute while a builder runs, so the floor lives in Codex config, where prose cannot lower it,
-// and the frontier refuses a Codex host until the floor is in place.
+// and the frontier refuses a Codex host until Codex itself reports the floor in place.
 const CODEX = ".specs-inferno/config.codex.yaml";
 const ARGS = ["--config", CODEX];
 const FLOOR = "[features.multi_agent_v2]\nenabled = true\nmin_wait_timeout_ms = 1200000\ndefault_wait_timeout_ms = 1200000\n";
 
-/** A repo with a Codex host config and a Codex home holding `home`, or no config file at all. */
-function codexRepo(home) {
+/** A repo with a Codex host config, a Codex home holding `home`, and a project config `project`. */
+function codexRepo({ home = "", project, trusted = true, codex = "codex" } = {}) {
   const fixture = repo();
   write(fixture.root, CODEX, "delivery:\n  base_branch: main\n");
   git(fixture.root, ["add", "-A"]);
   git(fixture.root, ["commit", "-qm", "codex host"]);
+  const primary = fs.realpathSync(fixture.root);
   const dir = path.join(fixture.dir, "codex-home-under-test");
-  fs.mkdirSync(dir, { recursive: true });
-  if (home !== undefined) fs.writeFileSync(path.join(dir, "config.toml"), home, "utf8");
-  return { fixture, env: { CODEX_HOME: dir } };
+  const trust = trusted ? `\n[projects."${primary}"]\ntrust_level = "trusted"\n` : "";
+  write(dir, "config.toml", `${home}${trust}`);
+  const P = path.join(primary, ".codex", "config.toml");
+  if (project !== undefined) write(primary, ".codex/config.toml", project);
+  return { fixture, primary, P, home: path.join(dir, "config.toml"), env: { CODEX_HOME: dir, SPECSMD_CODEX: codex } };
 }
 
 const frontier = ({ fixture, env }, extra = []) => run(fixture, ["frontier", "alpha", ...extra], { env });
-
-/** The one refusal: the file, what to clear in it, and the canonical table to append. */
-const refusal = (file, inline = false) => `ERROR [NO_WAIT_FLOOR] ${file} holds no wait floor Codex applies, so wait_agent ` +
-  "can wake the orchestrator before a builder returns." +
-  (inline ? " It sets features = { } inline, so first move the keys that stay in it under a [features] table at the end of the file." : "") +
-  " Remove every other multi_agent_v2 setting in that file, a table, a dotted key or an inline table, and append this " +
-  `table at its end:\n${FLOOR}`;
-
-test("a Codex host without the wait floor is refused with the table and the file it goes in", () => {
-  const codex = codexRepo();
+const refused = (codex) => {
   const result = frontier(codex, ARGS);
   assert.equal(result.code, 2, result.out + result.err);
-  assert.equal(result.err, refusal(path.join(codex.fixture.root, ".codex", "config.toml")));
-});
-
-test("the floor in the Codex home lets the frontier run", () => {
-  const result = frontier(codexRepo(`model = "m"\n\n${FLOOR}`), ARGS);
+  return result.err;
+};
+const passes = (codex, extra = []) => {
+  const result = frontier(codex, [...extra, ...ARGS]);
   assert.equal(result.code, 0, result.out + result.err);
-  assert.match(result.out, /^ready a-one /m);
+};
+
+// The refusals, word for word.
+const E = "ERROR [NO_WAIT_FLOOR] ";
+const same = (primary) => `Codex applies no wait floor in ${primary}, so wait_agent can wake the orchestrator before a builder returns.`;
+const R3 = (c) => `${E}${same(c.primary)} Append this table at the end of ${c.P}, creating the file if it is missing:\n${FLOOR}`;
+const R4 = (c, cause) => `${E}${same(c.primary)} Codex cannot load ${c.P} with this table appended (${cause}). Rewrite every ` +
+  "multi_agent_v2 setting in that file as this one table, keeping the other keys it sets, and turn an inline features = { } " +
+  `into a [features] table:\n${FLOOR}`;
+const R2 = (c) => `${E}${c.P} holds the wait floor, but Codex reads a project config only in a trusted project, and ` +
+  `${c.primary} is not one. Start codex in ${c.primary} and accept the trust prompt, or set trust_level = "trusted" in the ` +
+  `[projects] entry for ${c.primary} in ${c.home}.\n`;
+const R1 = (c, cause) => `${E}Codex cannot load its config in ${c.primary}: ${cause}. Correct what it names, then run the frontier again.\n`;
+const R5 = (cmd) => `${E}The wait floor check runs codex features list, and ${cmd} is not on PATH here. Put codex on PATH or set ` +
+  "SPECSMD_CODEX to it, then run the frontier again.\n";
+const trust = (c) => fs.appendFileSync(c.home, `\n[projects."${c.primary}"]\ntrust_level = "trusted"\n`);
+
+// --- on the real codex: each refusal applied as printed, then the frontier runs ---------------
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "codex-probe-"));
+const probe = spawnSync("codex", ["features", "list"], { encoding: "utf8", cwd: scratch, env: { ...process.env, CODEX_HOME: scratch } });
+fs.rmSync(scratch, { recursive: true, force: true });
+const real = { skip: probe.status === 0 ? false : `codex features list fails here (${probe.error ? probe.error.code : `exit ${probe.status}`})` };
+
+test("the floor in the Codex home passes", real, () => passes(codexRepo({ home: FLOOR })));
+
+test("the floor in the primary checkout's project config passes for a run in a worktree", real, () => {
+  const c = codexRepo({ project: FLOOR });
+  const tree = path.join(c.fixture.dir, "wt");
+  git(c.fixture.root, ["worktree", "add", "-q", "-b", "inferno-intent/wt", tree]);
+  passes(c, ["--tree", tree]);
 });
 
-test("the floor in the primary checkout's project config counts for a run in a worktree", () => {
-  const codex = codexRepo();
-  write(codex.fixture.root, ".codex/config.toml", FLOOR);
-  const tree = path.join(codex.fixture.dir, "wt");
-  git(codex.fixture.root, ["worktree", "add", "-q", "-b", "inferno-intent/wt", tree]);
-  const result = frontier(codex, ["--tree", tree, ...ARGS]);
-  assert.equal(result.code, 0, result.out + result.err);
+test("no floor anywhere asks for the table appended to the project config", real, () => {
+  const c = codexRepo();
+  assert.equal(refused(c), R3(c));
+  write(c.primary, ".codex/config.toml", FLOOR);
+  passes(c);
 });
 
-test("a floor below 20 minutes is refused with the same table, naming the file that sets it", () => {
-  const codex = codexRepo(FLOOR.replace("min_wait_timeout_ms = 1200000", "min_wait_timeout_ms = 60_000"));
-  const result = frontier(codex, ARGS);
-  assert.equal(result.code, 2, result.out + result.err);
-  assert.equal(result.err, refusal(path.join(codex.env.CODEX_HOME, "config.toml")));
+test("a minimum of 1199999 is refused and 1200000 passes", real, () => {
+  const c = codexRepo({ home: FLOOR.replace(/1200000/g, "1199999") });
+  assert.equal(refused(c), R3(c));
+  write(c.primary, ".codex/config.toml", FLOOR);
+  passes(c);
 });
 
-test("the key counts only under [features.multi_agent_v2]", () => {
-  const other = "[features.multi_agent]\nmin_wait_timeout_ms = 1200000\n[features.multi_agent_v2]\nenabled = true\n";
-  assert.equal(frontier(codexRepo(other), ARGS).code, 2);
-  const after = "[features.multi_agent_v2]\nenabled = true\n[agents]\nmin_wait_timeout_ms = 1200000\n";
-  assert.equal(frontier(codexRepo(after), ARGS).code, 2);
-  const spaced = " [ features.multi_agent_v2 ] # wait floor\n  enabled = true # on\n  min_wait_timeout_ms = 1_200_000 # 20 min\n  default_wait_timeout_ms = 1200000\n";
-  assert.equal(frontier(codexRepo(spaced), ARGS).code, 0);
+test("a table inside a multi-line string is no floor", real, () => {
+  const text = `developer_instructions = """\n${FLOOR}"""\n`;
+  const c = codexRepo({ project: text });
+  assert.equal(refused(c), R3(c));
+  fs.appendFileSync(c.P, FLOOR);
+  passes(c);
 });
 
-test("a project config overrides the Codex home, so a lower project floor is refused", () => {
-  const codex = codexRepo(FLOOR);
-  write(codex.fixture.root, ".codex/config.toml", FLOOR.replace(/= 1200000/g, "= 60000"));
-  const result = frontier(codex, ARGS);
-  assert.equal(result.code, 2, result.out + result.err);
-  assert.ok(result.err.includes(path.join(codex.fixture.root, ".codex", "config.toml")), result.err);
+test("an inline features table in the project is rewritten as the table", real, () => {
+  const c = codexRepo({ home: FLOOR, project: "features = { multi_agent_v2 = false }\n" });
+  assert.equal(refused(c), R4(c, "cannot extend value of type inline table with a dotted key"));
+  fs.writeFileSync(c.P, FLOOR);
+  passes(c);
 });
 
-test("a Claude host is never checked for the Codex wait floor", () => {
-  const codex = codexRepo();
-  assert.equal(frontier(codex).code, 0);
+test("a partial table keeps its other keys when it is rewritten", real, () => {
+  const key = "max_concurrent_threads_per_session = 4\n";
+  const c = codexRepo({ project: `[features.multi_agent_v2]\nenabled = true\n${key}` });
+  assert.equal(refused(c), R4(c, "duplicate key"));
+  fs.writeFileSync(c.P, `${FLOOR}${key}`);
+  passes(c);
+  assert.ok(fs.readFileSync(c.P, "utf8").includes(key));
 });
 
-// Every case below was read by codex-cli 0.159 itself (`codex features list` on a temp
-// CODEX_HOME): a floor counts where Codex applies it, and nowhere else.
-test("a table inside a multi-line string is no floor", () => {
-  for (const quote of ['"""', "'''"]) {
-    const text = `developer_instructions = ${quote}\n${FLOOR}${quote}\n`;
-    assert.equal(frontier(codexRepo(text), ARGS).code, 2, quote);
-  }
-  const closed = `note = """one line"""\n${FLOOR}`;
-  assert.equal(frontier(codexRepo(closed), ARGS).code, 0);
+test("a minimum without a default is rewritten as the table", real, () => {
+  const c = codexRepo({ project: "[features.multi_agent_v2]\nenabled = true\nmin_wait_timeout_ms = 1200000\n" });
+  assert.equal(refused(c), R4(c, "duplicate key"));
+  fs.writeFileSync(c.P, FLOOR);
+  passes(c);
 });
 
-test("the floor counts only while the table is enabled", () => {
-  const off = frontier(codexRepo(FLOOR.replace("enabled = true", "enabled = false")), ARGS);
-  assert.equal(off.code, 2, off.out + off.err);
-  assert.ok(off.err.endsWith(`:\n${FLOOR}`), off.err);
-  assert.equal(frontier(codexRepo(FLOOR.replace("enabled = true\n", "")), ARGS).code, 2);
+test("a floor in an untrusted project asks for the trust", real, () => {
+  const c = codexRepo({ project: FLOOR, trusted: false });
+  assert.equal(refused(c), R2(c));
+  trust(c);
+  passes(c);
 });
 
-test("a minimum without a default as high is refused, since Codex will not load it", () => {
-  const result = frontier(codexRepo(FLOOR.replace("default_wait_timeout_ms = 1200000\n", "")), ARGS);
-  assert.equal(result.code, 2, result.out + result.err);
+test("a Codex home that does not parse names what Codex names", real, () => {
+  const c = codexRepo({ home: "[features\n" });
+  assert.equal(refused(c), R1(c, "unclosed table, expected `]`"));
+  fs.writeFileSync(c.home, FLOOR);
+  trust(c);
+  passes(c);
 });
 
-test("a quoted table name, dotted keys and an inline table all carry the floor", () => {
-  const keys = (prefix) => ["enabled = true", "min_wait_timeout_ms = 1200000", "default_wait_timeout_ms = 1200000"]
-    .map((line) => `${prefix}${line}`).join("\n");
-  const spellings = {
-    quoted: `[features."multi_agent_v2"]\n${keys("")}\n`,
-    literal: `[ 'features' . 'multi_agent_v2' ]\n${keys("")}\n`,
-    top: `${keys("features.multi_agent_v2.")}\n`,
-    spaced: `${keys('features . "multi_agent_v2" . ')}\n`,
-    features: `[features]\n${keys("multi_agent_v2.")}\n`,
-    inline: `[features]\nmulti_agent_v2 = { ${keys("").split("\n").join(", ")} }\n`,
-  };
-  for (const [name, text] of Object.entries(spellings)) {
-    const result = frontier(codexRepo(text), ARGS);
-    assert.equal(result.code, 0, `${name}: ${result.err}`);
-  }
+// --- on a stand-in codex, everywhere ---------------------------------------------------------
+const stub = (c, body, name) => ({ ...c, env: { ...c.env, SPECSMD_CODEX: codexStub(path.join(c.fixture.dir, "stubs", "cache"), body, name) } });
+const NONE = '#!/bin/sh\necho "multi_agent_v2  stable  false"';
+const OTHER = '#!/bin/sh\ncase "$*" in *-c*) echo "Caused by:\n    0: x.toml:1:1: something else" >&2; exit 1;; esac\necho "multi_agent_v2  stable  true"';
+
+test("a codex that reports the floor lets the frontier run", () => passes(stub(codexRepo(), undefined, "holds")));
+
+test("a floor that the table appended cannot turn on is laid at a layer outside both files", () => {
+  const c = stub(codexRepo(), NONE, "none");
+  assert.equal(refused(c), `${E}${same(c.primary)} Codex loads ${c.P} with this table appended and the floor still does ` +
+    `not hold, so a config layer outside ${c.P} and ${c.home} turns it off. Remove the multi_agent_v2 setting from that ` +
+    "layer, then run the frontier again.\n");
 });
 
-// Each spelling, its refusal applied as written: every other multi_agent_v2 setting removed, an
-// inline features table turned into a [features] table, and the printed table appended. Each
-// fixed file was loaded by codex-cli 0.159 `features list`, which reads multi_agent_v2 true.
-const SPELLINGS = [
-  ["top-level dotted", 'model = "m"\nfeatures.multi_agent_v2.enabled = true\n', 'model = "m"\n'],
-  ["top-level inline", "features.multi_agent_v2 = { enabled = true }\n", ""],
-  ["features inline", "features = { multi_agent_v2 = { enabled = true }, apps = true }\n", "[features]\napps = true\n", true],
-  ["quoted header", '[features."multi_agent_v2"]\nenabled = true\nmin_wait_timeout_ms = 60000\ndefault_wait_timeout_ms = 60000\n', ""],
-  ["partial table", "[features.multi_agent_v2]\nenabled = true\n[notice]\nhide_rate_limit_model_nudge = true\n", "[notice]\nhide_rate_limit_model_nudge = true\n"],
-  ["disabled", "[features]\nmulti_agent_v2.enabled = false\napps = true\n", "[features]\napps = true\n"],
-];
-
-test("every spelling gets the one refusal, and the file fixed as it says passes", () => {
-  for (const [name, text, kept, inline] of SPELLINGS) {
-    const codex = codexRepo();
-    const file = path.join(codex.fixture.root, ".codex", "config.toml");
-    write(codex.fixture.root, ".codex/config.toml", text);
-    const result = frontier(codex, ARGS);
-    assert.equal(result.err, refusal(file, inline), name);
-    const table = result.err.slice(result.err.indexOf(":\n[") + 2);
-    write(codex.fixture.root, ".codex/config.toml", `${kept}${table}`);
-    assert.equal(frontier(codex, ARGS).code, 0, name);
-  }
+test("a load that fails on the minimum gets the floor's fix, any other failure names its cause", () => {
+  const minimum = '#!/bin/sh\nprintf "Caused by:\\n    features.multi_agent_v2.default_wait_timeout_ms must be at least ' +
+    'features.multi_agent_v2.min_wait_timeout_ms\\n" >&2\nexit 1';
+  const floor = stub(codexRepo(), minimum, "minimum");
+  assert.equal(refused(floor), R4(floor, "features.multi_agent_v2.default_wait_timeout_ms must be at least " +
+    "features.multi_agent_v2.min_wait_timeout_ms"));
+  const broken = stub(codexRepo(), '#!/bin/sh\nprintf "Caused by:\\n    0: /x/config.toml:1:10: unclosed table\\n" >&2\nexit 1', "broken");
+  assert.equal(refused(broken), R1(broken, "unclosed table"));
 });
 
-test("a Codex tree outside git reads its own project config", () => {
-  const codex = codexRepo();
-  const plain = path.join(codex.fixture.dir, "plain");
-  fs.cpSync(codex.fixture.root, plain, { recursive: true, filter: (src) => path.basename(src) !== ".git" });
-  write(plain, ".codex/config.toml", FLOOR);
-  const result = run(codex.fixture, ["frontier", "alpha", "--tree", plain, ...ARGS], { cwd: plain, env: codex.env });
+test("a check that fails for another reason than the minimum is no floor", () => {
+  assert.match(refused(stub(codexRepo(), OTHER, "other")), /^ERROR \[NO_WAIT_FLOOR\] /);
+});
+
+test("a codex that is not there is named with the way to point at it", () => {
+  const cmd = path.join(os.tmpdir(), "no-such-dir", "codex");
+  assert.equal(refused(codexRepo({ codex: cmd })), R5(cmd));
+});
+
+test("a Claude host never runs codex", () => {
+  const c = stub(codexRepo(), "#!/bin/sh\nexit 3", "exit3");
+  assert.equal(frontier(c).code, 0);
+  assert.equal(frontier(c, ARGS).code, 2);
+});
+
+test("a Codex tree outside git asks codex there", () => {
+  const c = stub(codexRepo(), undefined, "holds");
+  const plain = path.join(c.fixture.dir, "plain");
+  fs.cpSync(c.fixture.root, plain, { recursive: true, filter: (src) => path.basename(src) !== ".git" });
+  const result = run(c.fixture, ["frontier", "alpha", "--tree", plain, ...ARGS], { cwd: plain, env: c.env });
   assert.equal(result.code, 0, result.out + result.err);
   assert.match(result.out, /^ready a-one /m);
 });

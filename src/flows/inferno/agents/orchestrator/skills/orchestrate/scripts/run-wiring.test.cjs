@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { codexHome } = require("./review-fixture.cjs");
+const { codexStub } = require("./review-fixture.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -109,7 +109,7 @@ function frontier(tree, extra = []) {
   const result = spawnSync(process.execPath, [RUN, "frontier", "alpha", "--tree", tree.root, ...extra], {
     cwd: tree.root,
     encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: path.join(tree.dir, "cache"), CODEX_HOME: codexHome(path.join(tree.dir, "cache")) },
+    env: { ...process.env, XDG_CACHE_HOME: path.join(tree.dir, "cache"), SPECSMD_CODEX: codexStub(path.join(tree.dir, "cache")) },
   });
   return { code: result.status, out: `${result.stdout || ""}${result.stderr || ""}` };
 }

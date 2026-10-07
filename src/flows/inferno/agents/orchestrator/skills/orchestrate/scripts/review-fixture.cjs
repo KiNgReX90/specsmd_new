@@ -13,7 +13,6 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
-const { FRAGMENT } = require('./run-codex-wait.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const WRITER = path.join(__dirname, 'state-transition.cjs');
@@ -128,25 +127,34 @@ function worktree(fixture, name = 'wt') {
   return tree;
 }
 
+/** A codex that answers the wait floor check as a host holding the floor does. */
+const CODEX_HOLDS = [
+  '#!/bin/sh',
+  'case "$*" in *default_wait_timeout_ms=1199999*)',
+  '  printf "Caused by:\\n    features.multi_agent_v2.default_wait_timeout_ms must be at least features.multi_agent_v2.min_wait_timeout_ms\\n" >&2',
+  '  exit 1;;',
+  'esac',
+  'echo "multi_agent_v2                           stable             true"',
+].join('\n');
+
 /**
- * A Codex home holding the wait floor beside the fixture's cache, so a Codex frontier in a
- * suite reads neither the user's own home nor a floor the machine happens to lack.
+ * A stand-in codex beside the fixture's cache, for SPECSMD_CODEX, so a Codex frontier in a
+ * suite asks neither the user's own codex nor a config the machine happens to hold.
  */
-function codexHome(cache) {
-  const home = path.join(path.dirname(cache), 'codex-home');
-  const file = path.join(home, 'config.toml');
+function codexStub(cache, body = CODEX_HOLDS, name = 'codex-holds') {
+  const file = path.join(path.dirname(cache), name);
   if (!fs.existsSync(file)) {
-    fs.mkdirSync(home, { recursive: true });
-    fs.writeFileSync(file, `${FRAGMENT.join('\n')}\n`, 'utf8');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${body}\n`, { encoding: 'utf8', mode: 0o755 });
   }
-  return home;
+  return file;
 }
 
 function run(fixture, args, cwd = fixture.root) {
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, CODEX_HOME: codexHome(fixture.cache) },
+    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, SPECSMD_CODEX: codexStub(fixture.cache) },
   });
   return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
 }
@@ -280,6 +288,6 @@ function markReviewed(state, ids, intent = 'alpha') {
 }
 
 module.exports = {
-  CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, asPrintedByPath, codexHome, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
+  CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, asPrintedByPath, codexStub, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
   printed, repo, reviewBefore, reviewed, run, worktree, write,
 };
