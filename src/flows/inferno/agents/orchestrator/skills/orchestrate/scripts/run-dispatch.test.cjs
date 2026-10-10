@@ -146,7 +146,9 @@ test('a baseline records a submodule by its commit', (t) => {
   write(lib, 'x', 'x'); git(lib, 'add', '-A'); git(lib, 'commit', '-qm', 'lib');
   git(f.tree, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', lib, 'vendor/lib'); f.commit();
   begin(f, 'a', ['src/a.ts']);
-  write(path.join(f.tree, 'vendor/lib'), 'x', 'moved'); git(path.join(f.tree, 'vendor/lib'), 'commit', '-qam', 'moved');
+  const clone = path.join(f.tree, 'vendor/lib');
+  git(clone, 'config', 'user.name', 'Fixture'); git(clone, 'config', 'user.email', 'fixture@example.test');
+  write(clone, 'x', 'moved'); git(clone, 'commit', '-qam', 'moved');
   const record = accept(f, 'a', []);
   assert.deepEqual(verifyDispatch(f.tree, record, ['src/a.ts']).outside, ['vendor/lib']);
 });
