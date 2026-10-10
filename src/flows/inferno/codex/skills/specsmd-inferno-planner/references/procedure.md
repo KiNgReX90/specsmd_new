@@ -25,13 +25,13 @@ Read applicable `AGENTS.md` instructions. Read canonical resources as references
 
 Run this triage on every request before capture. The wording of a request is never a criterion, and neither is the user's explicit order to make an intent.
 
-A request is an intent only when at least one of these holds. There is no size criterion.
+A request is an intent only when one of these holds. There is no size criterion.
 
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
 - **(d)** disjoint ownership worth parallelising on disjoint compile trees;
 - **(e)** a change that must not reach the default branch until the full gate proves it whole, such as a persisted-format migration or a definition version bump several documents read.
 
-Everything else is a direct build, whatever its size in files: write no brief, no work item and no state entry for one. Every intent's state entry comment carries the line `INTENT. (<letter>) <why one builder on the default branch could not do it>`, and `state-transition.cjs check` refuses a reason that names no criterion letter.
+Everything else is a direct build, whatever its size in files: write no brief, no work item and no state entry for one. Every intent's state entry comment carries `INTENT. (<letter>) <why one builder on the default branch could not do it>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
 
 Report the verdict on the first handoff line. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the direct recipe follows. Return each direct build as a recipe the strong builder executes in its first round, one labelled line each:
 

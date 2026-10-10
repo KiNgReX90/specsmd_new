@@ -291,7 +291,8 @@ describe('inferno flow', () => {
     expect(text).toMatch(/wording[^.]* is never a criterion, and neither is the user's explicit order to make an intent\./);
     expect(text).toContain('`Triage: direct, the request asked for an intent`');
     expect(text).toContain('`INTENT. (<letter>) <why one builder on the default branch could not do it>`');
-    expect(text).toMatch(/refuses a reason that names no criterion letter/);
+    expect(text).toMatch(/refuses a reason that names no criterion letter or only restates size\./);
+    expect(text).toMatch(/There is no size criterion\./);
   });
 
   // The launcher receives that handoff. It tells the user and builds, and never asks the
