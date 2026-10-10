@@ -269,10 +269,11 @@ test('an only attempt that writes back a file a sibling landed while it was open
   assert.deepEqual(result.data.outside, ['f.cjs']);
 });
 
-test('sixteen sibling corrections that toggle a file are read in order, and a write back after them is named', (t) => {
+/** verify-item for b after `count` corrections of a that toggle f.cjs and a write back nobody claims. */
+function afterToggles(t, count) {
   const f = fixture(t, { a: ['a.cjs', 'f.cjs'], b: ['b.cjs'] });
   const two = f.start('--item', 'b');
-  for (let i = 0; i < 16; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const toggle = f.start('--item', 'a');
     f.write('f.cjs', i % 2 === 0 ? 'toggled\n' : 'module.exports = 1;\n');
     f.accepted(toggle, ['f.cjs']);
@@ -280,12 +281,21 @@ test('sixteen sibling corrections that toggle a file are read in order, and a wr
   f.write('b.cjs', 'b\n');
   f.write('f.cjs', 'toggled\n');
   f.accepted(two, ['b.cjs']);
-  const started = Date.now();
-  const result = f.verify('b');
-  const took = Date.now() - started;
-  assert.ok(took < 2000, `verify-item took ${took} ms`);
-  assert.equal(result.code, 2, result.out);
-  assert.deepEqual(result.data.outside, ['f.cjs']);
+  return f.verifyCounted('b');
+}
+
+test('sixteen sibling corrections that toggle a file are read in order, and a write back after them is named', (t) => {
+  const [eight, sixteen] = [8, 16].map((count) => afterToggles(t, count));
+  for (const result of [eight, sixteen]) {
+    assert.equal(result.code, 2, result.out);
+    assert.deepEqual(result.data.outside, ['f.cjs']);
+  }
+  // Reading the corrections in order costs the same for each one, so twice as many cost at most
+  // twice the function calls. Trying the orders they could have run in multiplies the calls with
+  // every correction added.
+  assert.ok(eight.calls > 0, 'verify-item left no call count');
+  assert.ok(sixteen.calls <= 2 * eight.calls,
+    `verify-item made ${eight.calls} function calls after 8 corrections and ${sixteen.calls} after 16`);
 });
 
 test('a correction logged for one item of a chain covers the whole chain', (t) => {

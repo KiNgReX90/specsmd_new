@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { CONFIG, INTENT_TREE, STATE, asPrinted, asPrintedByPath, git, intentReviewed, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { tempDir } = require("./test-temp.cjs");
 const { writeFile } = require("./test-write.cjs");
 
 // Every runner call a step prints for its caller carries the caller's tree, intent and host
@@ -82,7 +83,10 @@ test("on Codex the frontier's HELD lines print the integrate and the review for 
 });
 
 test("on Codex the gate's start, still-running and wait lines run as printed on the Codex gate", () => {
-  const fixture = repo({ files: codex("sleep 2") });
+  // The gate holds until the test lets it go. A gate that sleeps for a fixed time has finished
+  // before the early --wait on a loaded machine.
+  const release = path.join(tempDir("inferno-hold-"), "release");
+  const fixture = repo({ files: codex(`until [ -f ${release} ]; do sleep 0.1; done; echo held`) });
   const tree = worktree(fixture, INTENT_TREE);
   write(tree, "src/a.ts", "export const a = 3;\n");
   git(tree, ["commit", "-qam", "the work"]);
@@ -92,11 +96,12 @@ test("on Codex the gate's start, still-running and wait lines run as printed on 
   const [started] = asPrinted(fixture, none.err, "gate");
   assert.equal(started.code, 0, started.out + started.err);
   const early = run(fixture, ["gate", "--wait", "--minutes", "0.01", "--tree", tree, "--config", CODEX]);
+  writeFile(release, "");
   assert.equal(early.code, 4, early.out + early.err);
   const waited = asPrintedByPath(fixture, early.out);
   assert.ok(waited.argv[0].includes(" gate --wait "), waited.argv[0]);
   assert.equal(waited.code, 0, waited.out + waited.err);
-  assert.match(waited.out, /sleep 2/);
+  assert.match(waited.out, /echo held/);
   const again = asPrintedByPath(fixture, started.out);
   assert.equal(again.code, 0, again.out + again.err);
 });

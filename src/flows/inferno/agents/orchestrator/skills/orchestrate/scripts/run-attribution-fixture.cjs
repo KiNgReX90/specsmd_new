@@ -47,13 +47,30 @@ function fixture(t, items) {
   git(root, 'commit', '-qm', 'fixture');
   git(root, 'checkout', '-qb', 'intent');
   const cache = path.join(directory, 'cache');
-  function call(...args) {
+  function callIn(env, ...args) {
     const result = spawnSync(process.execPath, [RUN, ...args, '--json'], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache }, timeout: 60000,
+      cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache, ...env }, timeout: 60000,
     });
     let data = null;
     try { data = JSON.parse(result.stdout); } catch (error) { data = null; }
     return { code: result.status, data, out: result.stdout + result.stderr };
+  }
+  const call = (...args) => callIn({}, ...args);
+  /**
+   * A call with `calls`, the number of function calls its process made in the runner's own
+   * scripts. V8 counts them itself when a process runs under NODE_V8_COVERAGE, so the number is
+   * the same on a loaded machine. It is 0 when the process never finished.
+   */
+  function counted(...args) {
+    const coverage = fs.mkdtempSync(path.join(directory, 'coverage-'));
+    const result = callIn({ NODE_V8_COVERAGE: coverage }, ...args);
+    let calls = 0;
+    for (const name of fs.readdirSync(coverage)) {
+      for (const script of JSON.parse(fs.readFileSync(path.join(coverage, name), 'utf8')).result) {
+        if (script.url.startsWith('file:')) for (const fn of script.functions) calls += fn.ranges[0].count;
+      }
+    }
+    return { ...result, calls };
   }
   function human(...args) {
     const result = spawnSync(process.execPath, [RUN, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: cache } });
@@ -72,6 +89,7 @@ function fixture(t, items) {
     assert.equal(result.code, 0, result.out);
   }
   const verify = (...args) => call('verify-item', ...args, '--tree', root);
+  const verifyCounted = (...args) => counted('verify-item', ...args, '--tree', root);
   function land(...files) {
     git(root, 'add', ...files);
     git(root, 'commit', '-qm', 'an item landed');
@@ -84,7 +102,7 @@ function fixture(t, items) {
     git(base, 'add', file);
     git(base, 'commit', '-qm', 'the base moved');
   }
-  return { root, cache, call, human, start, accept, accepted, verify, land, moveBase, write: (file, value) => write(root, file, value), git: (...args) => git(root, ...args) };
+  return { root, cache, call, human, start, accept, accepted, verify, verifyCounted, land, moveBase, write: (file, value) => write(root, file, value), git: (...args) => git(root, ...args) };
 }
 
 module.exports = { fixture, git, spec, write };
