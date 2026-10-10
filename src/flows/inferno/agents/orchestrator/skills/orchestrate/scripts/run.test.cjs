@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { CONFIG, ITEMS, STATE, git, item, lines, opened, repo, run, write } = require("./run-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // --- usage ---------------------------------------------------------------
 test("an unknown subcommand is a usage error, not a failure", () => {
@@ -121,7 +122,7 @@ test("select reports an intent as running, never recovering, while its owner ses
   const { tree, branch } = opened(fixture);
   idled(tree);
   fs.mkdirSync(cacheOf(fixture, branch), { recursive: true });
-  fs.writeFileSync(
+  writeFile(
     path.join(cacheOf(fixture, branch), "owner.json"),
     JSON.stringify({ pid: process.pid, start: owner.processStart(process.pid), step: "gate", at: new Date().toISOString() })
   );
@@ -142,7 +143,7 @@ test("select reports an intent as running while a detached gate is alive for it,
   const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 15000)", "run.cjs"], { stdio: "ignore" });
   await new Promise((resolve) => setTimeout(resolve, 200));
   fs.mkdirSync(cacheOf(fixture, branch), { recursive: true });
-  fs.writeFileSync(path.join(cacheOf(fixture, branch), "gate-job.json"), JSON.stringify({ pid: child.pid, started: "2026-09-10T12:47:11Z" }));
+  writeFile(path.join(cacheOf(fixture, branch), "gate-job.json"), JSON.stringify({ pid: child.pid, started: "2026-09-10T12:47:11Z" }));
   try {
     const result = JSON.parse(run(fixture, ["select", "--json"]).out);
     assert.ok(!result.recovery.some((entry) => entry.id === "alpha"));
@@ -209,7 +210,7 @@ test("claim refuses while the flow text a builder loads is over its budget", () 
   // The budget script itself is a machine-local tool named by INFERNO_FLOW_BUDGET; what the
   // claim owns is calling it and refusing on a non-zero exit, so the stub stands in for it.
   const budget = path.join(fixture.root, "budget.py");
-  fs.writeFileSync(budget, [
+  writeFile(budget, [
     "import pathlib, sys",
     "p = pathlib.Path('.agents/skills/specsmd-inferno-builder/references/procedure.md')",
     "words = len(p.read_text().split()) if p.exists() else 0",

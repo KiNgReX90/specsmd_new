@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const lib = require('./run-lib.cjs');
 const writer = require('./state-transition.cjs');
 const intents = require('./run-intents.cjs');
@@ -25,15 +26,15 @@ function fixture(t, form = 'block') {
     state += list('depends_on', n === 1 ? [] : [`step-${n - 1}`], 8) + '\n';
     const spec = path.join(root, `.specs-inferno/intents/chain/work-items/step-${n}.md`);
     fs.mkdirSync(path.dirname(spec), { recursive: true });
-    fs.writeFileSync(spec, `---\nkind: config-only\n---\n\n## Execution Manifest\n\ncontext:\n  required:\n    - path: fixture.txt\n      reason: fixture\nownership:\n  editable:\n    - step-${n}.txt\n`);
+    writeFile(spec, `---\nkind: config-only\n---\n\n## Execution Manifest\n\ncontext:\n  required:\n    - path: fixture.txt\n      reason: fixture\nownership:\n  editable:\n    - step-${n}.txt\n`);
   }
   for (const [id, deps] of [['duty', ['chain']], ['clocks', ['chain', 'duty']]]) {
     state += `  - id: ${id}\n    status: pending\n` + list('depends_on_intents', deps, 4);
     state += '\n    # Capture rationale.\n    comment: |\n      Keep this explanation.\n    work_items: []\n';
   }
   const file = path.join(root, '.specs-inferno/state.yaml');
-  fs.writeFileSync(file, state);
-  fs.writeFileSync(path.join(root, 'fixture.txt'), 'fixture');
+  writeFile(file, state);
+  writeFile(path.join(root, 'fixture.txt'), 'fixture');
   return { root, file };
 }
 
@@ -84,7 +85,7 @@ for (const value of ['not-a-list', '[chain', '[chain,,duty]', '\n      - chain\n
       /depends_on_intents: # list note\n      - 'chain' # member note/,
       `depends_on_intents: ${value}`,
     );
-    fs.writeFileSync(file, content);
+    writeFile(file, content);
     assert.throws(() => lib.readLedger(root), e => e.code === 'DEPENDS_FORM');
     assert.throws(() => writer.claimIntent({ file, intent: 'duty' }), e => e.code === 'DEPENDS_FORM');
     assert.equal(fs.readFileSync(file, 'utf8'), content);
@@ -142,7 +143,7 @@ test('archive re-locates comment blocks after removing uncommented dependency li
   const { root, file } = fixture(t);
   let content = fs.readFileSync(file, 'utf8').replaceAll(' # member note', '');
   content = content.replaceAll('    comment: |\n      Keep this explanation.\n', '');
-  fs.writeFileSync(file, content);
+  writeFile(file, content);
   for (let n = 1; n <= 6; n++) writer.completeItem({ file, intent: 'chain', item: `step-${n}`, proof: 'abc1234' });
   writer.closeIntent({ file, intent: 'chain' });
   writer.archiveIntent({ file, intent: 'chain' });
@@ -159,7 +160,7 @@ test('archive refuses malformed dependents without changing either ledger', t =>
     /depends_on_intents: # list note\n      - 'chain' # member note\n      - 'duty' # member note/,
     'depends_on_intents: invalid',
   );
-  fs.writeFileSync(file, content);
+  writeFile(file, content);
   assert.throws(() => writer.archiveIntent({ file, intent: 'chain' }), e => e.code === 'DEPENDS_FORM');
   assert.equal(fs.readFileSync(file, 'utf8'), content);
   assert.equal(fs.existsSync(path.join(root, '.specs-inferno/archive/state.yaml')), false);

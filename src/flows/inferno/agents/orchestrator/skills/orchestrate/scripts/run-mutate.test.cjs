@@ -11,6 +11,7 @@ const RUN = path.join(__dirname, "run.cjs");
 const FILE = "src/m.js";
 const ORIGINAL = "module.exports = 1;\n";
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const CHECK = "node -e \"process.exit(require('./src/m.js') === 1 ? 0 : 1)\"";
 
 function git(cwd, ...args) {
@@ -28,7 +29,7 @@ function fixture(t) {
   git(tree, "init", "-q", "-b", "main");
   git(tree, "config", "user.email", "test@example.com");
   git(tree, "config", "user.name", "Test");
-  fs.writeFileSync(path.join(tree, FILE), ORIGINAL);
+  writeFile(path.join(tree, FILE), ORIGINAL);
   git(tree, "add", "-A");
   git(tree, "commit", "-qm", "init");
   return { tree, cache: path.join(dir, "cache"), dir };
@@ -64,7 +65,7 @@ test("a test that misses it reads caught no and exits 0", (t) => {
 
 test("mutate refuses a dirty tree and touches nothing", (t) => {
   const f = fixture(t);
-  fs.writeFileSync(path.join(f.tree, "src/other.js"), "x\n");
+  writeFile(path.join(f.tree, "src/other.js"), "x\n");
   const result = mutate(f, CHECK);
   assert.equal(result.code, 2, result.out + result.err);
   assert.match(result.err, /dirty|uncommitted/);
@@ -94,7 +95,7 @@ async function held(f, file = FILE, replace = "module.exports = 2;") {
   const before = read();
   for (let i = 0; i < 200 && read() === before; i += 1) await new Promise((r) => setTimeout(r, 25));
   assert.notEqual(read(), before, "the mutant never landed");
-  return { child, done, release: () => fs.writeFileSync(release, "") };
+  return { child, done, release: () => writeFile(release, "") };
 }
 
 /** A mutate killed outright: its mutant and its journal stay behind. */
@@ -138,7 +139,7 @@ test("a restore that fails exits 2 and names the file", (t) => {
 
 test("a second mutate refuses while a live run holds its mutant, and the live run keeps its verdict", async (t) => {
   const f = fixture(t);
-  fs.writeFileSync(path.join(f.tree, "src/n.js"), "module.exports = 3;\n");
+  writeFile(path.join(f.tree, "src/n.js"), "module.exports = 3;\n");
   git(f.tree, "add", "-A");
   git(f.tree, "commit", "-qm", "n");
   const release = path.join(f.dir, "release");
@@ -150,7 +151,7 @@ test("a second mutate refuses while a live run holds its mutant, and the live ru
   for (let i = 0; i < 200 && content(f) === ORIGINAL; i += 1) await new Promise((r) => setTimeout(r, 25));
   const second = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", "src/n.js", "--line", "1",
     "--replace", "module.exports = 4;", "--test", "true"], { cwd: f.tree, encoding: "utf8", env: env(f) });
-  fs.writeFileSync(release, "");
+  writeFile(release, "");
   await done;
   assert.equal(second.status, 2, second.stdout + second.stderr);
   assert.match(second.stderr, /another mutate/);
@@ -197,7 +198,7 @@ for (const [name, owner] of [
     await run.done;
     run.release();
     const journal = journalOf(f);
-    fs.writeFileSync(journal, JSON.stringify({ ...JSON.parse(fs.readFileSync(journal, "utf8")), ...(await owner(t)) }));
+    writeFile(journal, JSON.stringify({ ...JSON.parse(fs.readFileSync(journal, "utf8")), ...(await owner(t)) }));
     assert.notEqual(content(f), ORIGINAL);
     const next = mutate(f, CHECK);
     assert.equal(next.code, 0, next.out + next.err);
@@ -221,7 +222,7 @@ for (const [name, edit] of [
     const f = fixture(t);
     await killed(f);
     const edited = edit(content(f));
-    fs.writeFileSync(path.join(f.tree, FILE), edited);
+    writeFile(path.join(f.tree, FILE), edited);
     const next = mutate(f, CHECK);
     assert.equal(next.code, 2, next.out + next.err);
     assert.match(next.err, LEFTOVER);
@@ -232,11 +233,11 @@ for (const [name, edit] of [
 
 test("a line nobody mutated is never rewritten: A,B,C mutated to C,B,C and edited to Z,B,C stays Z,B,C", async (t) => {
   const f = fixture(t);
-  fs.writeFileSync(path.join(f.tree, "src/p.txt"), "A\nB\nC\n");
+  writeFile(path.join(f.tree, "src/p.txt"), "A\nB\nC\n");
   git(f.tree, "add", "-A");
   git(f.tree, "commit", "-qm", "p");
   await killed(f, "src/p.txt", "C");
-  fs.writeFileSync(path.join(f.tree, "src/p.txt"), "Z\nB\nC\n");
+  writeFile(path.join(f.tree, "src/p.txt"), "Z\nB\nC\n");
   const next = mutate(f, CHECK);
   assert.equal(next.code, 2, next.out + next.err);
   assert.match(next.err, /MUTATE_LEFTOVER.*src\/p\.txt/);
@@ -261,7 +262,7 @@ test("a journal without the line, the texts and the original's hash is refused, 
   await killed(f);
   const journal = journalOf(f);
   const { line, original, replace, before, ...rest } = JSON.parse(fs.readFileSync(journal, "utf8"));
-  fs.writeFileSync(journal, JSON.stringify(rest));
+  writeFile(journal, JSON.stringify(rest));
   const next = mutate(f, CHECK);
   assert.equal(next.code, 2, next.out + next.err);
   assert.match(next.err, /MUTATE_LEFTOVER.*src\/m\.js/);

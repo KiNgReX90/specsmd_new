@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 // The flow's suites run in every host's gate, so a temp dir a suite leaves behind leaks on
 // every gate run on every machine. Tests and fixtures make their dirs through test-temp.cjs,
@@ -205,7 +206,7 @@ test('the load removes only roots untouched for a day, and leaves every other en
   ];
   for (const [name, ms, , kind] of entries) {
     const entry = path.join(tmp, name);
-    if (kind === 'file') fs.writeFileSync(entry, '');
+    if (kind === 'file') writeFile(entry, '');
     else fs.mkdirSync(path.join(entry, 'inside'), { recursive: true });
     age(entry, ms);
   }

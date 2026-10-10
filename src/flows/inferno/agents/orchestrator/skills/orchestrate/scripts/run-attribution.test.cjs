@@ -10,6 +10,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { fixture, spec, write } = require('./run-attribution-fixture.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 test('verify-item passes the item check and fails with the log tail', (t) => {
   const f = fixture(t, { a: { editable: ['a.cjs'], check: 'node -e "console.log(require(\'./a.cjs\') === 2 ? 0 : \'the reason\'); process.exit(require(\'./a.cjs\') === 2 ? 0 : 1)"' } });
@@ -142,7 +143,7 @@ test('an item dispatched by the runner before signed records is checked the old 
   const f = fixture(t, { a: ['a.cjs'], b: ['b.cjs'] });
   const log = path.join(f.cache, 'specsmd-inferno', 'repo', 'dispatch', 'alpha.log');
   fs.mkdirSync(path.dirname(log), { recursive: true });
-  fs.writeFileSync(log, ['earlier', 'alpha', 'a', 'strong', 'builder', ''].join('\t') + '\n');
+  writeFile(log, ['earlier', 'alpha', 'a', 'strong', 'builder', ''].join('\t') + '\n');
   f.write('a.cjs', 'module.exports = 2;\n');
   const old = f.human('verify-item', 'a', '--tree', f.root);
   assert.equal(old.code, 0, old.out);

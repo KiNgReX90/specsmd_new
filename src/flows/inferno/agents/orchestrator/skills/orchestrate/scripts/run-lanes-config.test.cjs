@@ -5,6 +5,7 @@ const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
 
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const owner = require('./run-owner.cjs');
@@ -20,8 +21,8 @@ function tempdir(t) {
 function configs(t, project, host) {
   const dir = tempdir(t);
   fs.mkdirSync(path.join(dir, '.specs-inferno'));
-  fs.writeFileSync(path.join(dir, '.specs-inferno', 'config.yaml'), project);
-  if (host !== undefined) fs.writeFileSync(path.join(dir, '.specs-inferno', 'config.codex.yaml'), host);
+  writeFile(path.join(dir, '.specs-inferno', 'config.yaml'), project);
+  if (host !== undefined) writeFile(path.join(dir, '.specs-inferno', 'config.codex.yaml'), host);
   return dir;
 }
 
@@ -64,7 +65,7 @@ test('commandProof takes the scope it is keyed by, so a lane proof follows its o
   lib.git(dir, ['config', 'user.name', 'Test']);
   for (const file of ['src/a.txt', 'docs/b.txt']) {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
-    fs.writeFileSync(path.join(dir, file), 'one\n');
+    writeFile(path.join(dir, file), 'one\n');
   }
   lib.git(dir, ['add', '-A']);
   lib.git(dir, ['commit', '-qm', 'fixture']);
@@ -73,10 +74,10 @@ test('commandProof takes the scope it is keyed by, so a lane proof follows its o
   const finalize = () => proofs.commandProof(dir, config, null, 'smoke');
   const before = { lane: lane().file, finalize: finalize().file };
   assert.notEqual(before.lane, before.finalize);
-  fs.writeFileSync(path.join(dir, 'docs/b.txt'), 'two\n');
+  writeFile(path.join(dir, 'docs/b.txt'), 'two\n');
   assert.equal(lane().file, before.lane);
   assert.notEqual(finalize().file, before.finalize);
-  fs.writeFileSync(path.join(dir, 'src/a.txt'), 'two\n');
+  writeFile(path.join(dir, 'src/a.txt'), 'two\n');
   assert.notEqual(lane().file, before.lane);
 });
 
@@ -94,7 +95,7 @@ test('a live lane job owns the tree for select, like the gate job', { skip: !LIN
   try {
     const jobFile = path.join(dir, 'cache', 'specsmd-inferno', 'app', branch, 'lane-windows-job.json');
     fs.mkdirSync(path.dirname(jobFile), { recursive: true });
-    fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
+    writeFile(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
     assert.equal(owner.gateJobAlive(root).pid, child.pid);
     assert.equal(owner.ownership(root).lane, 'windows');
   } finally {
@@ -114,6 +115,6 @@ test('select names a live lane job in its running line', { skip: !LINUX }, async
   await new Promise((resolve) => setTimeout(resolve, 200));
   const jobFile = path.join(fixture.cache, 'specsmd-inferno', 'app', `inferno-intent/${INTENT_TREE}`, 'lane-windows-job.json');
   fs.mkdirSync(path.dirname(jobFile), { recursive: true });
-  fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
+  writeFile(jobFile, JSON.stringify({ pid: child.pid, lane: 'windows', started: new Date().toISOString() }));
   assert.match(run(fixture, ['select']).out, new RegExp(`running alpha {2}windows lane pid ${child.pid} still running since`));
 });

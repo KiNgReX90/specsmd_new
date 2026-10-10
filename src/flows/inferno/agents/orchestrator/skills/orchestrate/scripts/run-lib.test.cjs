@@ -5,6 +5,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const lib = require("./run-lib.cjs");
 
 function tempdir(prefix) {
@@ -56,8 +57,8 @@ function probeTree(literalPresent) {
   const dir = tempdir("inferno-lib-check-");
   const spec = path.join(dir, ".specs-inferno", "intents", "demo", "work-items", "probe.md");
   fs.mkdirSync(path.dirname(spec), { recursive: true });
-  fs.writeFileSync(spec, itemSpec(CHECK), "utf8");
-  fs.writeFileSync(path.join(dir, "fixture.txt"), literalPresent ? "keep\nforbidden-literal\n" : "keep\nallowed\n", "utf8");
+  writeFile(spec, itemSpec(CHECK), "utf8");
+  writeFile(path.join(dir, "fixture.txt"), literalPresent ? "keep\nforbidden-literal\n" : "keep\nallowed\n", "utf8");
   return dir;
 }
 
@@ -86,7 +87,7 @@ test("the same finalize_check fails on a tree that carries the forbidden literal
 test("a path git quoted with its C escapes loses the quotes and keeps its bytes", () => {
   const dir = tempdir("inferno-lib-status-");
   execFileSync("git", ["init", "-q", "-b", "main", dir], { stdio: ["ignore", "pipe", "pipe"] });
-  fs.writeFileSync(path.join(dir, "caf\u00e9.txt"), "x\n", "utf8");
+  writeFile(path.join(dir, "caf\u00e9.txt"), "x\n", "utf8");
 
   const paths = lib.statusPaths(dir);
   assert.equal(paths.length, 1);
@@ -100,7 +101,7 @@ test("selected host config inherits only missing project-wide sections", () => {
   const dir = tempdir("inferno-lib-host-config-");
   const configDir = path.join(dir, ".specs-inferno");
   fs.mkdirSync(configDir);
-  fs.writeFileSync(
+  writeFile(
     path.join(configDir, "config.yaml"),
     `verification:
   finalize:
@@ -121,7 +122,7 @@ delivery:
     "utf8",
   );
   const selectedFile = path.join(configDir, "config.codex.yaml");
-  fs.writeFileSync(
+  writeFile(
     selectedFile,
     `verification:
   finalize:
@@ -142,7 +143,7 @@ delivery:
   assert.deepEqual(selected.halt, { flag_file: ".specs-inferno/halt.yaml" });
   assert.deepEqual(selected.delivery, { base_branch: "host" });
 
-  fs.writeFileSync(
+  writeFile(
     selectedFile,
     `verification:
   finalize:
@@ -157,7 +158,7 @@ delivery:
   const explicit = lib.readConfig(dir, ".specs-inferno/config.codex.yaml");
   assert.deepEqual(explicit.worktree, { bootstrap: [] });
 
-  fs.writeFileSync(
+  writeFile(
     selectedFile,
     `autonomy:
   mode: autopilot
@@ -176,7 +177,7 @@ delivery:
 test("a verification block that is not a map of command lists is refused with the reason", () => {
   const dir = tempdir("inferno-lib-badconfig-");
   fs.mkdirSync(path.join(dir, ".specs-inferno"));
-  fs.writeFileSync(path.join(dir, ".specs-inferno", "config.yaml"), "verification: yes\n", "utf8");
+  writeFile(path.join(dir, ".specs-inferno", "config.yaml"), "verification: yes\n", "utf8");
 
   assert.throws(
     () => lib.readConfig(dir),
@@ -192,9 +193,9 @@ test("a config declares its host as claude or codex, and any other host is refus
   const dir = tempdir("inferno-lib-host-");
   fs.mkdirSync(path.join(dir, ".specs-inferno"));
   const file = path.join(dir, ".specs-inferno", "config.yaml");
-  fs.writeFileSync(file, "host: codex\n", "utf8");
+  writeFile(file, "host: codex\n", "utf8");
   assert.equal(lib.readConfig(dir).host, "codex");
-  fs.writeFileSync(file, "host: gemini\n", "utf8");
+  writeFile(file, "host: gemini\n", "utf8");
   assert.throws(
     () => lib.readConfig(dir),
     (error) => error.code === "BAD_CONFIG" && /host in .* must be claude or codex, not gemini/.test(error.message),
@@ -204,7 +205,7 @@ test("a config declares its host as claude or codex, and any other host is refus
 test("an integrate list holding something other than commands is refused", () => {
   const dir = tempdir("inferno-lib-badlist-");
   fs.mkdirSync(path.join(dir, ".specs-inferno"));
-  fs.writeFileSync(
+  writeFile(
     path.join(dir, ".specs-inferno", "config.yaml"),
     "verification:\n  integrate: npm test\n",
     "utf8",
@@ -217,7 +218,7 @@ test('native integration verification uses the build wrapper', (t) => {
   const dir = tempdir('inferno-lib-cap-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const wrapper = path.join(dir, 'claude-build');
-  fs.writeFileSync(wrapper, '#!/bin/sh\nprintf "%s\\n" "$@"\n');
+  writeFile(wrapper, '#!/bin/sh\nprintf "%s\\n" "$@"\n');
   fs.chmodSync(wrapper, 0o755);
   const original = process.env.PATH;
   process.env.PATH = `${dir}${path.delimiter}${original}`;
@@ -261,7 +262,7 @@ test('an ownership entry written as a folder with a trailing slash owns the file
 function scopedConfig(scope) {
   const dir = tempdir("inferno-lib-scope-");
   fs.mkdirSync(path.join(dir, ".specs-inferno"));
-  fs.writeFileSync(
+  writeFile(
     path.join(dir, ".specs-inferno", "config.yaml"),
     `verification:\n  finalize:\n    - echo a\n  integrate:\n    - echo i\n  finalize_scopes:\n${scope}\n`,
     "utf8",

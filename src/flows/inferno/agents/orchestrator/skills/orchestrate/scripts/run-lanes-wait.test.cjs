@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { acceptLine, cacheOf, config, fixture, gated, passed, run, touch, whole } = require('./run-lanes-fixture.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 const lines = (result) => result.out.trim().split('\n');
 
@@ -34,7 +35,7 @@ test('a running lane exits 4 before an unbounded instrument red exits 3', (t) =>
   const running = gateDone(f);
   assert.equal(running.code, 4, running.out + running.err);
   assert.match(running.out, /INSTRUMENT RED lane smoke/);
-  fs.writeFileSync(f.release, '');
+  writeFile(f.release, '');
   const done = run(f, 'gate', '--wait', '--minutes', '0.5');
   assert.equal(done.code, 3, done.out + done.err);
 });
@@ -45,7 +46,7 @@ test('a lane process that died without a result is red', (t) => {
   passed(run(f, 'gate', '--detach'));
   const job = JSON.parse(fs.readFileSync(path.join(cacheOf(f), 'lane-windows-job.json'), 'utf8'));
   process.kill(job.pid, 'SIGKILL');
-  fs.writeFileSync(f.release, '');
+  writeFile(f.release, '');
   const result = run(f, 'gate', '--wait', '--minutes', '0.5');
   assert.equal(result.code, 2, result.out + result.err);
   assert.match(result.out, new RegExp(`lane windows process ${job.pid} ended without a result`));
@@ -56,7 +57,7 @@ test('a lane whose scope changed while it ran is red and mints no proof', (t) =>
   touch(f);
   passed(run(f, 'gate', '--detach'));
   assert.equal(gateDone(f).code, 4);
-  fs.writeFileSync(f.release, '');
+  writeFile(f.release, '');
   const result = run(f, 'gate', '--wait', '--minutes', '0.5');
   assert.equal(result.code, 2, result.out + result.err);
   assert.match(result.out, /RED lane smoke: the code changed while the lane ran/);

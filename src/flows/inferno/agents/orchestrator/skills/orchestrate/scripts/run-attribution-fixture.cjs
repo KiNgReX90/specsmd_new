@@ -7,6 +7,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 
@@ -16,7 +17,7 @@ function git(root, ...args) {
 
 function write(root, file, value) {
   fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-  fs.writeFileSync(path.join(root, file), value);
+  writeFile(path.join(root, file), value);
 }
 
 function spec(id, editable, check) {

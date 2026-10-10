@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { completeItem, closeIntent, check } = require("./state-transition.cjs");
 const { FIXTURE, sandbox, NOW } = require("./state-transition-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // --- close-intent --------------------------------------------------------
 
@@ -223,7 +224,7 @@ test("check accepts a BOX line written as a YAML comment", () => {
 
 test("check reports a quick-fixes.md beside the ledger as drift", () => {
   const { dir, file } = sandbox(ONE_ITEM_BOXED);
-  fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n\n## parked\n\nstatus: open\n", "utf8");
+  writeFile(path.join(dir, "quick-fixes.md"), "# Quick fixes\n\n## parked\n\nstatus: open\n", "utf8");
   const result = check({ file });
   assert.equal(result.drift.length, 1);
   assert.equal(result.drift[0].kind, "quick-fixes-file-present");
@@ -232,7 +233,7 @@ test("check reports a quick-fixes.md beside the ledger as drift", () => {
 
 test("check scoped to one intent still reports the parking file", () => {
   const { dir, file } = sandbox(ONE_ITEM_BOXED);
-  fs.writeFileSync(path.join(dir, "quick-fixes.md"), "# Quick fixes\n", "utf8");
+  writeFile(path.join(dir, "quick-fixes.md"), "# Quick fixes\n", "utf8");
   assert.equal(check({ file, intent: "title-bar-ink" }).drift[0].kind, "quick-fixes-file-present");
 });
 

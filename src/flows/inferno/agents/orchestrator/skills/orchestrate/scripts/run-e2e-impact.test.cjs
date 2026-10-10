@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const { parseYaml } = require("./run-yaml.cjs");
 const impact = require("./run-e2e-impact.cjs");
 
@@ -98,7 +99,7 @@ function repository(t) {
   git("config", "core.hooksPath", "/dev/null");
   const write = (file, content = file) => {
     fs.mkdirSync(path.dirname(path.join(tree, file)), { recursive: true });
-    fs.writeFileSync(path.join(tree, file), content);
+    writeFile(path.join(tree, file), content);
   };
   const commit = (file, content) => {
     write(file, content);

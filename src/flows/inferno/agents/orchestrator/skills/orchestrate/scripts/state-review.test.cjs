@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const { reviewItem, completeItem } = require("./state-transition.cjs");
 const { hostLock } = require("./review-fixture.cjs");
 
@@ -35,7 +36,7 @@ const REVIEW_FILE = ".specs-inferno/intents/alpha/reviews/a-one.yaml";
 const findingOf = (severity, extra = "") =>
   `item: a-one\nverdict: fix\nfiles: [src/a.ts]\nfindings:\n  - criterion: c\n    file: src/a.ts\n    line: "1"\n` +
   `    evidence: e\n    fix: f\n    severity: ${severity}\n${extra}`;
-const reviewFile = (file, body) => fs.writeFileSync(path.join(path.dirname(path.dirname(file)), REVIEW_FILE), body);
+const reviewFile = (file, body) => writeFile(path.join(path.dirname(path.dirname(file)), REVIEW_FILE), body);
 
 /**
  * A host root with a ledger, a fix review of a-one with one major finding and, unless `lock`
@@ -46,12 +47,12 @@ function sandbox(content = FIXTURE, lock = "2026-09-20T00:00:00.000Z") {
   const file = path.join(dir, ".specs-inferno", "state.yaml");
   fs.mkdirSync(path.join(dir, path.dirname(REVIEW_FILE)), { recursive: true });
   fs.mkdirSync(path.join(dir, "src"));
-  fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;\n");
-  fs.writeFileSync(path.join(dir, REVIEW_FILE), findingOf("major"));
-  fs.writeFileSync(file, content);
+  writeFile(path.join(dir, "src", "a.ts"), "export const a = 1;\n");
+  writeFile(path.join(dir, REVIEW_FILE), findingOf("major"));
+  writeFile(file, content);
   if (lock !== null) {
     fs.mkdirSync(path.join(dir, ".specsmd", "inferno"), { recursive: true });
-    fs.writeFileSync(path.join(dir, ".specsmd", "inferno", "flow.lock"), hostLock(lock));
+    writeFile(path.join(dir, ".specsmd", "inferno", "flow.lock"), hostLock(lock));
   }
   return { file };
 }

@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { nextActor, tierOf } = require("./run-review.cjs");
 const { CONFIG, STATE, git, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // --- the ladder ------------------------------------------------------------
 // Complexity alone decides who builds first. Rejections then move the item up: cheap after
@@ -375,7 +376,7 @@ delivery:
   assert.match(frontier, /^ready a-one low behavior strong codex-strong$/m);
 
   const state = ledger(fixture).replace("review_tier: cheap", "review_tier: strong").replace("review_rejections: 1", "review_rejections: 2");
-  fs.writeFileSync(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
+  writeFile(path.join(fixture.root, ".specs-inferno/state.yaml"), state);
   git(fixture.root, ["commit", "-qam", "two strong rejections"]);
   assert.match(review(fixture, args).out, /next escalate codex-strong specsmd_inferno_builder_escalate: a fresh builder/);
 });
@@ -398,7 +399,7 @@ const CODEX_ARGS = ["--config", ".specs-inferno/config.codex.yaml"];
 /** Put the ladder of a-one at a rung by hand and commit it in the tree. */
 const atRung = (tree, tier, rejections) => {
   const file = path.join(tree, ".specs-inferno/state.yaml");
-  fs.writeFileSync(file, fs.readFileSync(file, "utf8")
+  writeFile(file, fs.readFileSync(file, "utf8")
     .replace(/review_tier: \w+/, `review_tier: ${tier}`)
     .replace(/review_rejections: \d+/, `review_rejections: ${rejections}`));
   git(tree, ["commit", "-qam", `${tier} rejected ${rejections} time(s)`]);

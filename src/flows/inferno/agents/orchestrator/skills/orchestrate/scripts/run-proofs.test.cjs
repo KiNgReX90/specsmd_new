@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
@@ -20,9 +21,9 @@ function hashTree(t) {
   lib.git(dir, ['config', 'user.name', 'Test']);
   fs.mkdirSync(path.join(dir, 'src'));
   fs.mkdirSync(path.join(dir, '.specs-inferno'));
-  fs.writeFileSync(path.join(dir, 'src/input.txt'), 'one\n');
-  fs.writeFileSync(path.join(dir, 'outside.txt'), 'outside\n');
-  fs.writeFileSync(path.join(dir, '.specs-inferno/state.yaml'), 'ledger\n');
+  writeFile(path.join(dir, 'src/input.txt'), 'one\n');
+  writeFile(path.join(dir, 'outside.txt'), 'outside\n');
+  writeFile(path.join(dir, '.specs-inferno/state.yaml'), 'ledger\n');
   hashCommit(dir);
   return dir;
 }
@@ -36,16 +37,16 @@ test('scope hashes follow committed and dirty contents and ignore ledger and out
   const dir = hashTree(t);
   const hash = () => proofs.scopeHash(dir, ['src/**']);
   const before = hash();
-  fs.writeFileSync(path.join(dir, 'outside.txt'), 'moved\n');
-  fs.writeFileSync(path.join(dir, '.specs-inferno/state.yaml'), 'moved\n');
+  writeFile(path.join(dir, 'outside.txt'), 'moved\n');
+  writeFile(path.join(dir, '.specs-inferno/state.yaml'), 'moved\n');
   assert.equal(hash(), before);
-  fs.writeFileSync(path.join(dir, 'src/input.txt'), 'two\n');
+  writeFile(path.join(dir, 'src/input.txt'), 'two\n');
   const dirty = hash();
   assert.notEqual(dirty, before);
   hashCommit(dir);
   assert.equal(hash(), dirty);
   const all = proofs.scopeHash(dir);
-  fs.writeFileSync(path.join(dir, 'outside.txt'), 'again\n');
+  writeFile(path.join(dir, 'outside.txt'), 'again\n');
   assert.notEqual(proofs.scopeHash(dir), all);
 });
 
@@ -82,13 +83,13 @@ test('scope hashes include additions, deletions, renames, modes and symlink targ
 
 test('an exact scope hashes the literal paths only, never a same-named file in another folder', (t) => {
   const dir = hashTree(t);
-  fs.writeFileSync(path.join(dir, 'src/outside.txt'), 'nested\n');
+  writeFile(path.join(dir, 'src/outside.txt'), 'nested\n');
   hashCommit(dir);
   const exact = () => proofs.scopeHash(dir, ['outside.txt'], { exact: true });
   const before = exact();
-  fs.writeFileSync(path.join(dir, 'src/outside.txt'), 'moved\n');
+  writeFile(path.join(dir, 'src/outside.txt'), 'moved\n');
   assert.equal(exact(), before);
-  fs.writeFileSync(path.join(dir, 'outside.txt'), 'moved\n');
+  writeFile(path.join(dir, 'outside.txt'), 'moved\n');
   assert.notEqual(exact(), before);
 });
 
@@ -100,7 +101,7 @@ const COMMANDS = ['echo ran >> .runs/source', 'echo ran >> .runs/docs', 'echo ra
 
 function write(root, file, body) {
   fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-  fs.writeFileSync(path.join(root, file), body);
+  writeFile(path.join(root, file), body);
 }
 
 function git(root, ...args) {
@@ -265,7 +266,7 @@ test('scope changes and corrupt or deleted records require a fresh proof', (t) =
   const dir = path.join(fixture.cache, 'specsmd-inferno', 'app', 'green-commands');
   const files = fs.readdirSync(dir);
   const doc = files.find((file) => JSON.parse(fs.readFileSync(path.join(dir, file))).command === COMMANDS[1]);
-  fs.writeFileSync(path.join(dir, doc), '{}');
+  writeFile(path.join(dir, doc), '{}');
   assert.deepEqual(verdict(fixture, 'green', 3).missing, [COMMANDS[1]]);
   verdict(fixture, 'gate', 0);
   fs.rmSync(path.join(dir, doc));

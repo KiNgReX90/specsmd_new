@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 function git(root, ...args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -12,7 +13,7 @@ function git(root, ...args) {
 function write(root, file, value) {
   const target = path.join(root, file);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, value);
+  writeFile(target, value);
 }
 function fixture(t) {
   const directory = tempDir('inferno-native-cli-');

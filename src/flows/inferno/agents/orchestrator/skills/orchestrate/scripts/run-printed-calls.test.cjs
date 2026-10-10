@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { CONFIG, INTENT_TREE, STATE, asPrinted, asPrintedByPath, git, intentReviewed, printed, repo, run, worktree, write } = require("./review-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // Every runner call a step prints for its caller carries the caller's tree, intent and host
 // config. Run as printed on Codex, each call stays on Codex: an item review dispatches the
@@ -142,7 +143,7 @@ test("on Codex a review refusal the writer raises under integrate prints the rev
   write(tree, "src/a.ts", "export const a = 4;\n");
   git(tree, ["commit", "-qam", "a-one landed"]);
   const ledger = path.join(fixture.root, ".specs-inferno/state.yaml");
-  fs.writeFileSync(ledger, fs.readFileSync(ledger, "utf8").replace("status: completed\n        completed_at: 2010-01-01T00:00:00Z\n", "status: pending\n"));
+  writeFile(ledger, fs.readFileSync(ledger, "utf8").replace("status: completed\n        completed_at: 2010-01-01T00:00:00Z\n", "status: pending\n"));
   git(fixture.root, ["commit", "-qam", "a-one reopened"]);
   const refused = run(fixture, ["integrate", "--tree", tree, "--item", "a-one", "--intent", "alpha", "--config", CODEX]);
   assert.match(refused.err, /REVIEW_OWED/, refused.out + refused.err);

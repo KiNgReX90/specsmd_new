@@ -13,12 +13,13 @@ const { spawn, spawnSync, execFileSync } = require('node:child_process');
 const runtime = require.resolve('./state-transition.cjs');
 const writer = require(runtime);
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 function fixture(t, body) {
   const dir = tempDir('inferno-transactions-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'state.yaml');
-  fs.writeFileSync(file, body);
+  writeFile(file, body);
   return { dir, file };
 }
 
@@ -62,7 +63,7 @@ test('an interrupted atomic replace leaves the old bytes', (t) => {
 test('concurrent reclaimers of a stale lock cannot remove a new owner', async (t) => {
   const { file } = fixture(t, 'intents:\n  - id: a\n    status: pending\n');
   const { lockPath } = require('./state-store.cjs');
-  fs.writeFileSync(lockPath(file), JSON.stringify({ pid: 99999999, token: 'dead-owner' }));
+  writeFile(lockPath(file), JSON.stringify({ pid: 99999999, token: 'dead-owner' }));
   const results = await Promise.all(Array.from({ length: 6 }, (_, i) => child(file, 'a', `run-${i}`)));
   assert.equal(results.filter((result) => result.status === 0).length, 1);
 });
@@ -98,7 +99,7 @@ test('block and unblock write through the same lock and generation check', (t) =
 function archiveFixture(t, body) {
   const made = fixture(t, body);
   fs.mkdirSync(path.join(made.dir, 'intents/a'), { recursive: true });
-  fs.writeFileSync(path.join(made.dir, 'intents/a/brief.md'), 'artifact');
+  writeFile(path.join(made.dir, 'intents/a/brief.md'), 'artifact');
   return made;
 }
 
@@ -155,7 +156,7 @@ function claimRepo(t) {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   const put = (rel, value) => {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    fs.writeFileSync(path.join(root, rel), value);
+    writeFile(path.join(root, rel), value);
   };
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'fixture@example.invalid');

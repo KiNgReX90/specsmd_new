@@ -7,6 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const { verifyDispatch } = require('./run-attribute.cjs');
 
 function git(tree, ...args) {
@@ -14,7 +15,7 @@ function git(tree, ...args) {
 }
 function write(tree, file, value) {
   fs.mkdirSync(path.dirname(path.join(tree, file)), { recursive: true });
-  fs.writeFileSync(path.join(tree, file), value);
+  writeFile(path.join(tree, file), value);
 }
 function commit(tree) { git(tree, 'add', '-A'); git(tree, 'commit', '-qm', 'fixture'); }
 function fixture(t) {
@@ -158,7 +159,7 @@ test('a dispatch snapshot waits while another of the same tree holds the sequenc
   const lock = path.join(proof.dispatchDirectory(f.tree), 'sequence.lock');
   const hold = () => {
     fs.mkdirSync(path.dirname(lock), { recursive: true });
-    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: null, since: 'a moment ago', token: 'holder' }));
+    writeFile(lock, JSON.stringify({ pid: process.pid, start: null, since: 'a moment ago', token: 'holder' }));
   };
   hold();
   let polls = 0;
@@ -166,10 +167,10 @@ test('a dispatch snapshot waits while another of the same tree holds the sequenc
   assert.equal(polls, 3);
   assert.equal(snapshot.seq, 1);
   const gone = require('node:child_process').spawnSync(process.execPath, ['-e', '']).pid;
-  fs.writeFileSync(lock, JSON.stringify({ pid: gone, start: null, since: 'a moment ago', token: 'gone' }));
+  writeFile(lock, JSON.stringify({ pid: gone, start: null, since: 'a moment ago', token: 'gone' }));
   assert.equal(proof.sequencedSnapshot(f.tree, { wait: 0, sleep: () => {} }).seq, 2);
   if (fs.existsSync('/proc/self/stat')) {
-    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, start: 'an earlier process', since: 'a moment ago', token: 'reused' }));
+    writeFile(lock, JSON.stringify({ pid: process.pid, start: 'an earlier process', since: 'a moment ago', token: 'reused' }));
     assert.equal(proof.sequencedSnapshot(f.tree, { wait: 0, sleep: () => {} }).seq, 3);
   }
   hold();
@@ -185,7 +186,7 @@ test('a warm snapshot takes an unchanged file from the tree\'s index and reads a
   const index = path.join(proof.dispatchDirectory(f.tree), 'index.json');
   const stored = JSON.parse(fs.readFileSync(index, 'utf8'));
   stored['src/a.ts'].hash = 'from the index';
-  fs.writeFileSync(index, JSON.stringify(stored));
+  writeFile(index, JSON.stringify(stored));
   assert.equal(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');
   f.write('src/a.ts', 'changed');
   assert.notEqual(proof.sequencedSnapshot(f.tree).files['src/a.ts'].hash, 'from the index');

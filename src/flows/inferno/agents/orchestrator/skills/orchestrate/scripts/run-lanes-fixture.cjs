@@ -14,6 +14,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 
 const BRANCH = 'inferno-intent/demo-00000000T000000Z';
@@ -23,7 +24,7 @@ const red = 'node proof.cjs red';
 
 function write(tree, file, body) {
   fs.mkdirSync(path.dirname(path.join(tree, file)), { recursive: true });
-  fs.writeFileSync(path.join(tree, file), body);
+  writeFile(path.join(tree, file), body);
 }
 
 function git(tree, ...args) {
@@ -45,7 +46,7 @@ function config(lanes = { smoke: '0' }, finalize = [whole], scope = ['src/**']) 
 function fixture(t, source = config()) {
   const dir = tempDir('inferno-lanes-');
   t.after(() => {
-    fs.writeFileSync(path.join(dir, 'release'), '');
+    writeFile(path.join(dir, 'release'), '');
     fs.rmSync(dir, { recursive: true, force: true });
   });
   const tree = path.join(dir, 'app');

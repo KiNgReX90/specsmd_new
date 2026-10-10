@@ -3,6 +3,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const { CONFIG, closed, git, opened, repo, run, write } = require("./run-fixture.cjs");
 
 // --- gate / green --------------------------------------------------------
@@ -102,7 +103,7 @@ test("gate --wait exits 4 while the gate still runs, refuses a second start, and
     assert.equal(early.code, 4, early.out + early.err);
     assert.match(early.out, /still running pid \d+/);
   } finally {
-    fs.writeFileSync(release, "");
+    writeFile(release, "");
   }
   const done = run(fixture, ["gate", "--tree", tree, "--wait", "--minutes", "0.5"]);
   assert.equal(done.code, 0, done.out + done.err);

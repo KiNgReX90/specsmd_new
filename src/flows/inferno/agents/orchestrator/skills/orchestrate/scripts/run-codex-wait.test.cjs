@@ -7,6 +7,7 @@ const { spawnSync } = require("node:child_process");
 const { git, repo, run, write } = require("./run-fixture.cjs");
 const { codexStub } = require("./review-fixture.cjs");
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // A Codex orchestrator waits on its builders with wait_agent. Asked for 60 s it wakes every
 // minute while a builder runs, so the floor lives in Codex config, where prose cannot lower it,
@@ -113,7 +114,7 @@ test("a table inside a multi-line string is no floor", real, () => {
 test("an inline features table in the project is rewritten as the table", real, () => {
   const c = codexRepo({ home: FLOOR, project: "features = { multi_agent_v2 = false }\n" });
   assert.equal(refused(c), R4(c, "cannot extend value of type inline table with a dotted key"));
-  fs.writeFileSync(c.P, FLOOR);
+  writeFile(c.P, FLOOR);
   passes(c);
 });
 
@@ -121,7 +122,7 @@ test("a partial table keeps its other keys when it is rewritten", real, () => {
   const key = "max_concurrent_threads_per_session = 4\n";
   const c = codexRepo({ project: `[features.multi_agent_v2]\nenabled = true\n${key}` });
   assert.equal(refused(c), R4(c, "duplicate key"));
-  fs.writeFileSync(c.P, `${FLOOR}${key}`);
+  writeFile(c.P, `${FLOOR}${key}`);
   passes(c);
   assert.ok(fs.readFileSync(c.P, "utf8").includes(key));
 });
@@ -129,7 +130,7 @@ test("a partial table keeps its other keys when it is rewritten", real, () => {
 test("a minimum without a default is rewritten as the table", real, () => {
   const c = codexRepo({ project: "[features.multi_agent_v2]\nenabled = true\nmin_wait_timeout_ms = 1200000\n" });
   assert.equal(refused(c), R4(c, "duplicate key"));
-  fs.writeFileSync(c.P, FLOOR);
+  writeFile(c.P, FLOOR);
   passes(c);
 });
 
@@ -143,7 +144,7 @@ test("a floor in an untrusted project asks for the trust", real, () => {
 test("a Codex home that does not parse names the file and line Codex names", real, () => {
   const c = codexRepo({ home: "[features\n" });
   assert.equal(refused(c), R1(c, `${c.home}:1:10: unclosed table, expected \`]\``));
-  fs.writeFileSync(c.home, FLOOR);
+  writeFile(c.home, FLOOR);
   trust(c);
   passes(c);
 });

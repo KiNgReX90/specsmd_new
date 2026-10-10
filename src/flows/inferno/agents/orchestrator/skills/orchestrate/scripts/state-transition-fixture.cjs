@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // Mirrors the real artifacts: load-bearing comment blocks, quoted and unquoted titles,
 // and per-entry field order that differs between intents (status before/after kind).
@@ -67,7 +68,7 @@ function multisetDifference(a, b) {
 function sandbox(content = FIXTURE) {
   const dir = tempDir("inferno-state-");
   const file = path.join(dir, "state.yaml");
-  fs.writeFileSync(file, content, "utf8");
+  writeFile(file, content, "utf8");
   return { dir, file };
 }
 
@@ -76,7 +77,7 @@ const NOW = "2026-07-14T12:00:00Z";
 /** The archive beside a ledger, where a shipped prerequisite answers from. */
 function withArchive(box, ids = ["long-gone"]) {
   fs.mkdirSync(path.join(box.dir, "archive"), { recursive: true });
-  fs.writeFileSync(
+  writeFile(
     path.join(box.dir, "archive", "state.yaml"),
     `intents:\n${ids.map((id) => `  - id: ${id}\n    status: completed\n`).join("")}`,
     "utf8",

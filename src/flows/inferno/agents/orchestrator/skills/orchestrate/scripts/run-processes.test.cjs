@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
@@ -62,7 +63,7 @@ function git(cwd, args) {
 }
 function write(root, rel, body) {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-  fs.writeFileSync(path.join(root, rel), body);
+  writeFile(path.join(root, rel), body);
 }
 
 function fixture(t) {
@@ -210,7 +211,7 @@ test('register-process on a system without /proc exits 0, says teardown stops no
   assert.equal(fx.run(['claim', 'alpha']).code, 0);
   const made = JSON.parse(fx.run(['worktree', 'alpha', '--json']).out);
   const noProc = path.join(fx.dir, 'no-proc.cjs');
-  fs.writeFileSync(noProc, `const fs = require('node:fs');
+  writeFile(noProc, `const fs = require('node:fs');
 const existsSync = fs.existsSync;
 fs.existsSync = (file) => file !== '/proc/self/stat' && existsSync(file);
 `);

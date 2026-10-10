@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { CONFIG, INTENT_TREE, git, repo, run, worktree, write } = require("./review-fixture.cjs");
 const proofs = require("./run-proofs.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // The scan: four scanners each answer one question over the intent's whole diff before the
 // intent review, because some leaks live between items and pass every item review.
@@ -201,7 +202,7 @@ test("collect refuses results of a dispatch that asked other questions than the 
   const record = path.join(path.dirname(entry.result), "dispatch.json");
   const sent = JSON.parse(fs.readFileSync(record, "utf8"));
   assert.deepEqual(sent.ids, ["wiring"]);
-  fs.writeFileSync(record, JSON.stringify({ ...sent, ids: ["wiring", "contract"] }));
+  writeFile(record, JSON.stringify({ ...sent, ids: ["wiring", "contract"] }));
   answer(entry);
   const refused = scan(fixture, fixture.root, ["--collect", "--plan", "alpha"]);
   assert.equal(refused.code, 3, refused.out + refused.err);

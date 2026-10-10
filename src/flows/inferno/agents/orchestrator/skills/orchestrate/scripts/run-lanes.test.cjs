@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
+const { writeFile } = require('./test-write.cjs');
 
 const {
   BRANCH, acceptLine, commit, config, fixture, gated, git, harnessFix, laneRuns, passed, red, run, touch, write,
@@ -33,7 +34,7 @@ test('gate --wait exits 4 while a lane runs and 0 once the gate and every lane a
   const running = run(f, 'gate', '--wait', '--minutes', '0.03');
   assert.equal(running.code, 4, running.out + running.err);
   assert.match(running.out, /windows lane still running pid \d+/);
-  fs.writeFileSync(f.release, '');
+  writeFile(f.release, '');
   const done = run(f, 'gate', '--wait', '--minutes', '0.5');
   passed(done);
   assert.match(done.out, /GREEN lane smoke/);
@@ -178,12 +179,12 @@ test('each lane accepts only its own instrument red', (t) => {
 
 test('an accepted instrument red never outlives the run it accepted', (t) => {
   const f = fixture(t, config({ smoke: 'file' }));
-  fs.writeFileSync(f.code, '11');
+  writeFile(f.code, '11');
   touch(f);
   const fix = harnessFix(f);
   assert.equal(gated(f).code, 3);
   passed(run(f, 'smoke', '--accept', '--harness-fix', fix));
-  fs.writeFileSync(f.code, '10');
+  writeFile(f.code, '10');
   const rerun = gated(f, '--force');
   assert.equal(rerun.code, 2, rerun.out + rerun.err);
   assert.match(rerun.out, /RED lane smoke: product red \(exit 10\)/);
@@ -191,7 +192,7 @@ test('an accepted instrument red never outlives the run it accepted', (t) => {
   assert.equal(verdict.code, 3, verdict.out + verdict.err);
   assert.deepEqual(JSON.parse(verdict.out).owed, ['smoke']);
   // A new instrument red on the same tree is a new run, and the old acceptance does not cover it.
-  fs.writeFileSync(f.code, '11');
+  writeFile(f.code, '11');
   const again = gated(f, '--force');
   assert.equal(again.code, 3, again.out + again.err);
   assert.match(again.out, /INSTRUMENT RED lane smoke \(exit 11\)/);

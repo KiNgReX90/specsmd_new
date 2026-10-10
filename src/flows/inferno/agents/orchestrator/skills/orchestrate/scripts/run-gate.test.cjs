@@ -6,6 +6,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const { reviewBefore } = require('./review-fixture.cjs');
 // An intent branch, so gate and green know which intent review holds the tree.
 const BRANCH = 'inferno-intent/demo-00000000T000000Z';
@@ -17,7 +18,7 @@ const red = 'node proof.cjs red';
 
 function write(tree, file, body) {
   fs.mkdirSync(path.dirname(path.join(tree, file)), { recursive: true });
-  fs.writeFileSync(path.join(tree, file), body);
+  writeFile(path.join(tree, file), body);
 }
 
 function git(tree, ...args) {
@@ -124,7 +125,7 @@ test('a wall clock that steps back while a command runs still leaves the proof g
   // seconds earlier than the one before, so a duration taken on it comes out negative.
   const f = fixture(t);
   const steps = path.join(path.dirname(f.tree), 'clock-steps-back.cjs');
-  fs.writeFileSync(steps, 'const real = Date.now;\nlet reads = 0;\nDate.now = () => real() - 2000 * reads++;\n');
+  writeFile(steps, 'const real = Date.now;\nlet reads = 0;\nDate.now = () => real() - 2000 * reads++;\n');
   f.env = { NODE_OPTIONS: `--require ${steps}` };
   passed(run(f, 'gate'));
   assert.deepEqual(ran(f), ['scoped', 'whole']);
@@ -263,7 +264,7 @@ test('corrupt command proofs make green fail and force the commands to rerun', (
   const f = fixture(t);
   passed(run(f, 'gate'));
   const dir = path.join(f.cache, 'specsmd-inferno', 'app', 'green-commands');
-  for (const file of fs.readdirSync(dir)) fs.writeFileSync(path.join(dir, file), '{broken');
+  for (const file of fs.readdirSync(dir)) writeFile(path.join(dir, file), '{broken');
   assert.equal(run(f, 'green').code, 3);
   passed(run(f, 'gate'));
   assert.deepEqual(ran(f), ['scoped', 'whole', 'scoped', 'whole']);

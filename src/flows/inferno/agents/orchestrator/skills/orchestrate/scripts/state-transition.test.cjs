@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { completeItem, closeIntent, check } = require("./state-transition.cjs");
 const { FIXTURE, multisetDifference, sandbox, NOW } = require("./state-transition-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // --- complete-item -------------------------------------------------------
 
@@ -99,7 +100,7 @@ test("complete-item syncs the work-item markdown frontmatter", () => {
   const mdDir = path.join(dir, "intents", "tools-menu", "work-items");
   fs.mkdirSync(mdDir, { recursive: true });
   const md = path.join(mdDir, "menu-shell.md");
-  fs.writeFileSync(md, "---\nid: menu-shell\nstatus: pending\n---\n\n# Menu shell\n\nBody stays.\n", "utf8");
+  writeFile(md, "---\nid: menu-shell\nstatus: pending\n---\n\n# Menu shell\n\nBody stays.\n", "utf8");
 
   completeItem({ file, intent: "tools-menu", item: "menu-shell", proof: "abc1234", now: NOW });
 

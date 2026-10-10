@@ -5,6 +5,7 @@ const path = require("node:path");
 const { execFileSync, spawn } = require("node:child_process");
 
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const owner = require("./run-owner.cjs");
 
 const LINUX = process.platform === "linux" && fs.existsSync("/proc/self/stat");
@@ -18,7 +19,7 @@ function tree() {
   git("init", "-q", "-b", "inferno-intent/x-20260910T000000Z");
   git("config", "user.email", "t@example.com");
   git("config", "user.name", "T");
-  fs.writeFileSync(path.join(root, "a.txt"), "a\n");
+  writeFile(path.join(root, "a.txt"), "a\n");
   git("add", "-A");
   git("commit", "-qm", "init");
   return { root, cache: path.join(dir, "cache") };
@@ -84,7 +85,7 @@ test("a live gate job is ownership too, and a finished one is not", { skip: !LIN
     withCache(fixture, () => {
       const jobFile = path.join(fixture.cache, "specsmd-inferno", "app", "inferno-intent/x-20260910T000000Z", "gate-job.json");
       fs.mkdirSync(path.dirname(jobFile), { recursive: true });
-      fs.writeFileSync(jobFile, JSON.stringify({ pid: child.pid, started: "2026-09-10T12:47:11Z" }));
+      writeFile(jobFile, JSON.stringify({ pid: child.pid, started: "2026-09-10T12:47:11Z" }));
       assert.equal(owner.gateJobAlive(fixture.root).pid, child.pid);
       assert.equal(owner.ownership(fixture.root).kind, "gate");
     });

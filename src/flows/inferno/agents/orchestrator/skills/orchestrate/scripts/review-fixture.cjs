@@ -13,6 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 
 const RUN = path.join(__dirname, 'run.cjs');
 const WRITER = path.join(__dirname, 'state-transition.cjs');
@@ -89,7 +90,7 @@ ${editable.map((p) => `    - ${p}`).join('\n')}
 
 function write(root, rel, body) {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-  fs.writeFileSync(path.join(root, rel), body, 'utf8');
+  writeFile(path.join(root, rel), body, 'utf8');
 }
 
 function git(cwd, args) {
@@ -145,7 +146,7 @@ function codexStub(cache, body = CODEX_HOLDS, name = 'codex-holds') {
   const file = path.join(path.dirname(cache), name);
   if (!fs.existsSync(file)) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `${body}\n`, { encoding: 'utf8', mode: 0o755 });
+    writeFile(file, `${body}\n`, { encoding: 'utf8', mode: 0o755 });
   }
   return file;
 }
@@ -263,13 +264,13 @@ async function heldMutate(fixture, tree, file = 'src/a.ts', replace = 'export co
   assert.ok(landed, 'the mutant never landed');
   return {
     release: async () => {
-      fs.writeFileSync(release, '');
+      writeFile(release, '');
       await done;
     },
     kill: async () => {
       child.kill('SIGKILL');
       await done;
-      fs.writeFileSync(release, '');
+      writeFile(release, '');
     },
   };
 }

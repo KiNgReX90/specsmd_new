@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -31,7 +32,7 @@ const CONFIG = `delivery:
 
 function write(root, rel, body) {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-  fs.writeFileSync(path.join(root, rel), body, "utf8");
+  writeFile(path.join(root, rel), body, "utf8");
 }
 
 function git(cwd, args) {
@@ -74,7 +75,7 @@ function claimed(fixture) {
 
 function refusingStub(file, line) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `print(${JSON.stringify(line)})\nraise SystemExit(1)\n`);
+  writeFile(file, `print(${JSON.stringify(line)})\nraise SystemExit(1)\n`);
 }
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -126,10 +127,10 @@ test("a claim on the Codex config finds budget.script in config.yaml", () => {
 test("claim refuses, naming the script, when the budget interpreter dies on a signal", () => {
   const fixture = repo();
   const script = path.join(fixture.dir, "budget.py");
-  fs.writeFileSync(script, "raise SystemExit(0)\n");
+  writeFile(script, "raise SystemExit(0)\n");
   const bin = path.join(fixture.dir, "bin");
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, "python3"), "#!/bin/sh\nkill -9 $$\n", { mode: 0o755 });
+  writeFile(path.join(bin, "python3"), "#!/bin/sh\nkill -9 $$\n", { mode: 0o755 });
   const result = claim(fixture, [], { INFERNO_FLOW_BUDGET: script, PATH: `${bin}${path.delimiter}${process.env.PATH}` });
   assert.notEqual(result.code, 0, result.out);
   assert.match(result.out, new RegExp(escape(script)));

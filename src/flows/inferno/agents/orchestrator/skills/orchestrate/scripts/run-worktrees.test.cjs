@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 
 process.env.INFERNO_FLOW_BUDGET = path.join(os.tmpdir(), 'inferno-no-flow-budget');
 const { tempDir } = require('./test-temp.cjs');
+const { writeFile } = require('./test-write.cjs');
 const intents = require('./run-intents.cjs');
 
 function fixture(t, config) {
@@ -25,7 +26,7 @@ function fixture(t, config) {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   const put = (rel, value) => {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    fs.writeFileSync(path.join(root, rel), value);
+    writeFile(path.join(root, rel), value);
   };
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'fixture@example.invalid');
@@ -52,7 +53,7 @@ test('a failed bootstrap resumes at the phase that failed and keeps the edits ma
   assert.equal(first.exit, 2);
   assert.equal(first.payload.bootstrap, 'failed');
 
-  fs.writeFileSync(path.join(target, 'unrelated.txt'), 'keep user edits');
+  writeFile(path.join(target, 'unrelated.txt'), 'keep user edits');
   fail = false;
   const retry = intents.worktree('a', { cwd: root, runShell });
   assert.equal(retry.exit, 0, retry.out.join('\n'));
@@ -84,7 +85,7 @@ test('a changed dependency file invalidates the completed bootstrap phases', (t)
   assert.equal(first.exit, 0);
   assert.equal(intents.worktree('a', { cwd: root, runShell }).exit, 0);
   assert.equal(calls, 1);
-  fs.writeFileSync(path.join(first.payload.path, 'package-lock.json'), '{"version":2}');
+  writeFile(path.join(first.payload.path, 'package-lock.json'), '{"version":2}');
   assert.equal(intents.worktree('a', { cwd: root, runShell }).exit, 0);
   assert.equal(calls, 2);
 });
@@ -94,7 +95,7 @@ function dirtying(target, fail) {
   const calls = [];
   const runShell = (command, tree, log) => {
     calls.push(command);
-    if (command === 'dirty') fs.writeFileSync(path.join(tree, 'unrelated.txt'), 'rewritten by the bootstrap\n');
+    if (command === 'dirty') writeFile(path.join(tree, 'unrelated.txt'), 'rewritten by the bootstrap\n');
     return { command, code: command === 'breaks' && fail.on ? 1 : 0, log, seconds: 0 };
   };
   return { calls, runShell };

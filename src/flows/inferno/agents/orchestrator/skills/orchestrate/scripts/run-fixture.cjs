@@ -9,6 +9,7 @@ const { execFileSync, spawnSync } = require("node:child_process");
 const RUN = path.join(__dirname, "run.cjs");
 const WRITER = path.join(__dirname, "state-transition.cjs");
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 const { LOCK_PATH, codexStub, hostLock, markReviewed, reviewBefore } = require("./review-fixture.cjs");
 
 const STATE = `project:
@@ -133,7 +134,7 @@ const ITEMS = {
 
 function write(root, rel, body) {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-  fs.writeFileSync(path.join(root, rel), body, "utf8");
+  writeFile(path.join(root, rel), body, "utf8");
 }
 
 function git(cwd, args, env = {}) {

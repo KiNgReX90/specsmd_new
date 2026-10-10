@@ -5,6 +5,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { codexStub } = require("./review-fixture.cjs");
 const { tempDir } = require("./test-temp.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 const RUN = path.join(__dirname, "run.cjs");
 
@@ -92,7 +93,7 @@ function fixture({ provider = "pending", provides = "", config, codex, modRs = M
   const root = path.join(dir, "app");
   const write = (rel, body) => {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    fs.writeFileSync(path.join(root, rel), body, "utf8");
+    writeFile(path.join(root, rel), body, "utf8");
   };
   write("src/save.ts", "export const save = 1;\n");
   write("src/save.test.ts", "save;\n");

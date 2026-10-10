@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const { check, archiveIntent, main } = require("./state-transition.cjs");
 const { multisetDifference, sandbox, NOW } = require("./state-transition-fixture.cjs");
+const { writeFile } = require("./test-write.cjs");
 
 // --- archive-intent ------------------------------------------------------
 
@@ -130,7 +131,7 @@ test("archive-intent moves the intent directory under archive/intents", () => {
   const { file, dir } = sandbox(ARCHIVABLE);
   const brief = path.join(dir, "intents", "foundation", "brief.md");
   fs.mkdirSync(path.dirname(brief), { recursive: true });
-  fs.writeFileSync(brief, "# brief", "utf8");
+  writeFile(brief, "# brief", "utf8");
 
   archiveIntent({ file, intent: "foundation", now: NOW });
 
