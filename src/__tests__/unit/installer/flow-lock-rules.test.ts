@@ -25,6 +25,21 @@ describe.sequential('flow.lock rule cutover', { timeout: 30_000 }, () => {
     expect(declared.rules).toContain('review');
   });
 
+  it('declares the triage rule and records its start beside the review rule', async () => {
+    const declared = JSON.parse(readFileSync(path.join(SRC, 'flows/inferno/flow-rules.json'), 'utf8'));
+    expect(declared.rules).toContain('triage');
+
+    await installFlow('inferno', ['claude']);
+    const lock = readLock();
+    lock.rules = { review: '2026-01-02T03:04:05.000Z' };
+    writeFileSync(LOCK, JSON.stringify(lock, null, 2));
+    const before = Date.now();
+    await installFlow('inferno', ['claude']);
+
+    expect(readLock().rules.review).toBe('2026-01-02T03:04:05.000Z');
+    expect(Date.parse(readLock().rules.triage)).toBeGreaterThanOrEqual(before - 1000);
+  });
+
   it('records the install time of every declared rule on the first install', async () => {
     const before = Date.now();
     await installFlow('inferno', ['claude']);

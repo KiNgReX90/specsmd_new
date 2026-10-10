@@ -48,9 +48,10 @@ complete-item refuses an item with no integration proof. run.cjs integrate --ite
 checks on the committed tree and passes the sha they proved, so nothing is marked verified that
 nothing verified. It also refuses an item whose review is not clean. review-item records that
 verdict, and run.cjs review --item is its one caller. close-intent refuses while any work item is still open; complete each item first.
-check exits 1 when the ledger drifts from its work items, when a one-item intent does not say on
-an INTENT. line why one builder could not do it directly, when .specs-inferno/quick-fixes.md
-exists beside it (nothing builds from a parking file).`;
+check exits 1 when the ledger drifts from its work items, when an intent waiting to be claimed
+does not open its INTENT. line with the triage criterion that makes it one, as in "INTENT. (c)
+<reason>" (a request or an order is no criterion), when .specs-inferno/quick-fixes.md exists
+beside it (nothing builds from a parking file).`;
 
 function parseArgs(argv) {
   const options = { file: DEFAULT_STATE_PATH };

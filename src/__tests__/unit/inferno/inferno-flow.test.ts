@@ -280,6 +280,32 @@ describe('inferno flow', () => {
     }
   });
 
+  // A request for an intent is no reason for one. The planner says so, the handoff line says
+  // the request asked, and the reason line carries the criterion letter the check reads.
+  it.each([
+    'agents/planner/agent.md',
+    'commands/inferno-planner.md',
+    'codex/skills/specsmd-inferno-planner/references/procedure.md',
+  ])('%s never takes the wording of a request as a criterion', (rel) => {
+    const text = readFileSync(path.join(INFERNO, rel), 'utf8');
+    expect(text).toMatch(/wording[^.]* is never a criterion, and neither is the user's explicit order to make an intent\./);
+    expect(text).toContain('`Triage: direct, the request asked for an intent`');
+    expect(text).toContain('`INTENT. (<letter>) <why one builder on the default branch could not do it>`');
+    expect(text).toMatch(/refuses a reason that names no criterion letter/);
+  });
+
+  // The launcher receives that handoff. It tells the user and builds, and never asks the
+  // planner to wrap the request as an intent after all.
+  it.each([
+    ['claude/commands/inferno-planner.md', /tell the user in one line that no intent is needed because no triage criterion holds, then build/],
+    ['codex/skills/specsmd-inferno-planner/SKILL.md', /say in one line that none is needed because no criterion holds; never wrap it as one/],
+  ])('%s builds a direct verdict the user asked to have as an intent', (rel, says) => {
+    const text = readFileSync(path.join(INFERNO, rel as string), 'utf8');
+    expect(text).toMatch(says as RegExp);
+    expect(text).not.toMatch(/wrap as a one-item intent/);
+    expect(text).not.toMatch(/a decomposition or an intent and no build/);
+  });
+
   it('the intents command names every line prefix the selector prints', () => {
     const command = readFileSync(path.join(INFERNO, 'claude/commands/inferno-intents.md'), 'utf8');
     const selector = readFileSync(

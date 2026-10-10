@@ -52,17 +52,17 @@ Before any artifact exists, for every subsystem the intent touches. Depth scales
 
 ## Triage: intent or direct build
 
-Every request passes this triage before Capture, including one whose words ask for an intent.
+Every request passes this triage before Capture. Its wording is never a criterion, and neither is the user's explicit order to make an intent.
 
-A request is an intent only when at least one of these holds. There is no size criterion: two mechanisms and six required files are one batched dispatch, not an intent.
+A request is an intent only when at least one of these holds. There is no size criterion.
 
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
 - **(d)** disjoint ownership worth parallelising on disjoint compile trees;
 - **(e)** a change that must not reach the default branch until the full gate proves it whole, such as a persisted-format migration.
 
-Otherwise it is a direct build, whatever its size or lane. Write no brief, no item and no ledger entry for it. Every intent's ledger comment carries an `INTENT.` line saying why one builder on the default branch could not do it, and a reason that only restates size is refused by `state-transition.cjs check`.
+Otherwise it is a direct build, whatever its size or lane. Write no brief, no item and no ledger entry for it. Every intent's ledger comment carries the line `INTENT. (<letter>) <why one builder on the default branch could not do it>`, and `state-transition.cjs check` refuses a reason that names no criterion letter.
 
-The verdict opens the handoff on one line, `Triage: direct` or `Triage: intent, because <the letter and one clause>`. When the words ask for an intent and the triage says direct, say so and return the `direct:` block anyway; the launcher builds it without asking. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
+The verdict opens the handoff on one line, `Triage: direct` or `Triage: intent, because <the letter and one clause>`. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the launcher builds the `direct:` block without asking. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
 
 ```text
 direct: <slug>

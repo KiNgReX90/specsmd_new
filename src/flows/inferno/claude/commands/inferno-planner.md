@@ -45,7 +45,7 @@ One call carries every id and title of that item. Then commit on the default bra
 
 ## 4. `Triage: direct`, build it
 
-A direct recipe is built, here, now. Nobody is asked: the statement is the authorisation, and the triage decides the shape. The one statement that stops at the plan is one that explicitly asks for a plan, a decomposition or an intent and no build; say the plan is written and stop.
+A direct recipe is built, here, now. Nobody is asked: the statement is the authorisation, and the triage decides the shape. The one statement that stops at the plan is one that explicitly asks for a plan or a decomposition and no build; say the plan is written and stop.
 
 A recipe with `hard: yes` goes to the oracle first and the decision goes into the assignment as written. Then dispatch ONE `specsmd-inferno-builder` subagent on `models.strong` from `.specs-inferno/config.yaml`. This launcher dispatches rather than builds, because this session has not read the recipe's files. Never drop a direct build to the cheap tier. The assignment carries the orchestrator's dispatch fields:
 
@@ -59,7 +59,7 @@ A recipe with `hard: yes` goes to the oracle first and the decision goes into th
 - `dispatch.constraints` from that config, pasted verbatim;
 - the result contract, and that a builder never commits.
 
-When the statement asked for an intent in so many words and the triage says direct, resume the planner with `wrap as a one-item intent, INTENT. line: <the reason the statement gave>`, so the ledger comment says why one builder on the default branch could not do it. That reason has to be more than size: `state-transition.cjs check` refuses one that only restates file or item count.
+When the statement asked for an intent and the handoff opens `Triage: direct`, tell the user in one line that no intent is needed because no triage criterion holds, then build the recipe as above. Never resume the planner to wrap it as an intent. The request is not a reason an `INTENT.` line may cite, whoever makes it: `state-transition.cjs check` refuses a reason that names no triage criterion.
 
 ## 5. Integrate the direct build
 

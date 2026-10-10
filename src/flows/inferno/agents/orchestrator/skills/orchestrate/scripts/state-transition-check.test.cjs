@@ -142,7 +142,8 @@ test("check still flags a genuinely open intent whose items are all done", () =>
 // Work is built directly and an intent is the exception, whatever its size. Every intent
 // waiting to be claimed says on an INTENT. line why one builder on the default branch could
 // not do it, and a reason that only restates size or file count says nothing: two mechanisms
-// and six files are a batched dispatch, not an intent.
+// and six files are a batched dispatch, not an intent. The reason opens with the letter of the
+// triage criterion that holds, and state-check-criterion.test.cjs holds that rule and its cutover.
 
 const ONE_ITEM = `intents:
   - id: title-bar-ink
@@ -166,7 +167,7 @@ const ONE_ITEM = `intents:
 const ONE_ITEM_BOXED = ONE_ITEM.replace(
   "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n",
   "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n" +
-    "      BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr\n"
+    "      BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands\n"
 );
 
 test("check reports an intent waiting to be claimed with no reason line", () => {
@@ -184,7 +185,7 @@ test("check accepts a one-item intent that names its exit from the fix-now box",
 });
 
 test("check accepts an INTENT line, the name the BOX line took on 2026-09-06", () => {
-  const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", "INTENT. the change must not reach main before the full gate proves it whole"));
+  const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands", "INTENT. (e) the change must not reach main before the full gate proves it whole"));
   assert.deepEqual(check({ file }).drift, []);
 });
 
@@ -192,7 +193,7 @@ test("check accepts an INTENT line, the name the BOX line took on 2026-09-06", (
 // check exists to catch: an entry that says INTENT. and nothing else names no exit.
 test("check reports an INTENT line with nothing after it", () => {
   const { file } = sandbox(
-    ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", "INTENT.")
+    ONE_ITEM_BOXED.replace("BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands", "INTENT.")
   );
   const result = check({ file });
 
@@ -204,8 +205,8 @@ test("check reports an INTENT line with nothing after it", () => {
 test("check accepts an INTENT line that carries its reason", () => {
   const { file } = sandbox(
     ONE_ITEM_BOXED.replace(
-      "BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr",
-      "INTENT. one migration the gate must prove whole"
+      "BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands",
+      "INTENT. (e) one migration the gate must prove whole"
     )
   );
   assert.deepEqual(check({ file }).drift, []);
@@ -215,7 +216,7 @@ test("check accepts a BOX line written as a YAML comment", () => {
   const hashed = ONE_ITEM.replace(
     "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n",
     "      Captured 2026-08-18. One attribute in TitleBar.svelte plus a test.\n" +
-      "    # BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr\n"
+      "    # BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands\n"
   );
   const { file } = sandbox(hashed);
 
@@ -269,8 +270,8 @@ test("check asks a two-item intent for its reason too, since size is no reason",
 });
 
 test("check rejects a reason that only restates size or file count", () => {
-  for (const reason of ["INTENT. six files and two mechanisms", "INTENT. past the item ceiling, about thirty builder rounds"]) {
-    const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr", reason));
+  for (const reason of ["INTENT. (d) six files and two mechanisms", "INTENT. (c) past the item ceiling, about thirty builder rounds"]) {
+    const { file } = sandbox(ONE_ITEM_BOXED.replace("BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands", reason));
     const drift = check({ file }).drift;
     assert.equal(drift.length, 1, `"${reason}" is size, not an exception`);
     assert.match(drift[0].detail, /only restates size/);
@@ -279,8 +280,8 @@ test("check rejects a reason that only restates size or file count", () => {
 
 test("check accepts a reason that names what one builder could not do", () => {
   const { file } = sandbox(ONE_ITEM_BOXED.replace(
-    "BOX. in flight: TitleBar.svelte, owned by the-mood-ink/ink-attr",
-    "INTENT. a persisted format migration the cheap checks cannot prove piecemeal"
+    "BOX. (c) in flight: TitleBar.svelte cannot change before the-mood-ink/ink-attr lands",
+    "INTENT. (e) a persisted format migration the cheap checks cannot prove piecemeal"
   ));
   assert.deepEqual(check({ file }).drift, []);
 });
