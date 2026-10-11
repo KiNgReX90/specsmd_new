@@ -62,7 +62,7 @@ function fixture(t, items) {
    * the same on a loaded machine. It is 0 when the process never finished.
    */
   function counted(...args) {
-    const coverage = fs.mkdtempSync(path.join(directory, 'coverage-'));
+    const coverage = tempDir('inferno-coverage-');
     const result = callIn({ NODE_V8_COVERAGE: coverage }, ...args);
     let calls = 0;
     for (const name of fs.readdirSync(coverage)) {
@@ -70,6 +70,7 @@ function fixture(t, items) {
         if (script.url.startsWith('file:')) for (const fn of script.functions) calls += fn.ranges[0].count;
       }
     }
+    fs.rmSync(coverage, { recursive: true, force: true });
     return { ...result, calls };
   }
   function human(...args) {
