@@ -30,6 +30,7 @@ const { scan } = require('./run-scan.cjs');
 const { mutate } = require('./run-mutate.cjs');
 const { probes } = require('./run-probes.cjs');
 const { recordOwner } = require('./run-owner.cjs');
+const { realApp } = require('./run-real-app.cjs');
 const { accept } = require('./run-lanes.cjs');
 const { LANES } = require('./run-lane-config.cjs');
 const { ship, teardown } = require('./run-ship.cjs');
@@ -59,6 +60,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
   node run.cjs doubles [--tree <dir>] [--config <file>] count the test doubles against the merge base: 0 held, 2 rose
+  node run.cjs real-app --range <from>..<to> [--item <id>] [--tree <dir>] real_app.paths lines naming what the range removed, and files driving what it changed: 0 none stale, 2 stale
   node run.cjs gate [--tree <dir>] [--config <file>] [--force] run the finalize commands without matching proofs
   node run.cjs gate --detach [--tree <dir>]              start the gate and each lane the branch touched (verification.smoke, .windows) and return
   node run.cjs gate --wait [--tree <dir>] [--minutes <n>] block on the gate and its lanes: 0 green, 2 red, 3 a lane's instrument red to accept, 4 still running (default 9 min)
@@ -73,12 +75,14 @@ const USAGE = `INFERNO orchestrator runner
 Options
   --json            machine-readable output
   --tree <dir>      the worktree to operate in (default: the repository of the cwd)
-  --config <file>   select, claim, unclaim, worktree, frontier, scan, review, integrate, doubles, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
+  --config <file>   select, claim, unclaim, worktree, frontier, scan, review, integrate, doubles, real-app, gate, green, ship and teardown: selected host config relative to the command's root (default .specs-inferno/config.yaml)
   --base <branch>   integrate, doubles, gate, ship and teardown: the base branch to fold in (default: the config's base)
   --since <ref>     verify-item: compare against this ref instead of the item's accepted dispatch
   --dispatch-id <id> verify-item: the accepted dispatch to check (default the item's latest)
   --peers <json>    verify-item: the dispatch ids that may explain a sibling's change (default every accepted one)
-  --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed
+  --item <id>       integrate: the item this landing completes once the checks are green; review: the item reviewed;
+                    real-app: the item whose own paths the removals are read from
+  --range <a..b>    real-app: the diff whose removed test ids, labels and routes it looks for
   --items <a,b>     integrate, verify-item and dispatch-log: the batched chain, treated as one unit
   --intent <id>     verify-item, integrate, review and probes: the intent owning the item, when the id is ambiguous;
                     scan, review, gate and green: the intent a tree on no intent branch builds
@@ -120,6 +124,7 @@ const COMMANDS = {
     gate.verifyItem(required(args[0] || options.items, 'verify-item <item-id> | verify-item --items <a,b>'), options),
   integrate: (args, options) => integrate(options),
   doubles: (args, options) => checkDoubles(options),
+  'real-app': (args, options) => realApp(options),
   review: (args, options) => (options.item ? review(options) : reviewIntent(options)),
   scan: (args, options) => scan(options),
   mutate: (args, options) => mutate(options),
@@ -191,7 +196,8 @@ function main(argv) {
   const result = handler(args, options);
   if (command === 'worktree' && result.payload && result.payload.path) recordOwner(result.payload.path, command);
   if (options.json) process.stdout.write(`${JSON.stringify(result.payload)}\n`);
-  else process.stdout.write(`${lib.capLines(result.out).join('\n')}\n`);
+  // A step whose every line is a finding prints nothing when it has none.
+  else if (result.out.length > 0) process.stdout.write(`${lib.capLines(result.out).join('\n')}\n`);
   return result.exit;
 }
 

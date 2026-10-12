@@ -23,7 +23,8 @@ const writer = require('./state-transition.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
 const { bad, parseItemReview, reviewPath, reviewerId } = require('./run-review-file.cjs');
 const { REINSTALL, completedBeforeReviewRule, reviewRuleSince } = require('./state-review.cjs');
-const { integrateCall, itemRecordCall, itemReviewCall } = require('./run-call.cjs');
+const { integrateCall, itemRecordCall, itemReviewCall, realAppCall } = require('./run-call.cjs');
+const { realAppPaths } = require('./run-real-app.cjs');
 
 const { RunError } = lib;
 
@@ -157,6 +158,11 @@ function forkPoint(tree, config, intent) {
   return lib.git(tree, ['merge-base', 'HEAD', base], { tolerate: true }) || 'HEAD';
 }
 
+/** The real-app check a reviewer runs, on a host that names its real-app helpers. */
+function realAppLine(tree, config, range, id = null) {
+  return realAppPaths(config, path.join(lib.SPECS_DIR, 'config.yaml')).length > 0 ? [`  real-app ${realAppCall(tree, range, id)}`] : [];
+}
+
 function owed(tree, context, reason, from, paths, reviewer = null) {
   const { intent, item, config, rel } = context;
   const { agent, model } = hostActor('reviewer', config);
@@ -170,6 +176,7 @@ function owed(tree, context, reason, from, paths, reviewer = null) {
       `review owed for ${item.id}: ${reason}`,
       ...reviewerLines(config, `item ${item.id}`, reviewer, [
         `  range ${range} paths ${paths.join(' ') || '(the whole range)'}`,
+        ...realAppLine(tree, config, range, item.id),
         `  spec ${spec}`,
         `  brief ${brief}`,
         `  write ${rel}`,
@@ -319,4 +326,4 @@ function owedReviews(tree, ledger, ids, options) {
   return lines;
 }
 
-module.exports = { actorLabel, hostActor, nextActor, nextLine, owedReviews, review, reviewerLines, tierOf };
+module.exports = { actorLabel, hostActor, nextActor, nextLine, owedReviews, realAppLine, review, reviewerLines, tierOf };

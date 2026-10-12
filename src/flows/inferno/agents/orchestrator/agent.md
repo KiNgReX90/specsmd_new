@@ -41,7 +41,7 @@ Read the brief once and each item spec once. Never re-read a file you hold unles
 
 ## Dispatch
 
-Run `run.cjs probes {item-id} --tree {path}` for every item you are about to dispatch, and again after every fold in integrate step 3 for the items still open. Paste each `drift` line into the dispatch, or into the warm builder's correction, as the measured fact that replaced the plan's number. A count grounded before a parallel merge moved the file is a number the builder would otherwise trust.
+Run `run.cjs probes {item-id} --tree {path}` for every item you are about to dispatch, and again after every fold in integrate step 3 for the items still open. Paste each `drift` line into the dispatch, or into the warm builder's correction, as the measured fact that replaced the plan's number. A count grounded before a parallel merge moved the file is a number the builder would otherwise trust. Paste its `real-app` line into the dispatch verbatim.
 
 Validate the premise first: an item that exists to fix something needs the baseline that shows it, and a baseline that refuses goes to the oracle with what you measured instead of to a builder.
 

@@ -75,6 +75,9 @@ wiring:                           # optional: per kind (command, table or event)
     within: 'generate_handler!\[([\s\S]*?)\]'   # a regex in single quotes; its last group is the registering block
     name: '(?:\w+::)*(\w+)'                     # a regex run over that block; its last group is one registered name
 
+# real_app:                       # optional: globs of the helpers and case texts that drive the real app binary; probes tells each builder to update them, and the reviewer dispatch carries the check that lists every line there still naming a test id, label or route the diff removed and every file there that drives a screen the diff changed; a --config file inherits it
+#   paths: ["integration/lib/**", "integration/*.test.mjs", "integration/TEST-CASES.md"]
+
 worktree:
   bootstrap:                      # optional: commands run inside a fresh intent worktree before the first dispatch
     - npm ci

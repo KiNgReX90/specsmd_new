@@ -16,7 +16,7 @@ const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const gate = require('./run-gate.cjs');
 const { resolveBase } = require('./run-intents.cjs');
-const { hostActor, reviewerLines } = require('./run-review.cjs');
+const { hostActor, realAppLine, reviewerLines } = require('./run-review.cjs');
 const { reviewerId } = require('./run-review-file.cjs');
 const owed = require('./run-intent-owed.cjs');
 const { gateStartCall, intentRecordCall, intentReviewCall, itemReviewCall, scanCall } = require('./run-call.cjs');
@@ -75,6 +75,7 @@ function dispatch(tree, context, reasons, from, folded, reviewer = null) {
       ...reasons.map((reason) => `intent review owed for ${intent}: ${reason}`),
       ...reviewerLines(config, `intent ${intent}`, reviewer, [
         `  range ${range}`,
+        ...realAppLine(tree, config, range),
         `  brief ${brief}`,
         `  specs ${specs}: ${items.map((id) => `${id}.md`).join(' ') || '(none)'}`,
         ...(scanned ? [`  scan ${scan}`] : []),

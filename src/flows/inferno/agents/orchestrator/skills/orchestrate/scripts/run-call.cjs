@@ -93,6 +93,9 @@ function scanCall(tree, plan = null, collect = false) {
   return runCall('scan', tree, null, [...(collect ? ['--collect'] : []), ...(plan ? ['--only', 'wiring', '--plan', plan] : [])]);
 }
 
+/** The real-app check over a review's range, read from the item's own paths when one is named. */
+const realAppCall = (tree, range, id = null) => runCall('real-app', tree, null, ['--range', range, ...(id ? ['--item', id] : [])]);
+
 /** Remove a worktree and branch the base already holds. */
 const teardownCall = (tree) => runCall('teardown', tree, null);
 
@@ -110,5 +113,5 @@ const unclaimIntentCall = (intent) => writerCall('unclaim-intent', intent);
 
 module.exports = {
   RUNNER, RUNNER_PATH, caller, blockIntentCall, closeIntentCall, gateStartCall, gateWaitCall, integrateCall, intentRecordCall,
-  intentReviewCall, itemRecordCall, itemReviewCall, laneAcceptCall, scanCall, teardownCall, unclaimIntentCall,
+  intentReviewCall, itemRecordCall, itemReviewCall, laneAcceptCall, realAppCall, scanCall, teardownCall, unclaimIntentCall,
 };

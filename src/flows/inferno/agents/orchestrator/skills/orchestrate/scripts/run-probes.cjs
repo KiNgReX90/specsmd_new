@@ -11,6 +11,7 @@ const os = require('os');
 const path = require('path');
 
 const lib = require('./run-lib.cjs');
+const { realAppPaths } = require('./run-real-app.cjs');
 
 const { RunError } = lib;
 
@@ -212,8 +213,15 @@ function probes(itemId, options) {
   }
   if (out.length === 0) out.push(`no probes ${itemId}`);
 
+  // No run starts the real app, so the builder edits its helpers by reading them.
+  const realApp = realAppPaths(lib.readConfig(tree, options.config), options.config || path.join(lib.SPECS_DIR, 'config.yaml'));
+  if (realApp.length > 0) {
+    out.push(`real-app ${itemId}: when this piece changes a screen, update the helpers and case texts under ` +
+      `${realApp.join(', ')} that drive the real app; write them and never run them`);
+  }
+
   const ok = results.every((entry) => entry.ok) && (!replay || replay.ok);
-  return { exit: ok ? 0 : 2, payload: { ok, probes: results, diagnosis: replay }, out };
+  return { exit: ok ? 0 : 2, payload: { ok, probes: results, diagnosis: replay, real_app: realApp }, out };
 }
 
 module.exports = { diagnosisErrors, isCorrective, probes, replayDiagnosis, replayErrors, shapeErrors };

@@ -213,6 +213,10 @@ test("each call builder prints its exact line from its own flags, the site's dec
       [["/w", "plan-x", true], `run.cjs scan --collect --only wiring --plan plan-x --tree /w${tail}`],
     ],
     teardownCall: [[["/w"], `run.cjs teardown --tree /w${tail}`]],
+    realAppCall: [
+      [["/w", "a1..b2"], `run.cjs real-app --range a1..b2 --tree /w${tail}`],
+      [["/w", "a1..b2", "a-one"], `run.cjs real-app --range a1..b2 --item a-one --tree /w${tail}`],
+    ],
     laneAcceptCall: [[["windows", "/w"], `node ${calls.RUNNER_PATH} windows --accept --harness-fix <sha> --tree /w${tail}`]],
     closeIntentCall: [[["beta"], `state-transition.cjs close-intent --intent beta --tree /t --config ${CODEX}`]],
     blockIntentCall: [[["beta"], `state-transition.cjs block-intent --reason "<why it cannot be built yet>" --intent beta --tree /t --config ${CODEX}`]],

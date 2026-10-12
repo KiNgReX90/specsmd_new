@@ -62,6 +62,9 @@ halt:
 
 knowledge:
   index: <optional path>
+
+real_app:
+  paths: ["<glob of a helper or case text that drives the real app>"]
 ```
 
 Allowed values:
@@ -75,6 +78,7 @@ Allowed values:
 - `dispatch.constraints`: machine rules pasted verbatim into every builder and tester dispatch.
 - `delivery.base_branch`: a real branch confirmed by the user.
 - halt paths and knowledge index: project-relative paths when present.
+- `real_app.paths`: globs of the helpers and case texts that drive the real app binary, which builders update and the reviewer checks. This file inherits the key from `.specs-inferno/config.yaml` when it sets none.
 
 Role and agent names above are fixed. An existing `<pin>` stays unless the user changes it; a created one copies `model` and `model_reasoning_effort` from `.codex/agents/<agent>.toml`. There is no writer role: the planner writes its own work items, so a `roles.writer` block from an older config is dropped.
 

@@ -70,7 +70,7 @@ Repeat until all items are completed or the run blocks or halts.
    - `dispatch.constraints` pasted verbatim;
    - firewall files by name with the sanctioned alternative for each;
    - already-landed dependency outputs, semantics that must survive, skipped items and known hazards;
-   - every `drift` line from `run.cjs probes <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`, run in the dispatching round and again after every base fold.
+   - every `drift` and `real-app` line from `run.cjs probes <item-id> --tree <path> --config .specs-inferno/config.codex.yaml`, run in the dispatching round and again after every base fold.
    Pass pointers, not file bodies or broad search instructions. Never ask for residual risks: that slot is how a builder parks a defect it could have fixed.
 7. Use `wait_agent` until every dispatched builder returns, tracking each outstanding worker by id.
 
