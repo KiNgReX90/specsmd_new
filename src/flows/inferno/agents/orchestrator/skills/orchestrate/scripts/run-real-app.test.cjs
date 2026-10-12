@@ -32,11 +32,14 @@ test("a test id is read from its attribute, its braces, its ternary branches and
   assert.deepEqual(keys('<b data-cy="cy-target">'), ["testid cy-target"]);
 });
 
-test("a test id built at run time is no declaration", () => {
-  assert.deepEqual(keys('<div data-testid="tile-{id}">'), []);
-  assert.deepEqual(keys("<div data-testid={`version-${id}`}>"), []);
-  assert.deepEqual(keys(`<li [attr.data-testid]="'fb-kind-' + entry.kind">`), []);
+test("a test id built at run time declares its static prefix, or nothing without one", () => {
+  assert.deepEqual(keys('<div data-testid="tile-{id}">'), ["prefix tile-"]);
+  assert.deepEqual(keys('<li data-testid="row-{{ i }}">', "src/app/list.component.html"), ["prefix row-"]);
+  assert.deepEqual(keys("<div data-testid={`version-${id}`}>"), ["prefix version-"]);
+  assert.deepEqual(keys(`<li [attr.data-testid]="'fb-kind-' + entry.kind">`, "src/app/list.component.html"), ["prefix fb-kind-"]);
   assert.deepEqual(keys("<div data-testid={action.testid}>"), []);
+  assert.deepEqual(keys(`<i [attr.data-testid]="idPrefix() + '-close'">`, "src/app/x.component.html"), []);
+  assert.deepEqual(keys('<div data-testid="{kind}">'), []);
 });
 
 test("a label is read from its attribute, one-line element text and a flat catalogue entry", () => {
@@ -256,6 +259,36 @@ test("a changed file that declares nothing a helper names, and a changed test fi
   const result = check(fixture);
   assert.equal(result.code, 0, result.err);
   assert.equal(result.out, "");
+});
+
+// --- an Angular host: a multi-line tag, a large fixture helper, helpers newer than the range --
+
+const ANGULAR = 'real_app:\n  paths: ["scripts/perf/probes.mjs", "scripts/perf/fixtures/cohorts-*.json"]\n';
+const BAR = (cls) => `<div class="bar">\n  <button\n    type="button"\n    class="${cls}"\n    data-testid="pane-filter-regex-toggle"\n    (click)="toggle()"\n  >.*</button>\n</div>\n`;
+
+test("a past range is read against the helpers as they stand now, whatever their size", () => {
+  const fixture = repo(ANGULAR, { "src/app/bar/bar.component.html": BAR("pane-filter") });
+  land(fixture, { "src/app/bar/bar.component.html": BAR("pane-filter plate") });
+  const range = `${fixture.base}..${git(fixture.root, ["rev-parse", "HEAD"])}`;
+  const fixtureJson = `{"cohort":"renderer","steps":[${'{"pad":"x"},'.repeat(90000)}{"testid":"pane-filter-regex-toggle"}]}`;
+  assert.ok(fixtureJson.length > 1024 * 1024);
+  land(fixture, {
+    "scripts/perf/probes.mjs": "pane.querySelector('[data-testid=\"pane-filter-regex-toggle\"]');\n",
+    "scripts/perf/fixtures/cohorts-renderer.json": fixtureJson,
+  });
+  const result = spawnSync(process.execPath, [RUN, "real-app", "--range", range, "--tree", fixture.root], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.deepEqual(drives(result.stdout), [
+    "drives scripts/perf/fixtures/cohorts-renderer.json via testid pane-filter-regex-toggle",
+    "drives scripts/perf/probes.mjs via testid pane-filter-regex-toggle",
+  ]);
+});
+
+test("a bound id with a static prefix drives every helper naming an id it builds", () => {
+  const welcome = (mood) => `template: \`<i [attr.data-testid]="'welcome-mood-' + m.id" class="${mood}"></i>\`,\n`;
+  const fixture = repo(ANGULAR, { "src/app/welcome.component.ts": welcome("calm"), "scripts/perf/probes.mjs": "click('welcome-mood-calm');\nclick('welcome-moods');\n" });
+  land(fixture, { "src/app/welcome.component.ts": welcome("bright") });
+  assert.deepEqual(drives(check(fixture).out), ["drives scripts/perf/probes.mjs via testid welcome-mood-*"]);
 });
 
 test("a Codex config inherits real_app.paths from the project config", () => {
