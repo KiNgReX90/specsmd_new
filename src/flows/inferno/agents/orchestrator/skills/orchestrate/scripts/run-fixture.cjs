@@ -182,10 +182,11 @@ function repo(options = {}) {
 /** Drive the CLI the way the orchestrator does: a process, an exit code, stdout. */
 function run(fixture, args, options = {}) {
   reviewBefore(args, options.cwd || fixture.root);
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: options.cwd || fixture.root,
     encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, SPECSMD_CODEX: codexStub(fixture.cache), ...(options.env || {}) },
+    env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache, SPECSMD_CODEX: codexStub(fixture.cache), ...(options.env || {}) },
   });
   return { code: result.status, out: result.stdout || "", err: result.stderr || "" };
 }

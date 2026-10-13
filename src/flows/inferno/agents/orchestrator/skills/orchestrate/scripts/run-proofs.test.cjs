@@ -148,10 +148,11 @@ function repo(t, body = config()) {
 
 function run(fixture, ...args) {
   reviewBefore(args, fixture.root);
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd: fixture.root,
     encoding: 'utf8',
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+    env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache },
   });
   return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
 }

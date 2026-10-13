@@ -37,7 +37,8 @@ function fixture(t) {
 
 const args = (f, test, extra = []) =>
   [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "1", "--replace", "module.exports = 2;", "--test", test, ...extra];
-const env = (f) => ({ ...process.env, XDG_CACHE_HOME: f.cache });
+// CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
+const env = (f) => ({ ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: f.cache });
 
 function mutate(f, test) {
   const result = spawnSync(process.execPath, args(f, test), { cwd: f.tree, encoding: "utf8", env: env(f) });
@@ -86,10 +87,11 @@ test("mutate refuses a line that does not change, a line past the end and an unt
 });
 
 /** Start a mutate on line 1 of `file` whose test holds until `release` exists; resolves once the mutant is in place. */
+// A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
 async function held(f, file = FILE, replace = "module.exports = 2;") {
   const release = path.join(f.dir, "release");
   const child = spawn(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", file, "--line", "1", "--replace", replace,
-    "--test", `until [ -f ${release} ]; do sleep 0.05; done; true`], { cwd: f.tree, env: env(f), stdio: "ignore" });
+    "--test", `until [ -f ${release} ] || [ ! -d ${f.dir} ]; do sleep 0.05; done; true`], { cwd: f.tree, env: env(f), stdio: "ignore" });
   const done = new Promise((resolve) => child.on("close", (code, signal) => resolve({ code, signal })));
   const read = () => fs.readFileSync(path.join(f.tree, file), "utf8");
   const before = read();
@@ -143,7 +145,7 @@ test("a second mutate refuses while a live run holds its mutant, and the live ru
   git(f.tree, "add", "-A");
   git(f.tree, "commit", "-qm", "n");
   const release = path.join(f.dir, "release");
-  const holdThenCheck = `until [ -f ${release} ]; do sleep 0.05; done; ${CHECK}`;
+  const holdThenCheck = `until [ -f ${release} ] || [ ! -d ${f.dir} ]; do sleep 0.05; done; ${CHECK}`;
   const child = spawn(process.execPath, args(f, holdThenCheck), { cwd: f.tree, env: env(f), stdio: ["ignore", "pipe", "ignore"] });
   let out = "";
   child.stdout.on("data", (chunk) => { out += chunk; });
@@ -268,4 +270,45 @@ test("a journal without the line, the texts and the original's hash is refused, 
   assert.match(next.err, /MUTATE_LEFTOVER.*src\/m\.js/);
   assert.equal(content(f), "module.exports = 2;\n");
   assert.ok(journalOf(f), "the journal is kept");
+});
+
+// A red run is a caught mutant only when the test ran. A build that failed or a file that does not
+// parse never reached the test, and a run something killed never finished it.
+test("a Rust mutant whose build fails reads no verdict: did not build, never caught yes", (t) => {
+  const f = fixture(t);
+  writeFile(path.join(f.tree, "src/lib.rs"), "pub fn a() -> u32 { 1 }\n");
+  git(f.tree, "add", "-A");
+  git(f.tree, "commit", "-qm", "rust");
+  const cargo = "printf 'error[E0308]: mismatched types\\n --> src/lib.rs:1:21\\n\\nerror: could not compile `x` (lib) due to 1 previous error\\n'; exit 101";
+  const result = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", "src/lib.rs", "--line", "1",
+    "--replace", "pub fn a() -> u32 { \"1\" }", "--test", cargo], { cwd: f.tree, encoding: "utf8", env: env(f) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^no verdict: did not build$/m);
+  assert.doesNotMatch(result.stdout, /caught yes/);
+  assert.equal(fs.readFileSync(path.join(f.tree, "src/lib.rs"), "utf8"), "pub fn a() -> u32 { 1 }\n");
+});
+
+test("a JavaScript mutant that does not parse reads no verdict: did not parse", (t) => {
+  const f = fixture(t);
+  const result = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "1",
+    "--replace", "module.exports = (if 1 { 2 });", "--test", CHECK], { cwd: f.tree, encoding: "utf8", env: env(f) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^no verdict: did not parse$/m);
+  assert.equal(content(f), ORIGINAL);
+});
+
+test("a SyntaxError the mutant throws while it runs is still caught", (t) => {
+  const f = fixture(t);
+  const result = spawnSync(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", FILE, "--line", "1",
+    "--replace", "module.exports = JSON.parse('{bad');", "--test", CHECK], { cwd: f.tree, encoding: "utf8", env: env(f) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /^caught yes$/m);
+});
+
+test("a test something killed with exit 137 reads no verdict and exits 2", (t) => {
+  const f = fixture(t);
+  const result = mutate(f, "sh -c 'kill -9 $$'; exit $?");
+  assert.equal(result.code, 2, result.out + result.err);
+  assert.match(result.out, /^no verdict: killed \(exit 137\)/m);
+  assert.equal(content(f), ORIGINAL);
 });

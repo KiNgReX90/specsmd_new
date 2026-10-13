@@ -152,10 +152,11 @@ function codexStub(cache, body = CODEX_HOLDS, name = 'codex-holds') {
 }
 
 function run(fixture, args, cwd = fixture.root) {
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
   const result = spawnSync(process.execPath, [RUN, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, XDG_CACHE_HOME: fixture.cache, SPECSMD_CODEX: codexStub(fixture.cache) },
+    env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache, SPECSMD_CODEX: codexStub(fixture.cache) },
   });
   return { code: result.status, out: result.stdout || '', err: result.stderr || '' };
 }
@@ -189,7 +190,7 @@ function asPrintedByPath(fixture, text) {
   assert.ok(match, `no line naming the runner by its path in: ${text}`);
   const line = `node ${match[1]} ${match[2].replace(/\.$/, '')}`;
   const result = spawnSync('sh', ['-c', line], {
-    cwd: path.dirname(fixture.root), encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: fixture.cache },
+    cwd: path.dirname(fixture.root), encoding: 'utf8', env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache },
   });
   return { argv: [line], code: result.status, out: result.stdout || '', err: result.stderr || '' };
 }
@@ -248,15 +249,15 @@ function reviewBefore(args, cwd) {
 /**
  * Start a mutate whose test waits for a release file, and resolve once its mutant sits in line 1
  * of `file`. `release` lets it finish and restore; `kill` ends it outright, so the mutant and
- * its journal stay behind.
+ * its journal stay behind. A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
  */
 async function heldMutate(fixture, tree, file = 'src/a.ts', replace = 'export const a = 99;') {
   const abs = path.join(tree, file);
   const before = fs.readFileSync(abs, 'utf8');
   const release = path.join(path.dirname(fixture.root), `release-${process.hrtime.bigint()}`);
   const child = spawn(process.execPath, [RUN, 'mutate', '--tree', tree, '--file', file, '--line', '1', '--replace', replace,
-    '--test', `until [ -f ${release} ]; do sleep 0.05; done`],
-  { cwd: tree, env: { ...process.env, XDG_CACHE_HOME: fixture.cache }, stdio: 'ignore' });
+    '--test', `until [ -f ${release} ] || [ ! -d ${path.dirname(release)} ]; do sleep 0.05; done`],
+  { cwd: tree, env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache }, stdio: 'ignore' });
   const done = new Promise((resolve) => child.on('close', resolve));
   for (let i = 0; i < 200 && fs.readFileSync(abs, 'utf8') === before; i += 1) await new Promise((r) => setTimeout(r, 25));
   const landed = fs.readFileSync(abs, 'utf8') !== before;

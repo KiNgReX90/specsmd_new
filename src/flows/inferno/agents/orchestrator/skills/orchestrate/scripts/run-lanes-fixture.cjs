@@ -81,8 +81,9 @@ process.exit(Number(code === 'file' ? fs.readFileSync(release, 'utf8') : code));
 
 function run(f, ...args) {
   reviewBefore(args, f.tree);
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
   const result = spawnSync(process.execPath, [RUN, ...args], {
-    cwd: f.tree, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: f.cache },
+    cwd: f.tree, encoding: 'utf8', env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: f.cache },
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }

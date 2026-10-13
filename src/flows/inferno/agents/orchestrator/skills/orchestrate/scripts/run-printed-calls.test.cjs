@@ -84,9 +84,9 @@ test("on Codex the frontier's HELD lines print the integrate and the review for 
 
 test("on Codex the gate's start, still-running and wait lines run as printed on the Codex gate", () => {
   // The gate holds until the test lets it go. A gate that sleeps for a fixed time has finished
-  // before the early --wait on a loaded machine.
+  // before the early --wait on a loaded machine. A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
   const release = path.join(tempDir("inferno-hold-"), "release");
-  const fixture = repo({ files: codex(`until [ -f ${release} ]; do sleep 0.1; done; echo held`) });
+  const fixture = repo({ files: codex(`until [ -f ${release} ] || [ ! -d ${path.dirname(release)} ]; do sleep 0.1; done; echo held`) });
   const tree = worktree(fixture, INTENT_TREE);
   write(tree, "src/a.ts", "export const a = 3;\n");
   git(tree, ["commit", "-qam", "the work"]);

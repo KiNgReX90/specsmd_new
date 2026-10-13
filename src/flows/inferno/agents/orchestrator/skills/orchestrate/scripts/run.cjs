@@ -56,6 +56,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs scan [--collect] --only wiring --plan <intent-id> the plan-time scan: 3 spawn, then 0 no gap, 2 every gap for the planner
   node run.cjs review --tree <dir> [--intent <id>] [--reviewer <agent-id>] the intent's cold review before the gate: 3 dispatch or owed, 0 clean, 2 fix
   node run.cjs mutate --file <f> --line <n> --replace <text> --test <cmd> [--tree <dir>] break one line, run the test, restore: caught yes|no
+  node run.cjs mutate --batch <file> [--tree <dir>]      every mistake of a review, the Rust ones on one build: caught yes|no or no verdict per entry
   node run.cjs integrate --item <id> [--tree <dir>]      fold the base in, run the checks, complete the item
   node run.cjs integrate --items <a,b> [--tree <dir>]    the same for an explicitly batched chain
   node run.cjs integrate [--tree <dir>] [--config <file>] fold and check without completing anything
@@ -92,6 +93,7 @@ Options
   --plan <id>       scan: ask of the captured plan of this intent instead of its diff
   --lane <name>     gate: run one configured lane in this process, as gate --detach starts it
   --harness-fix <sha> smoke|windows --accept: the harness fix on the base branch the instrument red is accepted against
+  --batch <file>    mutate: a JSON or YAML list of {criterion, file, line, find, replace, test}; find occurs once on that line
 
 Exit codes: 0 ok, 1 usage, 2 failure, 3 a step is owed first (the gate, an item or intent review, the scan, external evidence, a lane accept, the smoke lane, or an item completed with no integration proof or review), 4 gate or a lane still running.`;
 
@@ -194,6 +196,12 @@ function main(argv) {
   // reads the primary checkout, which no run owns.
   if (OWNING.has(command) && options.tree && !options.plan) recordOwner(options.tree, command);
   const result = handler(args, options);
+  // A batch mutate yields to the event loop between its runs, so its result is a promise.
+  if (result && typeof result.then === 'function') return result.then((done) => finish(command, options, done));
+  return finish(command, options, result);
+}
+
+function finish(command, options, result) {
   if (command === 'worktree' && result.payload && result.payload.path) recordOwner(result.payload.path, command);
   if (options.json) process.stdout.write(`${JSON.stringify(result.payload)}\n`);
   // A step whose every line is a finding prints nothing when it has none.
@@ -201,20 +209,26 @@ function main(argv) {
   return result.exit;
 }
 
+function fail(error) {
+  if (error instanceof RunError) {
+    process.stderr.write(`ERROR [${error.code}] ${error.message}\n`);
+    process.exit(error.exit);
+  }
+  // A refusal from the single writer is this run's failure too, not a crash.
+  if (error instanceof TransitionError) {
+    process.stderr.write(`ERROR [${error.code}] ${error.message}\n`);
+    process.exit(2);
+  }
+  throw error;
+}
+
 if (require.main === module) {
   try {
-    process.exit(main(process.argv.slice(2)));
+    const exit = main(process.argv.slice(2));
+    if (exit && typeof exit.then === 'function') exit.then((code) => process.exit(code), fail);
+    else process.exit(exit);
   } catch (error) {
-    if (error instanceof RunError) {
-      process.stderr.write(`ERROR [${error.code}] ${error.message}\n`);
-      process.exit(error.exit);
-    }
-    // A refusal from the single writer is this run's failure too, not a crash.
-    if (error instanceof TransitionError) {
-      process.stderr.write(`ERROR [${error.code}] ${error.message}\n`);
-      process.exit(2);
-    }
-    throw error;
+    fail(error);
   }
 }
 

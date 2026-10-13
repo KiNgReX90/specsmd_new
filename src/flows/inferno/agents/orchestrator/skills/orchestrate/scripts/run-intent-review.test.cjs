@@ -182,9 +182,9 @@ test("review refuses a scan line nobody answered", () => {
 });
 
 // --- mutant coverage ---------------------------------------------------------
-// An item proven by a JavaScript or TypeScript test owes a caught mutant for every acceptance
-// criterion, named by its text or its index. An item proven by Rust tests alone owes one, since
-// each Rust mutant costs a compile. The mutant sits in the item review or here.
+// An item with any test path owes a caught mutant for every acceptance criterion, named by its
+// text or its index, whatever language proves it. The batch mutate builds the Rust ones once, so
+// Rust owes no less than JavaScript. The mutant sits in the item review or here.
 
 function itemSpec(id, criteria, tests) {
   return `---\nid: ${id}\nintent: alpha\nstatus: pending\n---\n\n# Work Item: ${id}\n\n## Acceptance Criteria\n\n` +
@@ -225,15 +225,24 @@ test("a JS-proven item owes a caught mutant for every criterion, by text or by i
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
 });
 
-test("a Rust-only item owes one caught mutant, wherever it is recorded", () => {
+test("a Rust-only item owes a caught mutant for every criterion, like a JavaScript one", () => {
   const { fixture, tree } = covered({ "a-one": [[], ["src/a.test.ts"]], "a-two": [["b runs", "b stops"], ["src/b.rs"]] });
+  write(tree, REVIEW, `verdict: clean\n${mutantList([["b stops", "cargo test b_stops"]])}`);
+  const refused = review(fixture, tree);
+  assert.equal(refused.code, 2, refused.out + refused.err);
+  assert.match(refused.err, /a-two owes a caught mutant for criteria 1 "b runs"/);
+  assert.doesNotMatch(refused.err, /b stops/);
+  write(tree, REVIEW, `verdict: clean\n${mutantList([["b stops", "cargo test b_stops"], ["a-two:1", "cargo test b_runs"]])}`);
+  const recorded = review(fixture, tree);
+  assert.equal(recorded.code, 0, recorded.out + recorded.err);
+});
+
+test("an item proven by any other kind of test owes every criterion too", () => {
+  const { fixture, tree } = covered({ "a-one": [["the script exits 0"], ["scripts/check.sh"]] });
   write(tree, REVIEW, "verdict: clean\n");
   const refused = review(fixture, tree);
   assert.equal(refused.code, 2, refused.out + refused.err);
-  assert.match(refused.err, /a-two has no caught mutant/);
-  write(tree, REVIEW, `verdict: clean\n${mutantList([["b stops", "cargo test b_stops"]])}`);
-  const recorded = review(fixture, tree);
-  assert.equal(recorded.code, 0, recorded.out + recorded.err);
+  assert.match(refused.err, /a-one owes a caught mutant for criteria 1 "the script exits 0"/);
 });
 
 test("a mixed item owes every criterion, and a cargo mutant that names one covers it", () => {

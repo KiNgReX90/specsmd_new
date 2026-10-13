@@ -82,7 +82,8 @@ function fixture(t) {
   git(root, ['commit', '-qm', 'init']);
   git(root, ['remote', 'add', 'origin', remote]);
   git(root, ['push', '-qu', 'origin', 'main']);
-  const env = { ...process.env, XDG_CACHE_HOME: path.join(dir, 'cache'), INFERNO_FLOW_BUDGET: path.join(dir, 'no-budget') };
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
+  const env = { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: path.join(dir, 'cache'), INFERNO_FLOW_BUDGET: path.join(dir, 'no-budget') };
   const run = (args, node = []) => {
     reviewBefore(args, root);
     const result = spawnSync(process.execPath, [...node, RUN, ...args], { cwd: root, encoding: 'utf8', env });

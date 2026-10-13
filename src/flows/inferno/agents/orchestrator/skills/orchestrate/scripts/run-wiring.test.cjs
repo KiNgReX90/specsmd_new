@@ -107,10 +107,11 @@ function fixture({ provider = "pending", provides = "", config, codex, modRs = M
 }
 
 function frontier(tree, extra = []) {
+  // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
   const result = spawnSync(process.execPath, [RUN, "frontier", "alpha", "--tree", tree.root, ...extra], {
     cwd: tree.root,
     encoding: "utf8",
-    env: { ...process.env, XDG_CACHE_HOME: path.join(tree.dir, "cache"), SPECSMD_CODEX: codexStub(path.join(tree.dir, "cache")) },
+    env: { ...process.env, CLAUDE_BUILD_WRAPPED: "1", XDG_CACHE_HOME: path.join(tree.dir, "cache"), SPECSMD_CODEX: codexStub(path.join(tree.dir, "cache")) },
   });
   return { code: result.status, out: `${result.stdout || ""}${result.stderr || ""}` };
 }

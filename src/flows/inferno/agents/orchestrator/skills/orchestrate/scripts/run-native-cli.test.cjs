@@ -34,8 +34,9 @@ function fixture(t) {
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'native fixture');
   function call(...args) {
+    // CLAUDE_BUILD_WRAPPED is claude-build's nested-call marker: a fake command runs as is and never queues on the machine-wide build lock.
     const result = spawnSync(process.execPath, [path.join(__dirname, 'run.cjs'), ...args, '--json'], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, XDG_CACHE_HOME: path.join(directory, 'cache') },
+      cwd: root, encoding: 'utf8', env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: path.join(directory, 'cache') },
     });
     let data;
     try { data = JSON.parse(result.stdout); } catch { data = null; }

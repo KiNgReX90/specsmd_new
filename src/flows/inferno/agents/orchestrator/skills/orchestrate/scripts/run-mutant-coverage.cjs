@@ -3,20 +3,17 @@
 /**
  * Which acceptance criteria still owe a caught mutant before an intent review may say clean.
  *
- * The item's manifest decides by its test paths. Any JavaScript or TypeScript test means every
- * criterion of the item needs a caught mutant that names it, since such a mutant costs one test
- * run. Rust tests alone mean one caught mutant for the item, since each Rust mutant costs a
- * compile. An item with no test path owes none. A mutant counts from the item's own review or
- * from the intent review.
+ * The item's manifest decides by its test paths. An item with any test path owes, for every
+ * criterion, a caught mutant that names it, whatever language the tests are in: the batch mutate
+ * builds every Rust mutant of a review once. An item with no test path owes none. A mutant counts
+ * from the item's own review or from the intent review, and only when it reads caught yes, so an
+ * entry the batch gave no verdict never counts.
  */
 
 const fs = require('fs');
 const path = require('path');
 
 const lib = require('./run-lib.cjs');
-
-const JS_TEST = /\.(?:[cm]?[jt]sx?)$/;
-const RUST_TEST = /\.rs$/;
 
 /** The criteria under `## Acceptance Criteria`, one per list line, checkbox or not. */
 function acceptanceCriteria(content) {
@@ -54,8 +51,7 @@ function itemProofs(tree, intentId, ids) {
     return {
       id,
       criteria: acceptanceCriteria(fs.readFileSync(spec.file, 'utf8')),
-      js: tests.some((test) => JS_TEST.test(test)),
-      rust: tests.some((test) => RUST_TEST.test(test)),
+      tested: tests.length > 0,
       mutants: itemMutants(tree, intentId, id),
     };
   });
@@ -82,13 +78,9 @@ function mutantGaps(items, intentMutants) {
   for (const item of items) {
     const named = (index) => item.mutants.some((mutant) => names(mutant, item, index, true)) ||
       caught.some((mutant) => names(mutant, item, index, false));
-    if (item.js) {
-      const owed = item.criteria.map((text, index) => (named(index) ? null : `${index + 1} "${text}"`)).filter(Boolean);
-      if (owed.length > 0) lines.push(`${item.id} owes a caught mutant for criteria ${owed.join(', ')}`);
-    } else if (item.rust) {
-      const any = item.mutants.length > 0 || item.criteria.some((text, index) => named(index));
-      if (!any) lines.push(`${item.id} has no caught mutant`);
-    }
+    if (!item.tested) continue;
+    const owed = item.criteria.map((text, index) => (named(index) ? null : `${index + 1} "${text}"`)).filter(Boolean);
+    if (owed.length > 0) lines.push(`${item.id} owes a caught mutant for criteria ${owed.join(', ')}`);
   }
   return lines;
 }

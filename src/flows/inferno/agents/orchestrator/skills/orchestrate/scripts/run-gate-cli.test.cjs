@@ -88,10 +88,10 @@ test("gate --detach starts the gate in its own process and --wait reports it gre
 
 // The gate's command waits for the test to let it go rather than for a clock: two seconds of
 // sleep ran out before the early --wait on a loaded box, so the gate had finished and the
-// "still running" answer never came.
+// "still running" answer never came. A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
 test("gate --wait exits 4 while the gate still runs, refuses a second start, and finishes on the next call", () => {
   const release = path.join(tempDir("inferno-hold-"), "release");
-  const held = `until [ -f ${release} ]; do sleep 0.1; done; echo held`;
+  const held = `until [ -f ${release} ] || [ ! -d ${path.dirname(release)} ]; do sleep 0.1; done; echo held`;
   const fixture = repo({ config: CONFIG.replace("    - echo always", `    - ${held}`) });
   const { tree } = opened(fixture);
   try {
