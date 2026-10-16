@@ -24,6 +24,12 @@ Astra found the most important correction. The compaction summary written on day
 
 So compaction loss is not proven to be the main cause. A memory system would also have faithfully stored the wrong arrangement. Memory solves part of the problem, and the checks themselves must test the right thing.
 
+## Memory does not make a full session sharper
+
+The pot solves the loss of hard facts. It does not make an overloaded session think more clearly. A model reasons worse deep into a long context, and a session that compacted 102 times carries summaries of summaries plus everything its last segment piled up. Short sessions per job therefore stay necessary next to this memory.
+
+The two work together. The pot belongs to the task, and a session belongs to one job. A session ends when its job ends, and the next job starts a fresh session that attaches to the same pot. The pot is what makes that hand-over cheap. The facts, responsibilities and decisions are already in it, so a new session does not need the old conversation. Compaction becomes the exception inside one job, never the way a task survives for days.
+
 ## Design
 
 ### A pot per task, attached by name
@@ -82,11 +88,13 @@ One pot, one watch task, one model adapter and one independent timer, local only
 
 1. Replay a recorded stall (a lane that stopped making progress for hours) and a broken hand-off between stages.
 2. Force ten compactions and one session switch.
-3. Run the same scenario without the pot.
+3. Run the same work as a chain of short sessions, one per job, each attached to the pot.
+4. Run the same scenario without the pot.
 
-Success means zero lost obligations, exact retrieval of the user's words, times and shas, one owner per task, and detection within two check intervals. Also measure false alarms, extra tokens and waiting time. Centralise only after the same proof passes with Codex and with a network outage.
+Success means zero lost obligations, exact retrieval of the user's words, times and shas, one owner per task, and detection within two check intervals. The chain of short sessions must match or beat the long session on those criteria with fewer tokens. Also measure false alarms, extra tokens and waiting time. Centralise only after the same proof passes with Codex and with a network outage.
 
 ## Open questions
 
-- Who triggers the manual compactions at around 250k tokens, and why there on a 1M window? Compacting later means fewer rounds of re-summarising, at the cost of a longer context.
+- Where does one job end? The session boundary needs a rule a hook can see: a finished job, a token threshold, or both.
+- Who triggers the manual compactions at around 250k tokens today? With short sessions per job they should become rare, so their count per pot is a measure of whether the boundary works.
 - Where does the CLI live: in specsmd as part of the flow, or as a standalone harness tool that any project can use?
