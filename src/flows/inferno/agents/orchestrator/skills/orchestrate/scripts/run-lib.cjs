@@ -185,7 +185,7 @@ function readConfig(root, selected) {
   if (selected && file !== defaultFile && fs.existsSync(defaultFile)) {
     const defaults = parseYaml(fs.readFileSync(defaultFile, 'utf8'));
     // Machine facts every host config shares; the budget lookup must match the installer's.
-    for (const section of ['worktree', 'recovery', 'halt', 'budget', 'doubles', 'wiring', 'real_app']) {
+    for (const section of ['worktree', 'recovery', 'halt', 'budget', 'doubles', 'wiring', 'real_app', 'cases']) {
       if (
         !Object.prototype.hasOwnProperty.call(config, section) &&
         Object.prototype.hasOwnProperty.call(defaults, section)

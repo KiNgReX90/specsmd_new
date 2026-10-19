@@ -331,3 +331,53 @@ test('integrate runs every command and names every failure in one red result', (
   assert.match(result.out, /FAIL \d+s node proof\.cjs red-two ->/);
   assert.match(result.out, /2 of 3 integrate command\(s\) failed/);
 });
+
+// The tester cases drifted from main while every rule about them was text (2026-10-19), so the
+// branch answers for them before a command spends time on it. run-cases.test.cjs owns the rules.
+const CASES = `cases:
+  files:
+    - path: integration/TEST-CASES.md
+      case: '^### (TC-\\d+)'
+  tests: ["integration/*.test.mjs"]
+  sources: ["src/**"]
+  expectations: ["e2e/**"]
+`;
+const SPEC = "test('lays fields in two columns', async () => {\n\texpect(columns).toBe(2);\n});\n";
+
+function onMain(f, files) {
+  git(f.tree, 'checkout', '-q', 'main');
+  for (const [file, body] of Object.entries(files)) write(f.tree, file, body);
+  commit(f.tree);
+  git(f.tree, 'checkout', '-q', BRANCH);
+  git(f.tree, 'merge', '-q', '--no-edit', 'main');
+}
+
+test('gate and integrate refuse a changed test no case answers, before any command runs', (t) => {
+  for (const step of ['gate', 'integrate']) {
+    const f = fixture(t, config([whole], [whole]) + CASES);
+    onMain(f, { 'e2e/form.spec.ts': SPEC, 'integration/TEST-CASES.md': '### TC-101 The form\nIt draws two columns.\n' });
+    write(f.tree, 'e2e/form.spec.ts', SPEC.replace('toBe(2)', 'toBe(1)'));
+    commit(f.tree);
+    const refused = run(f, step);
+    assert.equal(refused.code, 2, refused.out + refused.err);
+    assert.match(refused.out, /expectations changed while no case was edited or answered/);
+    assert.match(refused.out, /e2e\/form\.spec\.ts: lays fields in two columns/);
+    assert.equal(fs.existsSync(path.join(f.tree, '.runs')), false, 'no command ran');
+    git(f.tree, 'commit', '-q', '--allow-empty', '-m', 'one column', '-m', 'Cases: none');
+    passed(run(f, step));
+  }
+});
+
+test("gate refuses until each case the brief's Tester proves line names is edited or answered", (t) => {
+  const f = fixture(t, config([whole]) + CASES);
+  onMain(f, { 'integration/TEST-CASES.md': '### TC-101 The form\nIt draws two columns.\n' });
+  write(f.tree, '.specs-inferno/intents/demo/brief.md', '# Demo\n\nTester proves: TC-101, TC-102\n');
+  commit(f.tree);
+  const refused = run(f, 'gate');
+  assert.equal(refused.code, 2, refused.out + refused.err);
+  assert.match(refused.out, /^unanswered TC-101 .*Tester proves/m);
+  assert.match(refused.out, /^unanswered TC-102 .*Tester proves/m);
+  write(f.tree, 'integration/TEST-CASES.md', '### TC-101 The form\nIt draws one column.\n\n### TC-102 The new step\nIt shows.\n');
+  commit(f.tree);
+  passed(run(f, 'gate'));
+});

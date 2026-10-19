@@ -25,6 +25,7 @@ const writer = require('./state-transition.cjs');
 const impact = require('./run-e2e-impact.cjs');
 const { resolveBase } = require('./run-intents.cjs');
 const { checkDoubles } = require('./check-doubles.cjs');
+const cases = require('./run-cases.cjs');
 const { owedReviews } = require('./run-review.cjs');
 const { afterRecovery } = require('./run-mutate.cjs');
 
@@ -163,6 +164,9 @@ function checkAndLand(tree, options) {
   // command spends time proving it.
   const doubles = config.doubles === undefined ? null : checkDoubles({ ...options, tree, base }, config);
   if (doubles && doubles.exit !== 0) return red([...folded, ...doubles.out]);
+  // The tester cases the branch changes the truth of are edited or answered before any command runs.
+  const stale = cases.refusal(tree, config, `${gate.mergeBase(tree, base)}..HEAD`);
+  if (stale) return red([...folded, ...stale.out]);
 
   // Every command runs, red or not, and one red result names every failure. Stopping at the
   // first failure cost one orchestrator round trip and one builder correction per failing

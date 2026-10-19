@@ -71,7 +71,7 @@ Read `notes` as corrections rather than facts. A defect the builder saw and left
 
 Then integrate, in this order:
 
-1. Stage this item's files, never `git add -A`, and commit on the intent branch. In `merge-request` mode the item lands through `inferno-item/{intent-id}/{item-id}` and a non-blocking merge request.
+1. Stage this item's files, never `git add -A`, and commit on the intent branch. The commit message carries the builder's `cases:` value as its `Cases:` line, which integrate checks. In `merge-request` mode the item lands through `inferno-item/{intent-id}/{item-id}` and a non-blocking merge request.
 2. `run.cjs review --item {item-id} --tree {path}`: the item's cold review, before integrate.
 3. `run.cjs integrate --item {item-id} --tree {path}`, or `--items {a,b}` for a chain you dispatched as one. It folds the base branch in, runs `verification.integrate` and only then completes the item with the sha those checks proved and commits that ledger line. No browser run happens per item: the browser suite is in `verification.finalize` and runs once per intent, because a selection cost as much as the whole suite and the gate ran the whole suite again anyway. Exit 2 names the failing command and its log: that red goes back to the builder whose item is on the tree as a correction, warm, and the item's next commit closes it. A fold conflict is named and yours to resolve so both sides' goals survive.
 4. Never complete an item by hand. `complete-item` refuses without the proof integrate passes it, so a run interrupted between the commit and the checks releases no successor and the frontier holds the chain where it stopped.

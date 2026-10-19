@@ -93,10 +93,13 @@ changed_files:
   - src/app/foo.spec.ts
 tests: npm test -- foo.spec.ts pass
 context_expansion: read src/app/shared/foo-types.ts after import lookup
+cases: none
 notes:
 ```
 
 Blocked: same shape with `status: blocked`, `changed_files` as-is, `tests: {command} fail|not run - reason`, and `notes` carrying the concrete reason plus next step.
+
+`cases:` names the tester case ids your change reaches that you read and that still hold, or `none` when it alters no case; a case it made untrue is edited in your item, never listed.
 
 `notes` carries only what the orchestrator must act on: a deviation you took from the spec with its evidence, an out-of-ownership edit with its evidence, a `split:` line, a design-fidelity line, the oracle decision you implemented (`oracle: <one line>`), and what your verification budget could not cover so the finalize gate does. It never carries a defect you noticed and left. "Residual", "not addressed", "worth a follow-up" and "needs a product call" about something inside your item are the next edit or an `oracle:` block, not the next line of the report.
 

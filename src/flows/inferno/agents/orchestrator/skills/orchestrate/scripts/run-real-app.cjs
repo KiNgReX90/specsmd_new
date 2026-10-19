@@ -78,9 +78,10 @@ function gitRun(tree, args, tolerated = [0]) {
 
 const unquote = (file) => (file.startsWith('"') && file.endsWith('"') ? file.slice(1, -1) : file);
 
-/** The range's removed lines per old path, and its added line numbers per new path. */
+/** The range's removed lines and their old line numbers per old path, and its added line numbers per new path. */
 function diffOf(tree, from, to) {
   const removed = new Map();
+  const removedAt = new Map();
   const added = new Map();
   const addedText = new Map();
   const changed = new Set();
@@ -89,6 +90,7 @@ function diffOf(tree, from, to) {
   let oldPath = null;
   let newPath = null;
   let next = 0;
+  let old = 0;
   for (const line of out.split('\n')) {
     if (line.startsWith('diff --git ')) {
       [header, oldPath, newPath] = [true, null, null];
@@ -101,9 +103,15 @@ function diffOf(tree, from, to) {
     } else if (line.startsWith('@@')) {
       header = false;
       next = Number((/\+(\d+)/.exec(line) || [0, 0])[1]);
+      old = Number((/-(\d+)/.exec(line) || [0, 0])[1]);
     } else if (!header && line.startsWith('-') && oldPath) {
-      if (!removed.has(oldPath)) removed.set(oldPath, []);
+      if (!removed.has(oldPath)) {
+        removed.set(oldPath, []);
+        removedAt.set(oldPath, new Set());
+      }
       removed.get(oldPath).push(line.slice(1));
+      removedAt.get(oldPath).add(old);
+      old += 1;
     } else if (!header && line.startsWith('+') && newPath) {
       if (!added.has(newPath)) [added, addedText].forEach((map) => map.set(newPath, new Set()));
       added.get(newPath).add(next);
@@ -114,7 +122,7 @@ function diffOf(tree, from, to) {
   const deleted = gitRun(tree, ['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', from, to, '--'])
     .split('\0').filter(Boolean);
   for (const file of deleted) changed.add(file);
-  return { removed, added, addedText, deleted, changed };
+  return { removed, removedAt, added, addedText, deleted, changed };
 }
 
 /** The text of each `rev:path` that exists, up to `cap` bytes, read in one `git cat-file --batch` call. */
@@ -284,4 +292,4 @@ function realApp(options) {
   };
 }
 
-module.exports = { USAGE, declared, names, pageRoute, realApp, realAppPaths };
+module.exports = { USAGE, blobs, declared, diffOf, goneKeys, linesOf, names, pageRoute, realApp, realAppPaths, screenSource };

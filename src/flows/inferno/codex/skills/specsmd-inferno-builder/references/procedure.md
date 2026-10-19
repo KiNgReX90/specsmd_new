@@ -87,10 +87,13 @@ changed_files:
   - src/app/foo.spec.ts
 tests: npm test -- foo.spec.ts pass
 context_expansion: read src/app/shared/foo-types.ts after import lookup
+cases: none
 notes:
 ```
 
 Blocked uses the same fields with `status: blocked`, the current changed files, and `tests: <command> fail|not run - <reason>`. Put the concrete reason and next step in `notes`.
+
+`cases:` names the tester case ids your change reaches that you read and that still hold, or `none` when it alters no case; a case it made untrue is edited in your item, never listed.
 
 If a capability call itself fails, begin notes with:
 

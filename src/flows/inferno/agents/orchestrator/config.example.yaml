@@ -76,7 +76,18 @@ wiring:                           # optional: per kind (command, table or event)
     name: '(?:\w+::)*(\w+)'                     # a regex run over that block; its last group is one registered name
 
 # real_app:                       # optional: globs of the helpers and case texts that drive the real app binary; probes tells each builder to update them, and the reviewer dispatch carries the check that lists every line there still naming a test id, label or route the diff removed and every file there that drives a screen the diff changed; a --config file inherits it
-#   paths: ["integration/lib/**", "integration/*.test.mjs", "integration/TEST-CASES.md"]
+#   paths: ["integration/lib/**", "integration/*.test.mjs"]
+
+# cases:                          # optional: the tester case texts every landing answers for; integrate, the gate and `run.cjs cases --range` refuse a range that leaves a case naming a removed label, reaches a case it neither edits nor names on a "Cases: TC-1, TC-2" commit line, or changes a test with no case edited and no Cases line ("Cases: none" answers that rule only); a --config file inherits it
+#   files:
+#     - path: integration/TEST-CASES.md
+#       case: '^### (TC-\d+)'           # a regex in single quotes over one line; group 1 is the id of the case it opens
+#     - path: docs/RELEASE-RUNBOOK.md
+#       case: '^\s*- \*\*([A-Z][\w-]+)\*\*'
+#       rules: [stale]                  # this file answers only for labels the range removed
+#   tests: ["integration/*.test.mjs"]   # the tests whose `test(` blocks name the case ids they prove
+#   sources: ["src/**", "src-tauri/src/**"]   # product source; the tests and case files are never source
+#   expectations: ["e2e/**", "src/**/*.test.ts"]   # tests whose changed lines a case may describe
 
 worktree:
   bootstrap:                      # optional: commands run inside a fresh intent worktree before the first dispatch

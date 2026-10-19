@@ -14,6 +14,7 @@ const lanes = require('./run-lanes.cjs');
 const intentReview = require('./run-intent-owed.cjs');
 const { gateStartCall, gateWaitCall } = require('./run-call.cjs');
 const { afterRecovery, recoverInterrupted } = require('./run-mutate.cjs');
+const cases = require('./run-cases.cjs');
 
 const { RunError } = lib;
 
@@ -239,6 +240,12 @@ function gateNow(options) {
   const folded = foldBase(tree, base);
   const shown = [...restored, ...folded];
   const { config, commands } = gateCommands(tree, options.config);
+  // The whole branch answers for its tester cases, and for each case its brief says the tester proves.
+  const brief = path.join(tree, lib.SPECS_DIR, 'intents', intent, 'brief.md');
+  const stale = cases.refusal(tree, config, `${mergeBase(tree, base)}..HEAD`, brief);
+  if (stale) {
+    return { exit: 2, payload: { ok: false, tree, branch: lib.currentBranch(tree), folded: folded.length > 0, results: [], cases: stale.payload }, out: [...shown, ...stale.out] };
+  }
   const unreviewed = intentReview.gateRefusal(tree, config, intent, before, shown);
   if (unreviewed) return unreviewed;
   // Reject a verdict if the inputs change while the gate runs.
