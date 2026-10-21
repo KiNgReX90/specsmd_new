@@ -22,7 +22,7 @@ Use the canonical templates by path and preserve their artifact contracts.
 
 The planner reports `Triage: direct` or `Triage: intent, because <the letter and one clause>` on its first line, and never asks the user anything.
 
-1. On `Triage: direct`, build it, without asking anybody. When the user asked for an intent, first say in one line that none is needed because no criterion holds; never wrap it as one.
+1. On `Triage: direct`, build it, without asking anybody. When the user asked for an intent, first say in one line that none is needed because no criterion holds; never wrap it as one. A batch is never such a change, so the planner returns it as an intent.
 2. On a host with `integration/TEST-CASES.md`, land every reserved tester case id before any build starts, in one call: `node scripts/tester/reserve-cases.mjs --intent <intent-id> TC-<n> "<title>" [...]`. Exit 2 is a collision and prints the next free id; resume the planner with the replacement id.
 3. Send a recipe marked `hard: yes`, and any `oracle` block, to the `specsmd_inferno_oracle` custom agent first; its decision goes into the builder's assignment as written.
 4. Dispatch each direct recipe to the `specsmd_inferno_builder_strong` custom agent with the recipe's own lines. Neither the oracle nor the planner builds anything.

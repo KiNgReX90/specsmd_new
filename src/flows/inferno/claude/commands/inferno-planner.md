@@ -59,7 +59,7 @@ A recipe with `hard: yes` goes to the oracle first and the decision goes into th
 - `dispatch.constraints` from that config, pasted verbatim;
 - the result contract, and that a builder never commits.
 
-When the statement asked for an intent and the handoff opens `Triage: direct`, tell the user in one line that no intent is needed because no triage criterion holds, then build the recipe as above. Never resume the planner to wrap it as an intent. The request is not a reason an `INTENT.` line may cite, whoever makes it: `state-transition.cjs check` refuses a reason that names no triage criterion.
+When the statement asked for an intent and the handoff opens `Triage: direct`, tell the user in one line that no intent is needed because no triage criterion holds, then build the recipe as above. Never resume the planner to wrap it as an intent. A batch is never such a change, so the planner returns it as an intent. The request is not a reason an `INTENT.` line may cite, whoever makes it: `state-transition.cjs check` refuses a reason that names no triage criterion.
 
 ## 5. Integrate the direct build
 

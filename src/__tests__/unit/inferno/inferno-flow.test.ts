@@ -290,9 +290,12 @@ describe('inferno flow', () => {
     const text = readFileSync(path.join(INFERNO, rel), 'utf8');
     expect(text).toMatch(/wording[^.]* is never a criterion, and neither is the user's explicit order to make an intent\./);
     expect(text).toContain('`Triage: direct, the request asked for an intent`');
-    expect(text).toContain('`INTENT. (<letter>) <why one builder on the default branch could not do it>`');
+    expect(text).toContain('`INTENT. (<letter>) <what makes it more than one compact change>`');
     expect(text).toMatch(/refuses a reason that names no criterion letter or only restates size\./);
-    expect(text).toMatch(/There is no size criterion\./);
+    expect(text).toMatch(/The test is the builder's context, not whether one builder could in theory finish the work\./);
+    expect(text).toMatch(/Five to ten findings fill one builder's context\./);
+    expect(text).toContain('**(a)** a batch:');
+    expect(text).not.toMatch(/There is no size criterion|whatever its size/);
   });
 
   // The launcher receives that handoff. It tells the user and builds, and never asks the

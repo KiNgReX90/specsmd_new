@@ -3,8 +3,9 @@
 /**
  * The criterion an intent's reason has to name, and the moment that rule started on a host.
  *
- * Work is built directly and an intent is the exception. The planner's triage allows an
- * intent under three criteria and gives each a letter. A reason in free text let a request
+ * The test for an intent is the builder's context: a small change is built directly and anything
+ * larger is an intent (2026-10-21, replacing "an intent is the exception"). The planner's triage
+ * allows an intent under four criteria and gives each a letter. A reason in free text let a request
  * pass as a reason: "ordered as intents" is more than size, so the size check accepted it.
  * The reason therefore opens with the letter of the criterion that holds, and a reason that
  * names none is refused whatever else it says. Who asked for the intent is never a criterion.
@@ -19,6 +20,7 @@ const { lockRule, ruleSince } = require('./flow-lock-rules.cjs');
 
 /** The triage criteria, by the letter the planner gives each. */
 const CRITERIA = {
+  a: 'a batch of findings, cards, or changes across more than one screen, module or concern',
   c: 'a dependency chain where a later change cannot be tested before an earlier one lands',
   d: 'disjoint ownership worth running builders in parallel on disjoint compile trees',
   e: 'a change that must not reach the default branch before the full gate proves it whole',

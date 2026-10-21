@@ -11,9 +11,10 @@
  * `check` also refuses a parking file: `.specs-inferno/quick-fixes.md` beside the ledger is
  * drift on its own. Nothing reads that file, so work written there is never built (three
  * entries captured on 2026-08-27 beside five intents were untouched on 2026-08-30 while the
- * intents shipped). Work is built directly and an intent is the exception (2026-09-06): a
- * one-item intent has to say on an INTENT. line why one builder on the default branch could
- * not do it, and the ledger is the only queue.
+ * intents shipped). A small change is built directly and anything larger is an intent, because
+ * the test is the builder's context (2026-10-21, replacing "an intent is the exception" of
+ * 2026-09-06): an intent says on an INTENT. line what makes it more than one compact change,
+ * and the ledger is the only queue.
  */
 
 const fs = require('fs');
@@ -30,8 +31,8 @@ const {
 const DEFAULT_STATE_PATH = '.specs-inferno/state.yaml';
 
 /**
- * The `INTENT.` line of an intent's entry comment: why one builder on the default branch
- * could not do this work directly. `BOX.` is the line's older name and `CROSS-INTENT.` is the
+ * The `INTENT.` line of an intent's entry comment: what makes this work more than one compact
+ * change a builder finishes directly. `BOX.` is the line's older name and `CROSS-INTENT.` is the
  * form a dependency chain took, and all three are read. A ledger writes its entry comment
  * either as free text inside a block scalar or as real YAML `#` comments, so the line is
  * accepted with or without the hash. The reason is the whole point of the line, so the
@@ -51,9 +52,9 @@ function reasonLines(lines, intent) {
 }
 
 /**
- * The vocabulary of size. Two mechanisms, six files and thirty rounds are a batched dispatch,
- * so a reason built out of these words alone names no exception at all: it is the shape the
- * triage keeps producing when an intent is easier to write than a build is to run.
+ * The vocabulary of size. Two mechanisms, six files and thirty rounds say how big the work is
+ * and not what the batch is, so a reason built out of these words alone names nothing: it is
+ * the shape the triage keeps producing when an intent is easier to write than a build is to run.
  */
 const SIZE_WORDS = new Set([
   'a', 'about', 'an', 'and', 'are', 'big', 'builder', 'builders', 'ceiling', 'eight', 'file',
@@ -75,16 +76,16 @@ function onlyRestatesSize(reason) {
  */
 function reasonDrift(reasons) {
   if (reasons.length === 0) {
-    return 'no INTENT. line with a reason after it in the entry comment. Say why one builder ' +
-      'on the default branch could not do it (a dependency chain no single dispatch can carry, ' +
-      'disjoint ownership worth running builders in parallel, or a change that must not reach ' +
-      'the branch before the full gate proves it whole), or hand it to a builder directly and ' +
-      'drop the intent.';
+    return 'no INTENT. line with a reason after it in the entry comment. Say what makes it more ' +
+      'than one compact change (a batch of findings or changes across more than one screen, ' +
+      'module or concern, a dependency chain no single dispatch can carry, disjoint ownership ' +
+      'worth running builders in parallel, or a change that must not reach the branch before ' +
+      'the full gate proves it whole), or hand it to a builder directly and drop the intent.';
   }
   if (!onlyRestatesSize(reasons[0])) return null;
-  return `the INTENT. reason only restates size: "${reasons[0]}". Two mechanisms and six files are ` +
-    'one batched dispatch, not an intent. Name what one builder on the default branch could ' +
-    'not do, or hand it to a builder directly and drop the intent.';
+  return `the INTENT. reason only restates size: "${reasons[0]}". Two mechanisms and six files do ` +
+    'not name what the batch is. Name the findings, cards, screens or concerns that fill a ' +
+    'builder\'s context, or hand it to a builder directly and drop the intent.';
 }
 
 /**
@@ -100,11 +101,11 @@ function criterionDrift(reasons, since) {
   const named = reasons.map((reason) => ({ reason, ...namedCriteria(reason) })).filter((line) => line.letters.length > 0);
   if (named.some((line) => !onlyRestatesSize(line.clause))) return null;
   if (named.length > 0) {
-    return `the INTENT. reason only restates size: "${named[0].reason}". Two mechanisms and six files are ` +
-      `one batched dispatch, not an intent. Say what the criterion rests on, or drop the intent and return it as a direct build.${hint}`;
+    return `the INTENT. reason only restates size: "${named[0].reason}". Two mechanisms and six files do ` +
+      `not name what the batch is. Say what the criterion rests on, or drop the intent and return it as a direct build.${hint}`;
   }
   const reason = reasons[reasons.length - 1];
-  return `the INTENT. reason names no criterion: "${reason}". A request, an order, a preference, a batch or a ` +
+  return `the INTENT. reason names no criterion: "${reason}". A request, an order, a preference or a ` +
     `deadline is not one, whoever it comes from. ${FIX}${hint}`;
 }
 
@@ -160,9 +161,9 @@ function check(options) {
       });
     }
 
-    // Work is built directly and an intent is the exception, whatever its size, so every
-    // intent waiting to be claimed says why one builder on the default branch could not do
-    // it. The check is a capture-time gate: an intent a run already holds is being built, and
+    // The test is the builder's context, so every intent waiting to be claimed says what makes
+    // it more than one compact change a builder could do.
+    // The check is a capture-time gate: an intent a run already holds is being built, and
     // reporting it then would only block its own close.
     if (intentStatus === 'pending') {
       const since = criterionSince();

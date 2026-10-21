@@ -25,15 +25,20 @@ Read applicable `AGENTS.md` instructions. Read canonical resources as references
 
 Run this triage on every request before capture. The wording of a request is never a criterion, and neither is the user's explicit order to make an intent.
 
-A request is an intent only when one of these holds. There is no size criterion.
+The test is the builder's context, not whether one builder could in theory finish the work. INFERNO exists to keep each model's context compact. Five to ten findings fill one builder's context.
 
+A request is a direct build when it is one small change, or two closely tied ones, in files a builder reads in full, that one builder finishes and one session proves with its context still compact: a red check, one defect, one regression, one missing value.
+
+Anything larger is an intent, and one builder being able to finish it is no reason to skip one. It is an intent when any of these holds:
+
+- **(a)** a batch: findings from a hand test, a review or a board of decisions, several cards, or changes across more than one screen, module or concern. Split it into work items of one or two changes each, so every item gets a fresh builder and a cold reviewer;
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
 - **(d)** disjoint ownership worth parallelising on disjoint compile trees;
 - **(e)** a change that must not reach the default branch until the full gate proves it whole, such as a persisted-format migration or a definition version bump several documents read.
 
-Everything else is a direct build, whatever its size in files: write no brief, no work item and no state entry for one. Every intent's state entry comment carries `INTENT. (<letter>) <why one builder on the default branch could not do it>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
+Everything else is a direct build: write no brief, no work item and no state entry for one. Every intent's state entry comment carries `INTENT. (<letter>) <what makes it more than one compact change>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
 
-Report the verdict on the first handoff line. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the direct recipe follows. Return each direct build as a recipe the strong builder executes in its first round, one labelled line each:
+Report the verdict on the first handoff line. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the direct recipe follows. That line is for one compact change only: a batch is an intent under (a), however it is asked for. Return each direct build as a recipe the strong builder executes in its first round, one labelled line each:
 
 ```text
 direct: <slug>
@@ -53,7 +58,7 @@ direct: <slug>
 1. Establish the goal, users, problem, success criteria, constraints, non-goals and preferences.
 2. Compare the proposal with every non-completed intent and classify the relationship: **independent** when scopes and ownership proceed separately, **integrate** to fold it into an existing pending intent, **depend** to create it separately with the prerequisite id in `depends_on_intents`, **conflict** to read both briefs and the specs and return an `oracle` block when they do not settle it.
 3. Keep intent-level dependencies acyclic, pointing only to known non-completed intents.
-4. A request the triage calls direct never enters state: return it as a direct recipe for the parent to dispatch, with no ledger entry. Never write `.specs-inferno/quick-fixes.md` or any other parking file; `state-transition.cjs check` reports it as drift. Couple work that changes one surface; never bundle unrelated fixes into a catch-all intent.
+4. A request the triage calls direct never enters state: return it as a direct recipe for the parent to dispatch, with no ledger entry. Never write `.specs-inferno/quick-fixes.md` or any other parking file; `state-transition.cjs check` reports it as drift. Couple work that changes one surface; a batch of unrelated findings is one intent of small items, never one large item.
 5. Resolve every choice the specs settle and record the assumption, whatever `autonomy.level` says; there is no review pause in any mode.
 6. Render the brief with the canonical template and add or update the state intent record, preserving unknown state fields and unrelated comments.
 

@@ -139,10 +139,10 @@ test("check still flags a genuinely open intent whose items are all done", () =>
   assert.equal(result.drift[0].kind, "all-items-completed-intent-open");
 });
 
-// Work is built directly and an intent is the exception, whatever its size. Every intent
-// waiting to be claimed says on an INTENT. line why one builder on the default branch could
-// not do it, and a reason that only restates size or file count says nothing: two mechanisms
-// and six files are a batched dispatch, not an intent. The reason opens with the letter of the
+// The test is the builder's context: a small change is built directly and anything larger is an
+// intent. Every intent waiting to be claimed says on an INTENT. line what makes it more than one
+// compact change, and a reason that only restates size or file count says nothing: two mechanisms
+// and six files do not name the batch. The reason opens with the letter of the
 // triage criterion that holds, and state-check-criterion.test.cjs holds that rule and its cutover.
 
 const ONE_ITEM = `intents:

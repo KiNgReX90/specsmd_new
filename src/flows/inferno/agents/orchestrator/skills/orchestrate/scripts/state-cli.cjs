@@ -50,7 +50,7 @@ nothing verified. It also refuses an item whose review is not clean. review-item
 verdict, and run.cjs review --item is its one caller. close-intent refuses while any work item is still open; complete each item first.
 check exits 1 when the ledger drifts from its work items, when an intent waiting to be claimed
 does not open its INTENT. line with the triage criterion that makes it one, as in "INTENT. (c)
-<reason>" (a request or an order is no criterion), when .specs-inferno/quick-fixes.md exists
+<reason>" (a request or an order is no criterion, a batch is criterion (a)), when .specs-inferno/quick-fixes.md exists
 beside it (nothing builds from a parking file).`;
 
 function parseArgs(argv) {

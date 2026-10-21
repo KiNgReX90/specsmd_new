@@ -8,9 +8,9 @@ const { check } = require("./state-transition.cjs");
 const { tempDir } = require("./test-temp.cjs");
 const { writeFile } = require("./test-write.cjs");
 
-// An intent is the exception, and the exception is one of the triage criteria. The reason on
-// the INTENT. line opens with the letter of the criterion that holds, so a script can tell a
-// criterion from a request. An order, a preference, a batch and a deadline name none.
+// An intent rests on one of the triage criteria, and a batch is the first of them (2026-10-21).
+// The reason on the INTENT. line opens with the letter of the criterion that holds, so a script
+// can tell a criterion from a request. An order, a preference and a deadline name none.
 
 const WRITER = path.join(__dirname, "state-transition.cjs");
 const CUTOVER = "2026-03-10T09:00:00.000Z";
@@ -59,8 +59,8 @@ test("the refusal prints the fix: the letter form, each criterion, and the direc
   const detail = check({ file: host([entry("ordered", AFTER, [ORDER])]) }).drift[0].detail;
 
   assert.match(detail, /INTENT\. \(c\) </, "the form to write");
-  for (const letter of ["c", "d", "e"]) assert.match(detail, new RegExp(`\\(${letter}\\) \\w`), letter);
-  assert.match(detail, /request, an order, a preference, a batch or a deadline/);
+  for (const letter of ["a", "c", "d", "e"]) assert.match(detail, new RegExp(`\\(${letter}\\) \\w`), letter);
+  assert.match(detail, /request, an order, a preference or a deadline/);
   assert.match(detail, /drop the intent and return it as a direct build/);
 });
 
@@ -91,8 +91,14 @@ test("check accepts a reason that opens with the criterion that holds", () => {
   }
 });
 
+test("check accepts a batch under criterion (a)", () => {
+  for (const reason of ["INTENT. (a) ten findings from the hand test across three screens", "INTENT. (a) a board of decisions that touches the dashboard and the export"]) {
+    assert.deepEqual(check({ file: host([entry("batch", AFTER, [reason])]) }).drift, [], reason);
+  }
+});
+
 test("check refuses a letter the triage does not carry", () => {
-  for (const reason of ["INTENT. (a) the change spans the native and the renderer tree", "INTENT. (z) the wiring cannot land before the shell"]) {
+  for (const reason of ["INTENT. (b) the change spans the native and the renderer tree", "INTENT. (z) the wiring cannot land before the shell"]) {
     const drift = check({ file: host([entry("lettered", AFTER, [reason])]) }).drift;
     assert.equal(drift.length, 1, reason);
     assert.match(drift[0].detail, /names no criterion/, reason);

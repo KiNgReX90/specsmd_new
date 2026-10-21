@@ -48,21 +48,26 @@ Before any artifact exists, for every subsystem the intent touches. Depth scales
 
 **Inherit recorded decisions.** Grep the briefs and items under `.specs-inferno/archive/` and `.specs-inferno/intents/` for every path the intent will own; a decision there is inherited, and a plan that reverses one says why.
 
-**Every measured defect has a destination.** Into the intent when it sits on its path, otherwise out as a `direct:` block. Never a one-item intent, never a Notes line.
+**Every measured defect has a destination.** Into the intent when it sits on its path, otherwise out as a `direct:` block, or as an intent of its own when several together are a batch under (a). Never a one-item intent, never a Notes line.
 
 ## Triage: intent or direct build
 
 Every request passes this triage before Capture. Its wording is never a criterion, and neither is the user's explicit order to make an intent.
 
-A request is an intent only when one of these holds. There is no size criterion.
+The test is the builder's context, not whether one builder could in theory finish the work. INFERNO exists to keep each model's context compact. Five to ten findings fill one builder's context.
 
+A request is a direct build when it is one small change, or two closely tied ones, in files a builder reads in full, that one builder finishes and one session proves with its context still compact: a red check, one defect, one regression, one missing value.
+
+Anything larger is an intent, and one builder being able to finish it is no reason to skip one. It is an intent when any of these holds:
+
+- **(a)** a batch: findings from a hand test, a review or a board of decisions, several cards, or changes across more than one screen, module or concern. Split it into work items of one or two changes each, so every item gets a fresh builder and a cold reviewer;
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
 - **(d)** disjoint ownership worth parallelising on disjoint compile trees;
 - **(e)** a change that must not reach the default branch until the full gate proves it whole, such as a persisted-format migration.
 
-Otherwise it is a direct build, whatever its size or lane. Write no brief, no item and no ledger entry for it. Every intent's ledger comment carries `INTENT. (<letter>) <why one builder on the default branch could not do it>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
+Otherwise it is a direct build. Write no brief, no item and no ledger entry for it. Every intent's ledger comment carries `INTENT. (<letter>) <what makes it more than one compact change>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
 
-The verdict opens the handoff on one line, `Triage: direct` or `Triage: intent, because <the letter and one clause>`. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the launcher builds the `direct:` block without asking. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
+The verdict opens the handoff on one line, `Triage: direct` or `Triage: intent, because <the letter and one clause>`. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the launcher builds the `direct:` block without asking. That line is for one compact change only: a batch is an intent under (a), however it is asked for. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
 
 ```text
 direct: <slug>
@@ -88,7 +93,7 @@ Classify the new scope against every non-completed intent in state.yaml, cheap-f
 - **depend**: a distinct deliverable that must run after another. Record `depends_on_intents` on the state entry and `depends_on` in the brief front matter.
 - **conflict**: read both briefs and the specs. When they settle it, decide and record it; when they do not, it is an `oracle:` block and the conflicting scope stays unwritten.
 
-Coupling decides grouping: items on one surface are one intent, disjoint surfaces separate intents, unrelated small items never a catch-all. Never write `.specs-inferno/quick-fixes.md` or any parking file; `check` reports it as drift. The intent id is the title in kebab-case, and the brief renders from `templates/brief.md.hbs` into `.specs-inferno/intents/<intent-id>/brief.md`.
+Coupling decides grouping: items on one surface are one intent, disjoint surfaces separate intents, a batch of unrelated findings is one intent of small items, never one large item. Never write `.specs-inferno/quick-fixes.md` or any parking file; `check` reports it as drift. The intent id is the title in kebab-case, and the brief renders from `templates/brief.md.hbs` into `.specs-inferno/intents/<intent-id>/brief.md`.
 
 ## Decompose
 
