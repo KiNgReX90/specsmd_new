@@ -247,20 +247,36 @@ function reviewBefore(args, cwd) {
 }
 
 /**
+ * Wait until `abs` holds exactly the bytes a mutate of its line 1 writes: its text as it is at
+ * the call with line 1 replaced, split and joined as run-mutate.cjs target() does. A mutate
+ * opens the file, which empties it, before it writes, so a file that merely changed holds no
+ * mutant yet. The text is read before the first wait, so a caller calls this before it starts
+ * the mutate. True once the bytes are there, false after 200 tries 25 ms apart.
+ */
+async function untilMutant(abs, replace) {
+  const lines = fs.readFileSync(abs, 'utf8').split('\n');
+  lines[0] = replace;
+  const mutant = Buffer.from(lines.join('\n'), 'utf8');
+  for (let i = 0; i < 200; i += 1) {
+    if (fs.readFileSync(abs).equals(mutant)) return true;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return fs.readFileSync(abs).equals(mutant);
+}
+
+/**
  * Start a mutate whose test waits for a release file, and resolve once its mutant sits in line 1
  * of `file`. `release` lets it finish and restore; `kill` ends it outright, so the mutant and
  * its journal stay behind. A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
  */
 async function heldMutate(fixture, tree, file = 'src/a.ts', replace = 'export const a = 99;') {
-  const abs = path.join(tree, file);
-  const before = fs.readFileSync(abs, 'utf8');
+  const landing = untilMutant(path.join(tree, file), replace);
   const release = path.join(path.dirname(fixture.root), `release-${process.hrtime.bigint()}`);
   const child = spawn(process.execPath, [RUN, 'mutate', '--tree', tree, '--file', file, '--line', '1', '--replace', replace,
     '--test', `until [ -f ${release} ] || [ ! -d ${path.dirname(release)} ]; do sleep 0.05; done`],
   { cwd: tree, env: { ...process.env, CLAUDE_BUILD_WRAPPED: '1', XDG_CACHE_HOME: fixture.cache }, stdio: 'ignore' });
   const done = new Promise((resolve) => child.on('close', resolve));
-  for (let i = 0; i < 200 && fs.readFileSync(abs, 'utf8') === before; i += 1) await new Promise((r) => setTimeout(r, 25));
-  const landed = fs.readFileSync(abs, 'utf8') !== before;
+  const landed = await landing;
   if (!landed) child.kill('SIGKILL');
   assert.ok(landed, 'the mutant never landed');
   return {
@@ -291,5 +307,5 @@ function markReviewed(state, ids, intent = 'alpha') {
 
 module.exports = {
   CONFIG, INTENT_TREE, LOCK_PATH, STATE, asPrinted, asPrintedByPath, codexStub, git, heldMutate, hostLock, intentReviewed, killedMutate, markReviewed,
-  printed, repo, reviewBefore, reviewed, run, worktree, write,
+  printed, repo, reviewBefore, reviewed, run, untilMutant, worktree, write,
 };

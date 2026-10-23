@@ -64,6 +64,32 @@ for (const [name, args, config, code] of [
   });
 }
 
+// A mutate empties its file when it opens it and writes the mutant after. A wait that took the
+// emptied file for the mutant would kill the mutate inside that gap and leave a file nothing can
+// restore, so the hook widens the gap and the wait must hold out for the mutant's exact bytes.
+const GAP_HOOK = path.join(__dirname, "test-mutant-gap.cjs");
+
+test("a mutate killed while its write lags its open leaves the whole mutant, and integrate restores it", async () => {
+  const fixture = repo();
+  const log = path.join(path.dirname(fixture.root), "mutant-gap.log");
+  const saved = { NODE_OPTIONS: process.env.NODE_OPTIONS, MUTANT_GAP_MS: process.env.MUTANT_GAP_MS, MUTANT_GAP_LOG: process.env.MUTANT_GAP_LOG };
+  Object.assign(process.env, { NODE_OPTIONS: `${saved.NODE_OPTIONS || ""} --require=${GAP_HOOK}`.trim(), MUTANT_GAP_MS: "150", MUTANT_GAP_LOG: log });
+  try {
+    await killedMutate(fixture, fixture.root);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.match(fs.readFileSync(log, "utf8"), /held 150 ms after opening \S*src\/a\.ts$/m);
+  assert.equal(read(fixture, "src/a.ts"), "export const a = 99;\n");
+  const result = run(fixture, ["integrate", "--tree", fixture.root]);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.match(result.out, /^restored src\/a\.ts from an interrupted mutate$/m);
+  assert.equal(read(fixture, "src/a.ts"), "export const a = 1;\n");
+});
+
 // A dead leftover under a later edit is refused by every step that recovers, whichever item
 // owns the file, and nothing is written. A leftover that can go back goes back first, and the
 // refusal of the other work beside it still says so.

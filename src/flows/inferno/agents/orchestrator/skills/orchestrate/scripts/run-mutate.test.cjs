@@ -12,6 +12,7 @@ const FILE = "src/m.js";
 const ORIGINAL = "module.exports = 1;\n";
 const { tempDir } = require("./test-temp.cjs");
 const { writeFile } = require("./test-write.cjs");
+const { untilMutant } = require("./review-fixture.cjs");
 const CHECK = "node -e \"process.exit(require('./src/m.js') === 1 ? 0 : 1)\"";
 
 function git(cwd, ...args) {
@@ -90,13 +91,11 @@ test("mutate refuses a line that does not change, a line past the end and an unt
 // A hold also ends once its fixture dir is gone, so a hold that only starts after its test let go never outlives the test.
 async function held(f, file = FILE, replace = "module.exports = 2;") {
   const release = path.join(f.dir, "release");
+  const landing = untilMutant(path.join(f.tree, file), replace);
   const child = spawn(process.execPath, [RUN, "mutate", "--tree", f.tree, "--file", file, "--line", "1", "--replace", replace,
     "--test", `until [ -f ${release} ] || [ ! -d ${f.dir} ]; do sleep 0.05; done; true`], { cwd: f.tree, env: env(f), stdio: "ignore" });
   const done = new Promise((resolve) => child.on("close", (code, signal) => resolve({ code, signal })));
-  const read = () => fs.readFileSync(path.join(f.tree, file), "utf8");
-  const before = read();
-  for (let i = 0; i < 200 && read() === before; i += 1) await new Promise((r) => setTimeout(r, 25));
-  assert.notEqual(read(), before, "the mutant never landed");
+  assert.ok(await landing, "the mutant never landed");
   return { child, done, release: () => writeFile(release, "") };
 }
 
