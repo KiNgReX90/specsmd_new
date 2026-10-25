@@ -195,8 +195,8 @@ describe('inferno flow', () => {
     ['agents/oracle/agent.md', 'claude-opus-5-5', 'xhigh'],
     ['commands/inferno-reviewer.md', 'claude-opus-5-5', 'xhigh'],
     ['agents/reviewer/agent.md', 'claude-opus-5-5', 'xhigh'],
-    ['commands/inferno-scanner.md', 'claude-sonnet-5-5', 'high'],
-    ['agents/scanner/agent.md', 'claude-sonnet-5-5', 'high'],
+    ['commands/inferno-scanner.md', 'claude-opus-5-5', 'high'],
+    ['agents/scanner/agent.md', 'claude-opus-5-5', 'high'],
   ])('%s pins model %s at effort %s', (rel, model, level) => {
     const fm = frontmatter(readFileSync(path.join(INFERNO, rel), 'utf8'));
     expect(fm).toMatch(new RegExp(`^model:\\s*${model}\\s*$`, 'm'));
@@ -246,6 +246,10 @@ describe('inferno flow', () => {
     );
     expect(config).toMatch(/^\s*strong:\s*claude-opus-5-5\b/m);
     expect(config).toMatch(/^\s*cheap:\s*claude-sonnet-5-5\b/m);
+    // Every scan and review runs on Opus 5.5, never on Sonnet (Ruben, 2026-10-25).
+    expect(config).toMatch(/^review:\s*\n\s*model:\s*claude-opus-5-5\b/m);
+    expect(config).toMatch(/^scan:\s*\n\s*model:\s*claude-opus-5-5\b/m);
+    expect(config).toMatch(/^#\s*scanner:\s*\{model:\s*claude-opus-5-5, effort:\s*high\}/m);
     // No run dispatches a tester, so the example offers no tester tier.
     expect(config).not.toMatch(/^\s*tester(?:_high)?:/m);
     // The planner writes its own work items, so the scribe tier is gone.

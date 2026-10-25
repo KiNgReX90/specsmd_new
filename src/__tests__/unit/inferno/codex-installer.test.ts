@@ -37,7 +37,7 @@ const AGENTS: Record<string, [string, string]> = {
   specsmd_inferno_builder_escalate: ['gpt-6.1-sol', 'xhigh'],
   specsmd_inferno_oracle: ['gpt-6-astra', 'xhigh'],
   specsmd_inferno_reviewer: ['gpt-6.1-sol', 'xhigh'],
-  specsmd_inferno_scanner: ['gpt-5.6-terra', 'high'],
+  specsmd_inferno_scanner: ['gpt-6.1-sol', 'high'],
   specsmd_inferno_config: ['gpt-5.6-terra', 'high'],
   specsmd_inferno_builder_cheap: ['gpt-5.6-terra', 'high'],
 };

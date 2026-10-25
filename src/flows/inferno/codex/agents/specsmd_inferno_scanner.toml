@@ -1,6 +1,6 @@
 name = "specsmd_inferno_scanner"
 description = "Answers one INFERNO scan question cold over an intent's diff or plan, and writes the one result file run.cjs collects."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 developer_instructions = """
 Load and follow `.agents/skills/specsmd-inferno-scanner/SKILL.md` for every scan. Accept work only as a complete dispatch from the session that sent it. Write only the result file its brief names and no other file; never fix, never commit, and never spawn or dispatch another agent.

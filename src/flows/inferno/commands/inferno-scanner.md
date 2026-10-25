@@ -2,7 +2,7 @@
 name: specsmd-inferno-scanner
 description: Use when an INFERNO orchestrator owes the scan before the intent review, or a planner launcher owes the plan-time scan; starts cold, answers one of the four scan questions over the intent's diff or a slice of its plan, and writes one result file in which every line carries the command that proves it; it never fixes and never commits.
 tools: Read, Grep, Glob, Bash, Write
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 effort: high
 ---
 

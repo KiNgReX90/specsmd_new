@@ -75,7 +75,7 @@ The source defaults of each role. A `roles:` entry in
 | Oracle | `gpt-6-astra` | `xhigh` |
 | Config helper | `gpt-5.6-terra` | `high` |
 | Cheap builder | `gpt-5.6-terra` | `high` |
-| Scanner | `gpt-5.6-terra` | `high` |
+| Scanner | `gpt-6.1-sol` | `high` |
 
 The orchestrator has no `roles:` entry. It runs on the session's own model.
 

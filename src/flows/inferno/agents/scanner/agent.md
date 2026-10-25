@@ -2,7 +2,7 @@
 name: inferno-scanner-agent
 description: Cold scanner for INFERNO. Answers one scan question over an intent's diff or plan and writes the result file run.cjs collects; it never fixes and never commits.
 version: 1.0.0
-model: claude-sonnet-5-5
+model: claude-opus-5-5
 effort: high
 ---
 

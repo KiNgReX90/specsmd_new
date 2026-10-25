@@ -28,7 +28,7 @@ models:
 #   config: {model: claude-sonnet-5-5, effort: high}
 #   oracle: {model: claude-opus-5-5, effort: xhigh}
 #   planner: {model: claude-opus-5-5, effort: xhigh}
-#   scanner: {model: claude-sonnet-5-5, effort: high}
+#   scanner: {model: claude-opus-5-5, effort: high}
 
 # planner:
 #   test_trees: ["src/**/*.test.ts", "e2e/**"]          # where the planner's blast-radius grep finds the tests it lists; omit for every test tree
@@ -40,7 +40,7 @@ review:
   model: claude-opus-5-5          # the cold reviewer run.cjs review dispatches after every item and before the gate
 
 scan:
-  model: claude-sonnet-5-5        # the four cold scanners run.cjs scan dispatches before the intent review; absent, roles.scanner, else the scanner role's own pin. On Codex the role entry alone decides
+  model: claude-opus-5-5          # the four cold scanners run.cjs scan dispatches before the intent review; absent, roles.scanner, else the scanner role's own pin. On Codex the role entry alone decides
 
 verification:
   finalize:                       # ordered shell commands forming the authoritative gate, run once per intent

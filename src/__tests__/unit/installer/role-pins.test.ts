@@ -80,7 +80,7 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
       oracle: ['claude-opus-5-5', 'xhigh'],
       planner: ['claude-opus-5-5', 'xhigh'],
       reviewer: ['claude-opus-5-5', 'xhigh'],
-      scanner: ['claude-sonnet-5-5', 'high'],
+      scanner: ['claude-opus-5-5', 'high'],
     };
     for (const [role, files] of Object.entries(CLAUDE_ROLE_FILES)) {
       for (const rel of files) expect(pins(rel), rel).toEqual(expected[role]);
