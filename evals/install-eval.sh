@@ -94,7 +94,7 @@ grep -q '^effort: high$' ".claude/agents/specsmd-inferno-config.md" \
   || { note "FAIL Claude support effort: inferno-config"; FAIL=1; }
 # The oracle decides what a builder or the orchestrator would otherwise postpone,
 # so it is pinned to the frontier tier and never tiered down.
-grep -q '^model: claude-opus-5-5$' ".claude/agents/specsmd-inferno-oracle.md" \
+grep -q '^model: claude-fable-5-1$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle model"; FAIL=1; }
 grep -q '^effort: xhigh$' ".claude/agents/specsmd-inferno-oracle.md" \
   || { note "FAIL Claude oracle effort"; FAIL=1; }
