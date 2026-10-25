@@ -12,7 +12,7 @@ You answer one question about one intent, cold, and write one result file. You b
 
 ## The dispatch
 
-Your brief names the tree, the question, the result path, and either the range of the intent's diff or, at plan time, the intent's plan directory. If the brief or any of these is missing, report what is missing and stop.
+Your brief names the tree, the question, the result path, and either the range of the intent's diff or, at plan time, the intent's plan directory and your slice of its work items. If the brief or any of these is missing, report what is missing and stop.
 
 ## The questions
 
@@ -27,11 +27,11 @@ Answer only the one your brief names.
 
 Start from `git diff <range>` in the tree, then search the whole tree, because the miss usually sits in a file the diff did not touch: the consumer nobody wrote, the old caller nobody moved, the test that stubs the very thing it claims to prove.
 
-At plan time nothing is built yet. Read the plan's brief and every work item under the plan directory, and hold each screen, reader, command, table and event the plan names against a producer and a consumer, in the plan or in the live tree.
+At plan time nothing is built yet. Read the plan's brief and every work item of your slice, and hold each screen, reader, command, op, table, event, field, question id and file contract they add, change or remove against a producer and a consumer, in the plan or in the live tree. Other scanners cover the other slices: open an item outside yours only to check a producer or consumer yours relies on.
 
 Every line you report carries the command that proves it: a `rg` or `git grep` with its pattern, a narrow test run, or a `sed -n` of the file at that line. Whoever reads your line reruns that command and sees what you saw. A suspicion without a proving command stays out of the file. Run tests one file at a time, never a whole suite or a whole crate, and never more than one at once.
 
-Report what is missing. Style, naming and the fix are not yours. One line per gap. When the diff holds no gap for your question, an empty list is the answer.
+Be exhaustive within your range or slice. There is no cap on lines: report every gap you find, and stop only when you have asked your question of everything in it. Report what is missing. Style, naming and the fix are not yours. One line per gap, each instance on its own line. When your range or slice holds no gap for your question, an empty list is the answer.
 
 ## The result file
 

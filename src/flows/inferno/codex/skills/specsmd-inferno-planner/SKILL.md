@@ -14,7 +14,7 @@ Create executable intent artifacts; never start their build.
 3. If first-run configuration is absent, complete the `$specsmd-inferno-config` display-and-confirm gate first.
 4. Spawn the `specsmd_inferno_planner` custom agent with the user's planning goal, repository root, procedure path, constraints and existing authorization.
 5. The planner makes every planning decision, renders every artifact itself, and alone updates state.
-6. Scan each planned intent with `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id> --config .specs-inferno/config.codex.yaml` and follow everything it prints, act on the triage verdict below, then return the planning summary and stop; `$specsmd-inferno` builds an intent.
+6. Scan each planned intent with `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id> --config .specs-inferno/config.codex.yaml`. It splits the plan into slices: spawn every dispatch line it prints, one message per group it names, then run the collect it prints. Resume the planner with every GAP line as one message and scan again until the collect prints no gap. Act on the triage verdict below, then return the planning summary and stop; `$specsmd-inferno` builds an intent.
 
 Use the canonical templates by path and preserve their artifact contracts.
 

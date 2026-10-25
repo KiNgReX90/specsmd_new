@@ -31,39 +31,40 @@ const SCAN_LINE_KEYS = ['id', 'scanner', ...LINE_KEYS];
 
 const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-function bad(file, id, problem, fix) {
-  return new RunError(`${file}: ${problem}. send this back to the ${id} scanner, then run ${fix} again.`, 'BAD_SCAN', 2);
+function bad(file, id, problem, fix, scanner = id) {
+  return new RunError(`${file}: ${problem}. send this back to the ${scanner} scanner, then run ${fix} again.`, 'BAD_SCAN', 2);
 }
 
 /**
  * The lines of one scanner's result file, each with the command that proves it. `fix` is the
- * collect command the refusal prints.
+ * collect command the refusal prints, `scanner` the slice a refusal names when it is not `id`.
  */
-function readResult(file, id, fix) {
+function readResult(file, id, fix, scanner = id) {
+  const refuse = (problem) => bad(file, id, problem, fix, scanner);
   let doc;
   try {
     doc = lib.parseYaml(fs.readFileSync(file, 'utf8'));
   } catch (error) {
     if (!(error instanceof RunError)) throw error;
-    throw bad(file, id, `cannot read it: ${error.message}`, fix);
+    throw refuse(`cannot read it: ${error.message}`);
   }
-  if (!isMap(doc)) throw bad(file, id, `a result is a map of ${RESULT_KEYS.join(', ')}`, fix);
+  if (!isMap(doc)) throw refuse(`a result is a map of ${RESULT_KEYS.join(', ')}`);
   for (const key of Object.keys(doc)) {
-    if (!RESULT_KEYS.includes(key)) throw bad(file, id, `unknown key ${key}: a result holds ${RESULT_KEYS.join(', ')} only`, fix);
+    if (!RESULT_KEYS.includes(key)) throw refuse(`unknown key ${key}: a result holds ${RESULT_KEYS.join(', ')} only`);
   }
-  if (doc.question !== id) throw bad(file, id, `question must be ${id}, the question this scanner was sent`, fix);
+  if (doc.question !== id) throw refuse(`question must be ${id}, the question this scanner was sent`);
   const lines = doc.lines === undefined || doc.lines === '' ? [] : doc.lines;
-  if (!Array.isArray(lines)) throw bad(file, id, 'lines must be a list, `lines: []` when nothing is missing', fix);
+  if (!Array.isArray(lines)) throw refuse('lines must be a list, `lines: []` when nothing is missing');
   return lines.map((line, index) => {
     const at = `line ${index + 1}`;
-    if (!isMap(line)) throw bad(file, id, `${at} must be a map of ${LINE_KEYS.join(', ')}`, fix);
+    if (!isMap(line)) throw refuse(`${at} must be a map of ${LINE_KEYS.join(', ')}`);
     for (const key of Object.keys(line)) {
-      if (!LINE_KEYS.includes(key)) throw bad(file, id, `unknown key ${key} in ${at}: it holds ${LINE_KEYS.join(', ')} only`, fix);
+      if (!LINE_KEYS.includes(key)) throw refuse(`unknown key ${key} in ${at}: it holds ${LINE_KEYS.join(', ')} only`);
     }
     for (const key of LINE_KEYS) {
       if (typeof line[key] !== 'string' || line[key].trim() === '') {
         const why = key === 'proof' ? ': every line carries the command that proves it' : '';
-        throw bad(file, id, `${at} has no ${key}${why}`, fix);
+        throw refuse(`${at} has no ${key}${why}`);
       }
     }
     return { file: line.file, line: line.line, claim: line.claim, proof: line.proof };
@@ -78,11 +79,20 @@ function quoted(value) {
   return `"${text}"`;
 }
 
-/** Every line of the results, numbered per scanner in the order of the questions. */
+/**
+ * Every line of the results, numbered per question. `results` maps a question to its lines,
+ * read in the order of the questions, or lists `{ question, lines }` per slice in order, so a
+ * question split over slices numbers on across them and no two lines share an id.
+ */
 function numbered(results) {
+  const entries = Array.isArray(results) ? results : IDS.map((id) => ({ question: id, lines: results[id] }));
+  const counts = {};
   const lines = [];
-  for (const id of IDS) {
-    (results[id] || []).forEach((line, index) => lines.push({ id: `${id}-${index + 1}`, scanner: id, ...line }));
+  for (const { question, lines: found } of entries) {
+    for (const line of found || []) {
+      counts[question] = (counts[question] || 0) + 1;
+      lines.push({ id: `${question}-${counts[question]}`, scanner: question, ...line });
+    }
   }
   return lines;
 }

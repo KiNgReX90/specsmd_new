@@ -264,6 +264,36 @@ describe('inferno flow', () => {
     expect(text).not.toMatch(/#\[cfg\(test\)\]/);
   });
 
+  // A repair that fixes only the line a scan GAP names leaves the rest of its class for the
+  // next round, so every planner text sweeps each consumer before it returns a plan or a repair.
+  it.each([
+    'agents/planner/agent.md',
+    'commands/inferno-planner.md',
+    'codex/skills/specsmd-inferno-planner/references/procedure.md',
+  ])('%s sweeps every consumer over the whole tree and repairs a GAP as a class', (rel) => {
+    const text = readFileSync(path.join(INFERNO, rel), 'utf8');
+    expect(text).toMatch(/before you return a plan or a repair/i);
+    expect(text).toMatch(/exact identifier/);
+    expect(text).toMatch(/whole tree/);
+    for (const consumer of ['fixtures', 'seeds', 'e2e', 'integration', 'dev bridges', 'generated mirrors', 'scripts']) {
+      expect(text, consumer).toContain(consumer);
+    }
+    expect(text).toMatch(/production caller/);
+    expect(text).toMatch(/GAP is a class/);
+  });
+
+  // The plan-time scan prints a dispatch line per slice of the plan, so every launcher spawns
+  // them together, collects them all, and scans again until no gap comes back.
+  it.each([
+    'claude/commands/inferno-planner.md',
+    'codex/skills/specsmd-inferno-planner/SKILL.md',
+  ])('%s spawns every slice of the plan-time scan at once and rescans to no gap', (rel) => {
+    const text = readFileSync(path.join(INFERNO, rel), 'utf8');
+    expect(text).toMatch(/every dispatch line it prints/);
+    expect(text).toMatch(/GAP/);
+    expect(text).toMatch(/no gap/);
+  });
+
   // The launcher acts on the planner's handoff by its labels, so a label renamed on either
   // side is a launcher that no longer finds what it builds.
   it('every label the planner launcher acts on is one the planner agent writes', () => {

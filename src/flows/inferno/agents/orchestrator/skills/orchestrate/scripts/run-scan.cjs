@@ -10,7 +10,8 @@
  * scan.yaml, bound to the tree the scanners were sent. The intent review answers every line.
  *
  * At plan time, `--only wiring --plan <intent>` asks the wiring question of the plan before
- * anything is built, and its collect hands each gap back to the planner instead of recording.
+ * anything is built, one scanner per slice of its work items (run-scan-slices.cjs), and its
+ * collect merges every slice and hands each gap back to the planner instead of recording.
  */
 
 const fs = require('fs');
@@ -24,14 +25,15 @@ const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
 const { intentReviewCall, scanCall } = require('./run-call.cjs');
 const { IDS, QUESTIONS, numbered, readResult, renderScan } = require('./run-scan-file.cjs');
+const { planItems, planSlices } = require('./run-scan-slices.cjs');
 
 const { RunError } = lib;
 
 /** The questions the plan-time scan asks: nothing is built yet, so only the wiring can be held. */
 const PLAN_IDS = ['wiring'];
 
-/** How many scanners a host spawns in one message. */
-const GROUP = { claude: 4, codex: 3 };
+/** How many scanners a host spawns in one message: every one on Claude, three on Codex. */
+const GROUP = { claude: Infinity, codex: 3 };
 
 const short = (tree, ref) => lib.git(tree, ['rev-parse', '--short', ref]);
 
@@ -70,23 +72,51 @@ function refuseUninstalled(tree, context) {
   );
 }
 
-function briefText(tree, context, id, entry, range) {
-  const subject = range
-    ? `- range ${range}`
-    : `- plan ${lib.SPECS_DIR}/intents/${context.intent}: its brief.md and work-items/. Nothing is built yet, ` +
-      'so read the plan against the live tree.';
+const itemPaths = (items) => items.map((id) => `work-items/${id}.md`).join(', ');
+
+/** What the scanner reads: the diff's range, or its slice of the plan and where the rest is. */
+function subject(context, entry, entries, range) {
+  if (range) return [`- range ${range}`];
+  const plan = `${lib.SPECS_DIR}/intents/${context.intent}`;
+  const others = entries.filter((other) => other !== entry).flatMap((other) => other.items);
   return [
-    `# INFERNO scan: ${id}`,
+    `- plan ${plan}: its brief.md and the work items of your slice. Nothing is built yet, so read the plan against the live tree.`,
+    `- slice: ${itemPaths(entry.items) || 'none: the plan has no work item yet, so scan its brief.md'}`,
+    ...(others.length > 0
+      ? [`- other slices, which other scanners cover: ${itemPaths(others)}. Read one only to check a producer or consumer your slice relies on.`]
+      : []),
+  ];
+}
+
+function briefText(tree, context, entry, entries, range) {
+  const { question } = entry;
+  const scope = range ? 'the range' : 'your slice';
+  const of = entries.length > 1 ? `, slice ${entries.indexOf(entry) + 1} of ${entries.length}` : '';
+  return [
+    `# INFERNO scan: ${question}${of}`,
     '',
     `Answer this one question about intent ${context.intent} and write only the result file. ` +
+      `Be exhaustive within ${scope}: ask the question of every identifier, op, field, question id, file contract and ` +
+      'behaviour it adds, changes or removes, across the whole tree, and report every gap you find, however many, never a sample. ' +
       'Every line carries the command that proves it.',
     '',
     `- tree ${tree}`,
-    subject,
-    `- question ${id}: ${QUESTIONS[id]}`,
+    ...subject(context, entry, entries, range),
+    `- question ${question}: ${QUESTIONS[question]}`,
     `- result ${entry.result}`,
     '',
   ].join('\n');
+}
+
+/**
+ * What this call dispatches, one entry per scanner: a question each over the diff, or at plan
+ * time the wiring question once per slice of the plan's work items.
+ */
+function entriesFor(context, slices) {
+  const at = (id) => ({ brief: path.join(context.dir, `${id}.md`), result: path.join(context.dir, `${id}.yaml`) });
+  if (!slices) return context.ids.map((id) => ({ id, question: id, items: null, ...at(id) }));
+  const [question] = context.ids;
+  return slices.map((items, index) => ({ id: `${question}-${index + 1}`, question, items, ...at(`${question}-${index + 1}`) }));
 }
 
 function groupLine(index, size) {
@@ -98,17 +128,26 @@ function dispatch(tree, context) {
   const { intent, config, options, ids, dir, agent, model } = context;
   refuseUninstalled(tree, context);
   let range = null;
-  if (!options.plan) {
+  let slices = null;
+  if (options.plan) {
+    // A fresh plan-time dispatch drops the last one's briefs and results, whatever its slices were.
+    fs.rmSync(dir, { recursive: true, force: true });
+    slices = planSlices(tree, intent).map((slice) => slice.items);
+    if (slices.length === 0) slices = [[]];
+  } else {
     const base = options.base || resolveBase(config, null, tree);
     range = `${short(tree, gate.mergeBase(tree, base))}..${short(tree, 'HEAD')}`;
   }
   fs.mkdirSync(dir, { recursive: true });
-  const entries = ids.map((id) => ({ id, brief: path.join(dir, `${id}.md`), result: path.join(dir, `${id}.yaml`) }));
+  const entries = entriesFor(context, slices);
   for (const entry of entries) {
     fs.rmSync(entry.result, { force: true });
-    fs.writeFileSync(entry.brief, briefText(tree, context, entry.id, entry, range));
+    fs.writeFileSync(entry.brief, briefText(tree, context, entry, entries, range));
   }
-  const at = { intent, plan: Boolean(options.plan), ids, range, head: lib.git(tree, ['rev-parse', 'HEAD']), hash: proofs.scopeHash(tree) };
+  const at = {
+    intent, plan: Boolean(options.plan), ids, range, head: lib.git(tree, ['rev-parse', 'HEAD']), hash: proofs.scopeHash(tree),
+    slices: entries.map(({ id, question, items }) => ({ id, question, items })),
+  };
   fs.writeFileSync(path.join(dir, 'dispatch.json'), `${JSON.stringify(at)}\n`);
   const size = GROUP[config.host === 'codex' ? 'codex' : 'claude'];
   const groups = [];
@@ -116,10 +155,21 @@ function dispatch(tree, context) {
   const out = [`scan of ${intent} ${range ? `over ${range}` : 'of its plan'}`];
   groups.forEach((group, index) => {
     out.push(groupLine(index, group.length));
-    for (const entry of group) out.push(`dispatch ${agent}${model ? ` model ${model}` : ''} scan ${entry.id} brief ${entry.brief}`);
+    for (const entry of group) out.push(`dispatch ${agent}${model ? ` model ${model}` : ''} scan ${entry.question} brief ${entry.brief}`);
   });
   out.push(`then ${scanCall(tree, options.plan, true)} collects them`);
   return { exit: 3, payload: { ok: false, intent, owed: 'scan', agent, model, range, groups }, out };
+}
+
+/** The work items added to or dropped from the plan since its slices were dispatched, or null. */
+function planChange(tree, intent, entries) {
+  const sent = new Set(entries.flatMap((entry) => entry.items || []));
+  const now = new Set(planItems(tree, intent).map((item) => item.id));
+  const added = [...now].filter((id) => !sent.has(id));
+  const dropped = [...sent].filter((id) => !now.has(id));
+  if (added.length === 0 && dropped.length === 0) return null;
+  return [added.length > 0 ? `added ${added.join(', ')}` : '', dropped.length > 0 ? `dropped ${dropped.join(', ')}` : '']
+    .filter(Boolean).join('; ');
 }
 
 function readDispatch(dir, intent, plan) {
@@ -186,15 +236,24 @@ function collect(tree, context) {
       `run ${again} for a fresh dispatch, spawn the lines it prints, then collect`,
     ]);
   }
-  const missing = ids.filter((id) => !fs.existsSync(path.join(dir, `${id}.yaml`)));
+  const entries = Array.isArray(sent.slices) ? sent.slices : ids.map((id) => ({ id, question: id, items: null }));
+  const changed = options.plan ? planChange(tree, intent, entries) : null;
+  if (changed) {
+    return owing([
+      `the plan of ${intent} changed since the scan dispatch (${changed}), so a slice went unscanned; nothing collected`,
+      `run ${again} for a fresh dispatch, spawn the lines it prints, then collect`,
+    ]);
+  }
+  const resultOf = (entry) => path.join(dir, `${entry.id}.yaml`);
+  const missing = entries.filter((entry) => !fs.existsSync(resultOf(entry)));
   if (missing.length > 0) {
     return owing([
-      `waiting on the ${missing.join(', ')} scanner${missing.length === 1 ? '' : 's'}: ` +
-        `${missing.map((id) => path.join(dir, `${id}.yaml`)).join(' ')} not written yet`,
+      `waiting on the ${missing.map((entry) => entry.id).join(', ')} scanner${missing.length === 1 ? '' : 's'}: ` +
+        `${missing.map(resultOf).join(' ')} not written yet`,
       `spawn the dispatch lines ${again} printed for ${missing.length === 1 ? 'it' : 'them'}, then run ${fix} again`,
     ]);
   }
-  const results = Object.fromEntries(ids.map((id) => [id, readResult(path.join(dir, `${id}.yaml`), id, fix)]));
+  const results = entries.map((entry) => ({ question: entry.question, lines: readResult(resultOf(entry), entry.question, fix, entry.id) }));
   return options.plan ? planGaps(tree, context, results) : record(tree, context, sent, results);
 }
 

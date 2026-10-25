@@ -127,7 +127,9 @@ An item boundary preserves every existing invariant, so the tests, allowlists, g
 
 ### Blast radius is measured
 
-List every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` with the value it must show, in the item's `context.tests` beside the source files. The list comes from the blast-radius grep: one `rg -n` for every symbol, component, catalogue, count, definition file and document the item changes, over the test trees in `planner.test_trees` of the config, else every one. Each listed test carries its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
+Before you return a plan or a repair, run the blast-radius grep: one `git grep -n` per exact identifier over the whole tree, for every identifier, op, enum value, struct field, question id, component, catalogue, count, file contract, document and behaviour the plan adds, changes or removes. Every consumer it finds in code, tests, fixtures, seeds, e2e, integration, dev bridges, generated mirrors or scripts, a production caller of a function you thread included, goes into an item's ownership, context, acceptance criteria and probes. A test among them, in `planner.test_trees` of the config or anywhere when that is unset, sits in the item's `context.tests` with the value it must show and its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
+
+A GAP is a class. A plan-time scan GAP names one instance of a missed consumer: sweep its whole class with the same grep, fix every instance, and only then return the repair.
 
 ### Verification-item convention
 
@@ -160,7 +162,7 @@ Before handoff:
 
 1. Parse state and every new frontmatter block.
 2. Confirm every manifest field, editable path, dependency, complexity and verification command, that item and intent dependencies are acyclic, that no two supposedly parallel items overlap editable ownership, and that design contracts cite an exact source.
-3. Confirm every behavior, ui, api and architecture item carries its blast-radius list: the test files in `ownership.editable` plus one acceptance criterion each.
+3. Confirm the blast-radius grep ran for this plan or repair, and every behavior, ui, api and architecture item carries what it found: the consumers in its ownership and context, the test files in `ownership.editable`, and one acceptance criterion each.
 4. Run the canonical decomposition contract test when its prerequisites are available:
 
    ```sh

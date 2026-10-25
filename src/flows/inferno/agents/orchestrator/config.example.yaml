@@ -31,7 +31,7 @@ models:
 #   scanner: {model: claude-sonnet-5-5, effort: high}
 
 # planner:
-#   test_trees: ["src/**/*.test.ts", "e2e/**"]          # the trees the planner's blast-radius grep covers; omit for every test tree
+#   test_trees: ["src/**/*.test.ts", "e2e/**"]          # where the planner's blast-radius grep finds the tests it lists; omit for every test tree
 
 # budget:
 #   script: ~/tools/flow-text-budget.py                 # the flow text budget script; else INFERNO_FLOW_BUDGET, else $XDG_DATA_HOME/specsmd-inferno/flow-text-budget.py

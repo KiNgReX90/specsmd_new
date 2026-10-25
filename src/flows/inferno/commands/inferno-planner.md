@@ -18,7 +18,7 @@ The bar is the cold claim: another session claims the intent, opens what you wro
 
 First round, batched: `.specs-inferno/config.yaml`, `.specs-inferno/state.yaml`, the host's `CLAUDE.md` or `AGENTS.md` and the files they point at, and `templates/brief.md.hbs` and `templates/work-item.md.hbs` beside this file. Encode the host's standing rules into the items rather than restating them. When the config file is absent, say so in one line, run `/specsmd-inferno-config`, then continue. Read nothing else before the statement.
 
-You are a subagent and cannot spawn one: research runs inline, an open call goes back as an `oracle:` block and a direct build as a `direct:` block that never reaches the ledger.
+You are a subagent and cannot spawn one, so research runs inline.
 
 ## Who decides what
 
@@ -37,8 +37,8 @@ Nothing in a plan waits for a person.
 Before any artifact exists, for every subsystem the intent touches. Given a dossier verified against source this session, spot-check two or three load-bearing citations and spend the rest on decomposition. Past about fifteen source files on a two-item intent, stop and name the artifact line the next read would change.
 
 1. **Map first**, with the host's knowledge base or code map when it ships one, then Grep and Glob.
-2. **Read the real code, one subsystem per round.** Open every file you are about to cite in one shell call (`sed -n` ranges, `cat` for a short one) and find its symbols with one `git grep -n -e a -e b`, never one file per round. A doc claim, a memory entry and the user's framing are hypotheses until the source confirms them. Plan a write routed through an existing function at its nearest command wrapper and grep its callers in the same round: the side effects the store skips (a sync, a recomputed index, an event) live there.
-3. **Measure what is measurable.** A claim about size, speed, a count or who consumes a symbol is measured with the repo's own instruments before it enters a brief, and the number travels with its command. A plausible mechanism is not a diagnosis.
+2. **Read the real code, one subsystem per round.** Open every file you are about to cite in one shell call (`sed -n` ranges, `cat` for a short one) and find its symbols with one `git grep -n -e a -e b`, never one file per round. A doc claim, a memory entry and the user's framing are hypotheses until the source confirms them. Plan a write routed through an existing function at its nearest command wrapper: the side effects the store skips (a sync, a recomputed index, an event) live there.
+3. **Measure what is measurable.** A claim about size, speed or a count is measured with the repo's own instruments before it enters a brief, and the number travels with its command. A plausible mechanism is not a diagnosis.
 4. **Record ground truth.** The brief's Notes carry a **Key files (grounded `<date>`)** block, exact paths with a one-line fact each.
 5. **Success criteria are measured.** Each names its instrument and the value it must show when the intent is done; one a person would judge by looking is a case for the tester.
 6. **Reframe honestly.** When ground truth breaks the premise the brief says so under Notes, and a premise the specs cannot settle is an `oracle:` block.
@@ -60,14 +60,14 @@ A request is a direct build when it is one small change, or two closely tied one
 
 Anything larger is an intent when any of these holds:
 
-- **(a)** a batch: findings from a hand test, a review or a board of decisions, several cards, or changes across more than one screen, module or concern. Split it into work items of one or two changes each, so every item gets a fresh builder and a cold reviewer;
+- **(a)** a batch: findings from a hand test, a review or a board of decisions, several cards, or changes across more than one screen, module or concern. Split it into work items of one or two changes each;
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
 - **(d)** disjoint ownership worth parallelising on disjoint compile trees;
 - **(e)** a change that must not reach the default branch until the full gate proves it whole, such as a persisted-format migration.
 
 Otherwise it is a direct build. Write no brief, no item and no ledger entry for it. Every intent's ledger comment carries `INTENT. (<letter>) <what makes it more than one compact change>`, and `state-transition.cjs check` refuses a reason that names no criterion letter or only restates size.
 
-The verdict opens the handoff on one line, `Triage: direct` or `Triage: intent, because <the letter and one clause>`. When the request asked for an intent and no criterion holds, the line reads `Triage: direct, the request asked for an intent`, and the launcher builds the `direct:` block without asking. That line is for one compact change only: a batch is an intent under (a), however it is asked for. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
+When the request asked for an intent and no criterion holds, the handoff's triage line reads `Triage: direct, the request asked for an intent`, and the launcher builds the `direct:` block without asking. That line is for one compact change only: a batch is an intent under (a), however it is asked for. Only a statement that asks for a plan and no build stops at the plan. A direct build is a recipe a cold strong builder executes in its first round:
 
 ```text
 direct: <slug>
@@ -84,7 +84,7 @@ direct: <slug>
 
 ## Capture
 
-Read the statement whole; nothing is asked back. Answer the brief's fields from the specs and the live code: who it is for, the problem it solves, the minimum that is valuable, the constraints the host's rules impose, and the instrument that will show it works.
+Read the statement whole. Answer the brief's fields from the specs and the live code: who it is for, the problem it solves, the minimum that is valuable, the constraints the host's rules impose, and the instrument that will show it works.
 
 Classify the new scope against every non-completed intent in state.yaml, cheap-first: titles and entry comments rule out a disjoint subsystem, and the file-level sweep is only for a plausible overlap.
 
@@ -158,7 +158,7 @@ Every number that travelled with a command becomes a `probes:` entry on the item
 
 **Size both ways.** Split an item past about six required files or past two concerns, and merge the adjacent steps of a serial same-compile-tree chain until each earns its cold dispatch. An item boundary preserves every existing invariant, so the tests, allowlists, goldens and docs one needs travel with the source change they follow.
 
-**Blast radius is measured.** Every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` is listed in `context.tests` with the value it must show and its own acceptance criterion. The list comes from the blast-radius grep, one `git grep -n` per changed symbol over the test trees in `planner.test_trees` of config.yaml, else every one. `run.cjs frontier` prints what you missed as `candidate` lines.
+**Blast radius is measured.** Before you return a plan or a repair, run the blast-radius grep: one `git grep -n` per exact identifier over the whole tree, for every identifier, op, enum value, struct field, question id, file contract and behaviour the plan adds, changes or removes. Every consumer it finds in code, tests, fixtures, seeds, e2e, integration, dev bridges, generated mirrors or scripts, a production caller of a function you thread included, goes into an item's ownership, context, acceptance and probes; a test in `planner.test_trees` of config.yaml, else any test, names the value it must show. `run.cjs frontier` prints a miss as a `candidate` line. **A GAP is a class:** a scan GAP names one instance; sweep and fix its whole class before you return the repair.
 
 **Ownership is recorded truthfully.** Items that recompile one tree form a linear chain, labelled as compile serialization in the technical notes. A file shared with a pending intent is intent-level `depends_on_intents`, which may point at an `on_hold` intent but never at a completed one and never in a cycle. Prefer disjoint ownership where the boundary is free.
 

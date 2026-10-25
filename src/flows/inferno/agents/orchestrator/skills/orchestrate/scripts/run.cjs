@@ -54,7 +54,7 @@ const USAGE = `INFERNO orchestrator runner
   node run.cjs review --item <id> --tree <dir> [--intent <id>] [--reviewer <agent-id>] the item's cold review: 3 dispatch the reviewer, 0 clean, 2 fix
   node run.cjs scan [--tree <dir>] [--intent <id>]      the four scanner briefs before the intent review: 3 spawn the printed lines
   node run.cjs scan --collect [--tree <dir>]            record and commit scan.yaml: 0 recorded, 3 a result missing, 2 a line without its proof
-  node run.cjs scan [--collect] --only wiring --plan <intent-id> the plan-time scan: 3 spawn, then 0 no gap, 2 every gap for the planner
+  node run.cjs scan [--collect] --only wiring --plan <intent-id> the plan-time scan, one scanner per slice of the plan: 3 spawn, then 0 no gap, 2 every gap for the planner
   node run.cjs review --tree <dir> [--intent <id>] [--reviewer <agent-id>] the intent's cold review before the gate: 3 dispatch or owed, 0 clean, 2 fix
   node run.cjs mutate --file <f> --line <n> --replace <text> --test <cmd> [--tree <dir>] break one line, run the test, restore: caught yes|no
   node run.cjs mutate --batch <file> [--tree <dir>]      every mistake of a review, the Rust ones on one build: caught yes|no or no verdict per entry
