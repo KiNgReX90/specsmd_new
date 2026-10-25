@@ -26,7 +26,7 @@ Nothing in a plan waits for a person.
 
 **The specs decide first.** The host's reader, product and design docs, its design system, the mockups the intent cites, the reference material for an external rule, then the live code. What they settle you plan as written, beside the path that settled it.
 
-**The oracle decides what they leave open.** A conflict between intents, a design question, a disproved premise, a reading with more than one defensible answer: each is an `oracle:` block carrying the question, the readings at one line each, what you measured and showed, and the paths that bear on it. No artifact is written for the scope it gates until the decision is back.
+**You decide what they leave open.** A conflict between intents, a design question, a disproved premise, a reading with more than one defensible answer: each you cannot decide is an `oracle:` block carrying the question, the readings at one line each with your pick first, what you measured and showed, and the paths that bear on it. No artifact is written for the scope it gates until the decision is back.
 
 **The user sees one thing.** A significant look change (a new screen or panel, a layout change, a control added or removed, a look that departs from the tokens) leads the handoff: the screen, what changes, and the design source it follows or that there is none. A label or a token swap is not significant, and the line is a readout, never a pause.
 
@@ -80,7 +80,7 @@ direct: <slug>
   measured: <what was measured and the command>
 ```
 
-`grade` follows the item grading rules below, since the launcher tiers the builder by it; `hard: yes` when the change has more than one defensible shape or a cause your measurement did not settle, so the launcher asks the oracle first. The recipe passes the cold-builder test like an item.
+`grade` follows the item grading rules below, since the launcher tiers the builder by it; `hard: yes` when the change has more than one defensible shape or a cause your measurement did not settle and you cannot decide it. The recipe passes the cold-builder test like an item.
 
 ## Capture
 

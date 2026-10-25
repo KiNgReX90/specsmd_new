@@ -77,7 +77,7 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
       builder: ['claude-opus-5-5', 'high'],
       'builder-cheap': ['claude-sonnet-5-5', 'high'],
       config: ['claude-sonnet-5-5', 'high'],
-      oracle: ['claude-fable-5-1', 'xhigh'],
+      oracle: ['claude-opus-5-5', 'xhigh'],
       planner: ['claude-opus-5-5', 'xhigh'],
       reviewer: ['claude-opus-5-5', 'xhigh'],
       scanner: ['claude-sonnet-5-5', 'high'],
@@ -112,7 +112,7 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
     await installFlow('inferno', ['claude']);
 
     for (const rel of CLAUDE_ROLE_FILES.builder) expect(pins(rel), rel).toEqual(['claude-test-model', 'low']);
-    for (const rel of CLAUDE_ROLE_FILES.oracle) expect(pins(rel), rel).toEqual(['claude-fable-5-1', 'xhigh']);
+    for (const rel of CLAUDE_ROLE_FILES.oracle) expect(pins(rel), rel).toEqual(['claude-opus-5-5', 'xhigh']);
     const lock = readLock();
     for (const rel of CLAUDE_ROLE_FILES.builder) expect(lock.files[rel].sha256).toBe(sha256(readFileSync(rel)));
   });
@@ -121,7 +121,7 @@ describe.sequential('role pins from host config', { timeout: 30_000 }, () => {
     write('.specs-inferno/config.yaml', 'roles:\n  oracle: {effort: max}\n  orchestrator: {model: claude-test-model}\n');
     await installFlow('inferno', ['claude']);
 
-    for (const rel of CLAUDE_ROLE_FILES.oracle) expect(pins(rel), rel).toEqual(['claude-fable-5-1', 'max']);
+    for (const rel of CLAUDE_ROLE_FILES.oracle) expect(pins(rel), rel).toEqual(['claude-opus-5-5', 'max']);
     expect(pins('.claude/commands/specsmd-inferno.md')).toEqual([undefined, undefined]);
     expect(pins('.specsmd/inferno/agents/orchestrator/agent.md')).toEqual([undefined, undefined]);
   });

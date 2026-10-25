@@ -29,9 +29,9 @@ After capture, run `node .specsmd/inferno/agents/orchestrator/skills/orchestrate
 
 ## 2. The `oracle:` paragraphs
 
-Ask the oracle of the builder's fleet: `specsmd-inferno-oracle` when a Claude builder will build it, `specsmd_inferno_oracle` when a Codex builder will. Send the planner's paragraph as written, plus the tree and the paths it names.
+Each is a call the planner could not decide. A planner pinned below `claude-opus-5-5` at xhigh goes to the oracle first. Ask the oracle of the builder's fleet: `specsmd-inferno-oracle` when a Claude builder will build it, `specsmd_inferno_oracle` when a Codex builder will. Send the planner's paragraph as written, plus the tree and the paths it names. At the planner's default pin, `claude-opus-5-5` at xhigh, that rung adds nothing, so the next step is Fable 5.1, as it is when the oracle returns `blocked` because the artifact does not settle the call. Fable never runs without the user's yes. Ask with AskUserQuestion: one option "Escalate to Fable 5.1", every other option a reading on the table, the oracle's or the planner's pick first. On that yes, spawn `specsmd-inferno-oracle` with `model: fable` and the same question. A headless run (`INFERNO_AUTORUN=1`) never escalates to Fable: write the question and its options to `.specs-inferno/halt-notes/<intent-id>.md`, leave the scope it gates unplanned and go on with the rest.
 
-Resume the planner with the decision as written, so it plans what the oracle decided. A `user` verdict reaches the user in the two sentences the oracle wrote, and nothing else in the run does. You never answer an oracle question yourself and you never hand one to the user.
+Resume the planner with the reading the user picked or the decision as written. A `user` verdict reaches the user in the two sentences the oracle wrote, and nothing else in the run does. You never answer an oracle question yourself.
 
 ## 3. The `reserve:` lines
 
@@ -47,7 +47,7 @@ One call carries every id and title of that item. Then commit on the default bra
 
 A direct recipe is built, here, now. Nobody is asked: the statement is the authorisation, and the triage decides the shape. The one statement that stops at the plan is one that explicitly asks for a plan or a decomposition and no build; say the plan is written and stop.
 
-A recipe with `hard: yes` goes to the oracle first and the decision goes into the assignment as written. Then dispatch ONE `specsmd-inferno-builder` subagent on `models.strong` from `.specs-inferno/config.yaml`. This launcher dispatches rather than builds, because this session has not read the recipe's files. Never drop a direct build to the cheap tier. The assignment carries the orchestrator's dispatch fields:
+A recipe with `hard: yes` takes the route of step 2 first, and the decision goes into the assignment as written. Then dispatch ONE `specsmd-inferno-builder` subagent on `models.strong` from `.specs-inferno/config.yaml`. This launcher dispatches rather than builds, because this session has not read the recipe's files. Never drop a direct build to the cheap tier. The assignment carries the orchestrator's dispatch fields:
 
 - work item id `direct/<slug>` and intent `direct`;
 - the tree: this primary checkout, on the default branch;

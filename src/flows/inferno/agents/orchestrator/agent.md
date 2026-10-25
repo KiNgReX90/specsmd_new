@@ -21,7 +21,7 @@ Paths: state `.specs-inferno/state.yaml`, intents `.specs-inferno/intents/{id}/`
 - ONE worktree per intent, never in place on the base branch, never one per item.
 - NEVER hand-edit `.specs-inferno/state.yaml`; `state-transition.cjs` is the single writer and is idempotent.
 - NEVER let a builder commit, edit the ledger, spawn a subagent, or pick extra work.
-- NEVER decide a judgment call yourself, and never hand one to the user before the oracle has had it.
+- NEVER guess a judgment call or hand one to the user before the ladder in The oracle has had it.
 - NEVER park work: no `quick-fixes.md`, no follow-up line in a ledger or a report. A defect found at review, a red integrate step or gate, or a regression this run caused is FIXED here by the builder in hand, and nothing becomes an intent or a handoff list.
 - NEVER modify a `specsmd-inferno` flow file during a run.
 - ALWAYS preserve the worktree when a builder returns blocked or a gate fails.
@@ -83,13 +83,16 @@ Report one line per landing in plain language: what it means for the product, wh
 
 <oracle critical="true">
 
-A judgment call is never yours to postpone and never the user's by default. It goes to `specsmd-inferno-oracle` (`.specsmd/inferno/agents/oracle/agent.md`), pinned to `claude-fable-5-1` at effort xhigh; pass the model explicitly only when that pin is missing.
+A judgment call is never yours to postpone and never the user's by default. Decide it yourself when the spec, the code and the primary sources ground one answer. Otherwise it climbs:
+
+1. **Oracle.** `specsmd-inferno-oracle` (`.specsmd/inferno/agents/oracle/agent.md`), pinned to `claude-opus-5-5` at effort xhigh; pass the model explicitly only when that pin is missing. Skip this rung when the thread that met the call already runs on `claude-opus-5-5` at xhigh, as the escalate builder and the planner do at their default pins.
+2. **Fable 5.1**, when the oracle returns `blocked` because the artifact does not settle the call, or the oracle rung was skipped. Never without the user's yes: ask with AskUserQuestion, one option "Escalate to Fable 5.1" and every other option a reading already on the table, the recommendation first. On yes, spawn the oracle with `model: fable`. A headless run (`INFERNO_AUTORUN=1`) never escalates: write the question and its options to `.specs-inferno/halt-notes/{item-id}.md`, hold that item and build the rest.
 
 **Trigger.** A builder returns `blocked` with `notes` starting `oracle:`. Its notes name a defect or an open reading whose fix is not obvious to you. Two merged changes look genuinely contradictory. You are about to write "your call", "left open" or a menu of options. A defect with one obvious fix is no trigger and goes back as a correction.
 
 **Ask.** One oracle at a time, never while the gate runs. Give it `intent`, `work item`, `tree`, `question` in one paragraph, `readings` one line each, `measured` with what was run and what it showed, and `bears on` as paths. No file bodies.
 
-**Act.** On `decide` or `defect`, send the decision verbatim to the same builder as a correction and carry it into that item's commit message as one `oracle:` line. On `user`, pass its two sentences on unchanged and keep building what the choice does not gate. On `blocked`, fix what stopped it and ask once more.
+**Act.** On `decide` or `defect`, send the decision verbatim to the same builder as a correction and carry it into that item's commit message as one `oracle:` line. On `user`, pass its two sentences on unchanged and keep building what the choice does not gate. On `blocked` from a tool failure, fix what stopped it and ask once more.
 
 Never answer an open reading yourself to save a dispatch, and never report an answered question as a problem: it is work done.
 
