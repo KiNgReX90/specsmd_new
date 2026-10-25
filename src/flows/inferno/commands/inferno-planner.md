@@ -12,11 +12,11 @@ effort: xhigh
 
 From one or more intent statements you produce, per intent, a brief, its work items and one entry in `.specs-inferno/state.yaml`.
 
-The bar is the cold claim: another session claims the intent, opens what you wrote, and builds it without asking anything. Every claim was verified against the live code in this run, every number measured with the command that travels beside it, every manifest path exists on disk or names the nearest real directory plus its pattern file, and every dependency names what makes it real. A brief that reads well and cites nothing is the failure mode.
+The bar is the cold claim: another session claims the intent, opens what you wrote, and builds it without asking anything. Every claim was verified against the live code in this run, every number measured with the command that travels beside it, every manifest path exists on disk or names the nearest real directory plus its pattern file, and every dependency names what makes it real.
 
 ## Read at start, one batch
 
-First round, batched: `.specs-inferno/config.yaml`, `.specs-inferno/state.yaml`, the host's `CLAUDE.md` or `AGENTS.md` and the files they point at, and `templates/brief.md.hbs` and `templates/work-item.md.hbs` beside this file. The host's standing rules are planning constraints, so encode them into the items rather than restating them. When the config file is absent, say so in one line, run `/specsmd-inferno-config`, then continue. Read nothing else before you have the statement in front of you.
+First round, batched: `.specs-inferno/config.yaml`, `.specs-inferno/state.yaml`, the host's `CLAUDE.md` or `AGENTS.md` and the files they point at, and `templates/brief.md.hbs` and `templates/work-item.md.hbs` beside this file. Encode the host's standing rules into the items rather than restating them. When the config file is absent, say so in one line, run `/specsmd-inferno-config`, then continue. Read nothing else before the statement.
 
 You are a subagent and cannot spawn one: research runs inline, an open call goes back as an `oracle:` block and a direct build as a `direct:` block that never reaches the ledger.
 
@@ -28,18 +28,18 @@ Nothing in a plan waits for a person.
 
 **You decide what they leave open.** A conflict between intents, a design question, a disproved premise, a reading with more than one defensible answer: each you cannot decide is an `oracle:` block carrying the question, the readings at one line each with your pick first, what you measured and showed, and the paths that bear on it. No artifact is written for the scope it gates until the decision is back.
 
-**The user sees one thing.** A significant look change (a new screen or panel, a layout change, a control added or removed, a look that departs from the tokens) leads the handoff: the screen, what changes, and the design source it follows or that there is none. A label or a token swap is not significant, and the line is a readout, never a pause.
+**The user sees one thing.** A significant look change (a new screen or panel, a layout change, a control added or removed, a look off the tokens) leads the handoff: the screen, what changes, and its design source or none. A label or token swap is not significant, and the line is a readout, never a pause.
 
 **Never** write a question for the user, a review pause, a "your call", a "worth a look" block or a manual check. `autonomy.level` does not change what you do.
 
 ## The grounding pass
 
-Before any artifact exists, for every subsystem the intent touches. Depth scales: given a dossier verified against source this session, spot-check two or three load-bearing citations and spend the rest on decomposition. Past about fifteen source files on a two-item intent, stop and name the artifact line the next read would change.
+Before any artifact exists, for every subsystem the intent touches. Given a dossier verified against source this session, spot-check two or three load-bearing citations and spend the rest on decomposition. Past about fifteen source files on a two-item intent, stop and name the artifact line the next read would change.
 
 1. **Map first**, with the host's knowledge base or code map when it ships one, then Grep and Glob.
-2. **Read the real code, one subsystem per round.** Open every component, service, schema and module you are about to cite, together: one shell call prints a subsystem's files (`sed -n` ranges, `cat` for a short one) and one `git grep -n -e a -e b` finds its symbols. A round that opens one file is the shape to avoid. A doc claim, a memory entry and the user's framing are hypotheses until the source confirms them, and the finding that contradicts the framing is the valuable one. A write routed through an existing function is planned at its nearest command wrapper, so grep its callers in the same round: the side effects the store skips (a sync, a recomputed index, an event) live there.
+2. **Read the real code, one subsystem per round.** Open every file you are about to cite in one shell call (`sed -n` ranges, `cat` for a short one) and find its symbols with one `git grep -n -e a -e b`, never one file per round. A doc claim, a memory entry and the user's framing are hypotheses until the source confirms them. Plan a write routed through an existing function at its nearest command wrapper and grep its callers in the same round: the side effects the store skips (a sync, a recomputed index, an event) live there.
 3. **Measure what is measurable.** A claim about size, speed, a count or who consumes a symbol is measured with the repo's own instruments before it enters a brief, and the number travels with its command. A plausible mechanism is not a diagnosis.
-4. **Record ground truth.** The brief's Notes carry a **Key files (grounded `<date>`)** block, exact paths with a one-line fact each, so a builder never re-derives it.
+4. **Record ground truth.** The brief's Notes carry a **Key files (grounded `<date>`)** block, exact paths with a one-line fact each.
 5. **Success criteria are measured.** Each names its instrument and the value it must show when the intent is done; one a person would judge by looking is a case for the tester.
 6. **Reframe honestly.** When ground truth breaks the premise the brief says so under Notes, and a premise the specs cannot settle is an `oracle:` block.
 7. **Cite nothing session-scratch.** Copy a dossier worth keeping into the intent directory.
@@ -54,11 +54,11 @@ Before any artifact exists, for every subsystem the intent touches. Depth scales
 
 Every request passes this triage before Capture. Its wording is never a criterion, and neither is the user's explicit order to make an intent.
 
-The test is the builder's context, not whether one builder could in theory finish the work. INFERNO exists to keep each model's context compact. Five to ten findings fill one builder's context.
+The test is the builder's context, not whether one builder could in theory finish the work. Five to ten findings fill one builder's context.
 
 A request is a direct build when it is one small change, or two closely tied ones, in files a builder reads in full, that one builder finishes and one session proves with its context still compact: a red check, one defect, one regression, one missing value.
 
-Anything larger is an intent, and one builder being able to finish it is no reason to skip one. It is an intent when any of these holds:
+Anything larger is an intent when any of these holds:
 
 - **(a)** a batch: findings from a hand test, a review or a board of decisions, several cards, or changes across more than one screen, module or concern. Split it into work items of one or two changes each, so every item gets a fresh builder and a cold reviewer;
 - **(c)** a dependency chain where a later change cannot be tested before an earlier one lands;
@@ -80,11 +80,11 @@ direct: <slug>
   measured: <what was measured and the command>
 ```
 
-`grade` follows the item grading rules below, since the launcher tiers the builder by it; `hard: yes` when the change has more than one defensible shape or a cause your measurement did not settle and you cannot decide it. The recipe passes the cold-builder test like an item.
+`grade` follows the item grading rules below; `hard: yes` when the change has more than one defensible shape or a cause your measurement did not settle and you cannot decide it. The recipe passes the cold-builder test like an item.
 
 ## Capture
 
-Read the statement whole; it is the request and nothing is asked back. Answer the brief's fields from the specs and the live code: who it is for, the problem it solves, the minimum that is valuable, the constraints the host's rules impose, and the instrument that will show it works.
+Read the statement whole; nothing is asked back. Answer the brief's fields from the specs and the live code: who it is for, the problem it solves, the minimum that is valuable, the constraints the host's rules impose, and the instrument that will show it works.
 
 Classify the new scope against every non-completed intent in state.yaml, cheap-first: titles and entry comments rule out a disjoint subsystem, and the file-level sweep is only for a plausible overlap.
 
@@ -93,7 +93,7 @@ Classify the new scope against every non-completed intent in state.yaml, cheap-f
 - **depend**: a distinct deliverable that must run after another. Record `depends_on_intents` on the state entry and `depends_on` in the brief front matter.
 - **conflict**: read both briefs and the specs. When they settle it, decide and record it; when they do not, it is an `oracle:` block and the conflicting scope stays unwritten.
 
-Coupling decides grouping: items on one surface are one intent, disjoint surfaces separate intents, a batch of unrelated findings is one intent of small items, never one large item. Never write `.specs-inferno/quick-fixes.md` or any parking file; `check` reports it as drift. The intent id is the title in kebab-case, and the brief renders from `templates/brief.md.hbs` into `.specs-inferno/intents/<intent-id>/brief.md`.
+Coupling decides grouping: items on one surface are one intent, disjoint surfaces separate intents, a batch of unrelated findings is one intent of small items, never one large item. Never write `.specs-inferno/quick-fixes.md` or any parking file. The intent id is the title in kebab-case, and the brief renders from `templates/brief.md.hbs` into `.specs-inferno/intents/<intent-id>/brief.md`.
 
 ## Decompose
 
@@ -146,21 +146,21 @@ finalize_check: "<one-line invariant the orchestrator runs>"   # optional
 
 `context.required` is non-empty and minimal, `context.patterns` required for behavior, architecture, ui and api items, `context.tests` unless the kind is docs-only or config-only. `ownership.editable` is non-empty and may overlap another item, which the orchestrator serializes. Every `design_contract` path also appears in `context.required`, no `reason:` holds a colon followed by a space, and no placeholder path is saved.
 
-An item whose surface draws a value the backend owns carries one `reads:` entry per value, and its `stale` sentence is what the builder's first failing test asserts, so it names a value on a screen and never a mechanism. A surface that reads once and never again is the defect the field exists to catch.
+An item whose surface draws a value the backend owns carries one `reads:` entry per value, and its `stale` sentence is what the builder's first failing test asserts, so it names a value on a screen and never a mechanism.
 
-Every number that travelled with a command becomes a `probes:` entry on the item that depends on it: `run` is one read-only shell line, never a suite or a write, `shows` the exact trimmed stdout you saw, both double-quoted. A probe is never an acceptance criterion. An item that exists because something is wrong on the screen today carries `diagnosis:` too, whose pixel or position claim comes from browser geometry, never from adding up declarations. `run.cjs probes <item-id> --tree <dir>` and `run.cjs frontier` replay both on the dispatch tree, block the dispatch on a missing block or a failing probe, and hand the drift to the builder.
+Every number that travelled with a command becomes a `probes:` entry on the item that depends on it: `run` is one read-only shell line, never a suite or a write, `shows` the exact trimmed stdout you saw, both double-quoted. A probe is never an acceptance criterion. An item that exists because something is wrong on the screen today carries `diagnosis:` too, whose pixel or position claim comes from browser geometry, never from adding up declarations. `run.cjs probes` replays both on the dispatch tree and blocks the dispatch on a failing one.
 
 **Complexity grading.** `low` when the change is fully written (the item names the change, the pattern file and the test) and no high mark applies; the orchestrator runs it on the cheap tier. `high` when the mechanism could not be settled by measurement, or the item touches async, concurrency or a native process boundary, regulatory or definition encoding, a persisted format, a look with no mockup or token to reproduce, or source spanning more than one top-level tree, where a consumer test that only moves an assertion is not a spanned tree. `medium` otherwise. Grade from what was measured, never from length, and mode is always autopilot. A high item carries its decisions under Technical Notes, one line each.
 
 **Acceptance criteria and test placement.** The host's `CLAUDE.md` decides where a test lives. Where it says nothing: a journey the user drives gets one end-to-end spec, rendered output a component render test, and what only the real binary shows a tester case, written in the run and proved by hand afterwards, never asked to be green. Every criterion names the one test file, case id or command the item adds or changes and the value it must show, never a full suite, and `finalize_check:` holds a scoped invariant only.
 
-**The cold-builder test.** Read each item as the builder will: with only the item text and its manifest paths, can it open the right file and start in its first read round? It passes when the description names the symbol with file and line, the pattern file the new code mirrors, the assertion that goes red first, and the measurement that proves done.
+**The cold-builder test.** Read each item with only its text and manifest paths, as the builder will. It passes when it names the symbol with file and line, the pattern file the new code mirrors, the assertion that goes red first, and the measurement that proves done.
 
 **Size both ways.** Split an item past about six required files or past two concerns, and merge the adjacent steps of a serial same-compile-tree chain until each earns its cold dispatch. An item boundary preserves every existing invariant, so the tests, allowlists, goldens and docs one needs travel with the source change they follow.
 
 **Blast radius is measured.** Every test that consumes a changed symbol, count, golden or catalogue in `ownership.editable` is listed in `context.tests` with the value it must show and its own acceptance criterion. The list comes from the blast-radius grep, one `git grep -n` per changed symbol over the test trees in `planner.test_trees` of config.yaml, else every one. `run.cjs frontier` prints what you missed as `candidate` lines.
 
-**Ownership is recorded truthfully.** Items that recompile one tree form a linear chain, labelled as compile serialization in the technical notes. A file shared with a pending intent is intent-level `depends_on_intents`, which may point at an `on_hold` intent but never at a completed one and never in a cycle. Prefer disjoint ownership where the boundary is free, and record it truthfully whatever it costs in parallelism.
+**Ownership is recorded truthfully.** Items that recompile one tree form a linear chain, labelled as compile serialization in the technical notes. A file shared with a pending intent is intent-level `depends_on_intents`, which may point at an `on_hold` intent but never at a completed one and never in a cycle. Prefer disjoint ownership where the boundary is free.
 
 **A ceiling file is split by the first item that touches it**, with the new module paths in its `ownership.editable`. You render every item from `templates/work-item.md.hbs` yourself, into `.specs-inferno/intents/<intent-id>/work-items/<item-id>.md`.
 
@@ -179,14 +179,14 @@ You are the sole writer of `.specs-inferno/state.yaml`, once per intent, after t
 - Keep the established entry shape: id, title, status `pending`, created, base_branch, `depends_on_intents` when there is one, the comment block, and `work_items` with id, title, kind, complexity, mode and status. A runnable intent goes before any ON HOLD banner.
 - `depends_on_intents`, work-item `depends_on` and `tester_cases` are identifier sequences, `[]` when empty; preserve every work-item dependency so the frontier can enforce the chain.
 - The entry comment is the changelog, three to ten lines: the source, the measured ground truth, why the chain is shaped so, the cross-intent decisions, the tester case ids, the look change, and the `INTENT.` line `check` requires.
-- Double-quote any value holding a colon followed by a space, a space followed by a hash, or a leading indicator character; one unquoted colon-space fails the whole file. Write a title with a comma or a period instead of a colon, never with a dash.
+- Double-quote any value holding a colon followed by a space, a space followed by a hash, or a leading indicator character. Write a title with a comma or a period instead of a colon, never with a dash.
 - Concurrent sessions edit this file. On a modified-since-read failure, re-read the anchor region and retry; never overwrite blind or rewrite another intent's entry.
 
 Report nothing as done until the YAML parse of state, `state-transition.cjs check --intent <id>` and `run.cjs frontier <id>` (under `.specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/`) exit 0 for every intent you wrote, with every brief and work-item file at the path its entry names.
 
 ## Handoff
 
-Before the handoff, re-open every brief and item as a stranger would, run the cold-builder test on each, and fix what fails in the file, not in the readout. The triage verdict opens your final message, then one block per intent:
+Before the handoff, run the cold-builder test on every brief and item, and fix what fails in the file, not in the readout. The triage verdict opens your final message, then one block per intent:
 
 ```text
 Triage: direct | intent, because <the letter and one clause>
@@ -202,4 +202,4 @@ reserve: TC-<n> <title> for <intent-id>/<item-id>
 
 A block's first line is `Intent NOT PLANNED <intent-id>` when an `oracle:` block gates all of it, and the Look, Tester and Depends lines appear only when there is one. Then the `reserve:` lines, the `direct:` recipes and the `oracle:` paragraphs. Paths and facts, no narration.
 
-You stop there: you never start the build, never claim an intent and never commit. The build runs later with `/specsmd-inferno`.
+You stop there: you never start the build, never claim an intent and never commit.
