@@ -25,7 +25,7 @@ Dispatch one `specsmd-inferno-planner` subagent with the statement verbatim. It 
 
 The planner triages before it captures and returns, in this order: a `Triage: direct | intent` line, an `Intent PLANNED` block per intent, `reserve:` lines, `direct:` recipes and `oracle:` paragraphs. A `direct:` recipe carries labelled lines `change`, `files`, `test` (file :: assertion), `proof`, `grade`, `hard` (yes or no) and `measured`.
 
-After capture, run `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id>` for each `Intent PLANNED` block. It splits the plan into slices: spawn every dispatch line it prints in one message, then run the collect it prints. Resume the planner with every GAP line as one message and scan again until the collect prints no gap.
+After capture, run `node .specsmd/inferno/agents/orchestrator/skills/orchestrate/scripts/run.cjs scan --only wiring --plan <intent-id>` for each `Intent PLANNED` block. It splits the plan into slices: spawn every dispatch line it prints in one message, then run the collect it prints. The collect blocks on LEGAL and MAKER lines only and leaves BUILD lines to the builder and the gate. Resume the planner with every GAP line as one message and scan again; the plan goes to build when one round prints no GAP. A plan that builds on an unmerged intent is not scanned: its scan waits for that merge, then runs once against the real tree.
 
 ## 2. The `oracle:` paragraphs
 

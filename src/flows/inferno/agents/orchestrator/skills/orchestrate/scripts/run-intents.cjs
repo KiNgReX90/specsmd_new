@@ -384,4 +384,4 @@ function acceptDispatch(dispatchId, options) {
   };
 }
 
-module.exports = { acceptDispatch, claim, dispatchLog, frontier, resolveBase, select, tierOf, unclaim, worktree };
+module.exports = { acceptDispatch, claim, dispatchLog, frontier, resolveBase, select, tierOf, unclaim, unmetPrerequisites, worktree };

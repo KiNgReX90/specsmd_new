@@ -35,7 +35,8 @@ function bigPlan(options = {}) {
 const scan = (fixture, args) => run(fixture, ["scan", "--tree", fixture.root, ...args]);
 const PLAN_ARGS = ["--only", "wiring", "--plan", "beta"];
 const dispatchLines = (out) => [...out.matchAll(/^dispatch (\S+)(?: model \S+)? scan (\S+) brief (\S+)$/gm)];
-const LINE = (claim) => `  - file: src/a.ts\n    line: 1\n    claim: ${claim}\n    proof: "rg -n producer src"\n`;
+const LINE = (claim, kind = "MAKER") =>
+  `  - file: src/a.ts\n    line: 1\n    kind: ${kind}\n    claim: ${claim}\n    proof: "rg -n producer src"\n`;
 const answer = (brief, lines = "") =>
   write(path.dirname(brief), path.basename(brief).replace(/\.md$/, ".yaml"), `question: wiring\nlines:${lines ? `\n${lines}` : " []\n"}`);
 
@@ -104,7 +105,59 @@ test("collect exits 3 while any slice's result is missing, then merges every sli
   assert.equal(gaps.code, 2, gaps.out + gaps.err);
   const ids = [...gaps.out.matchAll(/^GAP (\S+) /gm)].map((match) => match[1]);
   assert.deepEqual(ids, ["wiring-1", "wiring-2", "wiring-3"]);
-  assert.match(gaps.out, /GAP wiring-3 src\/a\.ts:1: second slice other gap/);
+  assert.match(gaps.out, /GAP wiring-3 MAKER src\/a\.ts:1: second slice other gap/);
+});
+
+/** Every slice answered: the first with `lines`, the rest empty; then the collect. */
+function collected(lines) {
+  const { fixture } = bigPlan();
+  const briefs = dispatchLines(scan(fixture, PLAN_ARGS).out).map((line) => line[3]);
+  briefs.forEach((brief, index) => answer(brief, index === 0 ? lines : ""));
+  return scan(fixture, ["--collect", ...PLAN_ARGS]);
+}
+
+test("a plan-time result with only BUILD lines collects clean: the builder and the gate own them", () => {
+  const clean = collected(`${LINE("the e2e fixture lacks the new field", "BUILD")}${LINE("the load.rs closure list misses it", "BUILD")}`);
+  assert.equal(clean.code, 0, clean.out + clean.err);
+  assert.doesNotMatch(clean.out, /^GAP /m);
+  assert.doesNotMatch(clean.out, /fixture lacks|closure list/);
+  assert.match(clean.out, /2 BUILD lines/);
+});
+
+test("a plan-time LEGAL or MAKER line does not collect clean, and only those reach the planner", () => {
+  for (const kind of ["LEGAL", "MAKER"]) {
+    const gaps = collected(`${LINE("the selector moved", "BUILD")}${LINE(`a ${kind} gap`, kind)}`);
+    assert.equal(gaps.code, 2, gaps.out + gaps.err);
+    assert.deepEqual([...gaps.out.matchAll(/^GAP (\S+) (\S+) /gm)].map((m) => [m[1], m[2]]), [["wiring-1", kind]]);
+    assert.doesNotMatch(gaps.out, /selector moved/);
+  }
+});
+
+test("a plan-time line without a LEGAL, MAKER or BUILD kind is refused", () => {
+  for (const lines of [`  - file: src/a.ts\n    line: 1\n    claim: c\n    proof: "rg x"\n`, LINE("c", "STYLE")]) {
+    const refused = collected(lines);
+    assert.equal(refused.code, 2, refused.out + refused.err);
+    assert.match(refused.err, /LEGAL, MAKER or BUILD/);
+  }
+});
+
+test("a plan that builds on an unmerged intent is not scanned until that intent merges", () => {
+  const state = "project:\n  name: demo\nintents:\n  - id: alpha\n    title: \"Alpha\"\n    status: in_progress\n" +
+    "    depends_on_intents: []\n    work_items: []\n  - id: beta\n    title: \"Beta\"\n    status: pending\n" +
+    "    depends_on_intents: [alpha]\n    work_items: []\n";
+  const files = { ...INSTALLED, [`${PLAN}/brief.md`]: "# Intent: Beta\n", [`${PLAN}/work-items/b-one.md`]: item("b-one", 10) };
+  const fixture = repo({ files, state });
+  const held = scan(fixture, PLAN_ARGS);
+  assert.equal(held.code, 3, held.out + held.err);
+  assert.equal(dispatchLines(held.out).length, 0, held.out);
+  assert.match(held.out, /builds on alpha, not merged/);
+});
+
+test("the plan-time brief asks for LEGAL and MAKER and tags every line", () => {
+  const { fixture } = bigPlan();
+  const [first] = dispatchLines(scan(fixture, PLAN_ARGS).out).map((line) => line[3]);
+  const text = fs.readFileSync(first, "utf8");
+  for (const kind of ["LEGAL", "MAKER", "BUILD"]) assert.match(text, new RegExp(`${kind}:`));
 });
 
 test("a refused slice result names that slice's scanner", () => {
@@ -146,4 +199,5 @@ test("the scanner role is exhaustive within its range or slice and caps nothing"
   assert.match(role, /no cap on lines/);
   assert.match(role, /your slice of its work items/);
   assert.doesNotMatch(role, /handful|at most \d|stop after|a few lines/i);
+  for (const kind of ["LEGAL", "MAKER", "BUILD"]) assert.match(role, new RegExp(`\`${kind}\``));
 });

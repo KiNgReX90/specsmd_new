@@ -284,18 +284,23 @@ describe('inferno flow', () => {
     }
     expect(text).toMatch(/production caller/);
     expect(text).toMatch(/GAP is a class/);
+    expect(text).toMatch(/LEGAL or MAKER/);
+    expect(text).toMatch(/BUILD finding is never chased/);
   });
 
   // The plan-time scan prints a dispatch line per slice of the plan, so every launcher spawns
-  // them together, collects them all, and scans again until no gap comes back.
+  // them together, collects them all, and scans again until no LEGAL or MAKER gap comes back.
+  // A BUILD line never blocks a plan, and a plan on an unmerged intent waits for that merge.
   it.each([
     'claude/commands/inferno-planner.md',
     'codex/skills/specsmd-inferno-planner/SKILL.md',
-  ])('%s spawns every slice of the plan-time scan at once and rescans to no gap', (rel) => {
+  ])('%s spawns every slice of the plan-time scan at once and rescans to no LEGAL or MAKER gap', (rel) => {
     const text = readFileSync(path.join(INFERNO, rel), 'utf8');
     expect(text).toMatch(/every dispatch line it prints/);
-    expect(text).toMatch(/GAP/);
-    expect(text).toMatch(/no gap/);
+    expect(text).toMatch(/blocks on LEGAL and MAKER lines only/);
+    expect(text).toMatch(/BUILD lines to the builder and the gate/);
+    expect(text).toMatch(/goes to build when one round prints no GAP/);
+    expect(text).toMatch(/builds on an unmerged intent is not scanned/);
   });
 
   // The launcher acts on the planner's handoff by its labels, so a label renamed on either

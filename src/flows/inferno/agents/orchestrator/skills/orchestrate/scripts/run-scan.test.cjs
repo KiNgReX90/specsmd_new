@@ -36,6 +36,8 @@ function dispatched(fixture, tree, args = []) {
 }
 
 const LINE = '  - file: src/a.ts\n    line: 1\n    claim: a reads no producer\n    proof: "rg -n producer src"\n';
+/** A plan-time line also carries its kind; a MAKER line blocks the plan. */
+const PLAN_LINE = LINE.replace("    claim:", "    kind: MAKER\n    claim:");
 function answer(entry, lines = "") {
   write(path.dirname(entry.result), path.basename(entry.result), `question: ${entry.id}\nlines:${lines ? `\n${lines}` : " []\n"}`);
 }
@@ -159,10 +161,10 @@ test("the plan-time scan asks the wiring question of the plan alone and hands ev
   assert.match(brief, /plan \.specs-inferno\/intents\/alpha/);
   assert.doesNotMatch(brief, /range /);
   const entry = { id: "wiring", result: line[1].replace(/\.md$/, ".yaml") };
-  answer(entry, LINE);
+  answer(entry, PLAN_LINE);
   const gaps = scan(fixture, fixture.root, ["--collect", ...plan]);
   assert.equal(gaps.code, 2, gaps.out + gaps.err);
-  assert.match(gaps.out, /GAP wiring-1 src\/a\.ts:1: a reads no producer/);
+  assert.match(gaps.out, /GAP wiring-1 MAKER src\/a\.ts:1: a reads no producer/);
   assert.match(gaps.out, /planner/);
   assert.equal(fs.existsSync(path.join(fixture.root, SCAN)), false);
   answer(entry);
@@ -177,7 +179,7 @@ test("the plan-time scan asks wiring alone, and its printed collect reads exactl
   const sent = [...result.out.matchAll(/ scan (\S+) brief (\S+)/g)];
   assert.deepEqual(sent.map((line) => line[1]), ["wiring"]);
   const collect = /then (run\.cjs scan --collect .*) collects them/.exec(result.out)[1].split(" ").slice(1);
-  answer({ id: "wiring", result: sent[0][2].replace(/\.md$/, ".yaml") }, LINE);
+  answer({ id: "wiring", result: sent[0][2].replace(/\.md$/, ".yaml") }, PLAN_LINE);
   const gaps = run(fixture, collect);
   assert.equal(gaps.code, 2, gaps.out + gaps.err);
   assert.match(gaps.out, /GAP wiring-1/);

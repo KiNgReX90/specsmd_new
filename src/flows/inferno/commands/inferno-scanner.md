@@ -27,7 +27,13 @@ Answer only the one your brief names.
 
 Start from `git diff <range>` in the tree, then search the whole tree, because the miss usually sits in a file the diff did not touch: the consumer nobody wrote, the old caller nobody moved, the test that stubs the very thing it claims to prove.
 
-At plan time nothing is built yet. Read the plan's brief and every work item of your slice, and hold each screen, reader, command, op, table, event, field, question id and file contract they add, change or remove against a producer and a consumer, in the plan or in the live tree. Other scanners cover the other slices: open an item outside yours only to check a producer or consumer yours relies on.
+At plan time nothing is built yet, so the plan is checked only for the law and for what the maker sees or gets. Read the plan's brief and every work item of your slice against the live tree and the host's research and primary texts. Tag every line with its `kind`, and spend no search on BUILD:
+
+- `LEGAL`: a provision, limb, date, act line or scope encoded wrong or missing, measured against the research and the primary texts.
+- `MAKER`: what the maker sees or gets is wrong: a screen, a reader-facing string, a dossier or document outcome, a wrong result for a concrete product, a stored answer that is lost. A screen or reader with no producer is MAKER.
+- `BUILD`: how a builder proves or wires the work: test files and their fixtures, recorded wire files, test helpers and selectors, ownership lists, verification budgets, closure lists, line numbers and counts inside tests. It never blocks the plan; the builder's red-first test and the gate own it.
+
+Other scanners cover the other slices: open an item outside yours only to check a producer or consumer yours relies on.
 
 Every line you report carries the command that proves it: a `rg` or `git grep` with its pattern, a narrow test run, or a `sed -n` of the file at that line. Whoever reads your line reruns that command and sees what you saw. A suspicion without a proving command stays out of the file. Run tests one file at a time, never a whole suite or a whole crate, and never more than one at once.
 
@@ -46,7 +52,7 @@ lines:
     proof: "rg -n 'saved_list' src"
 ```
 
-`question` is the id your brief names. Each line holds `file` relative to the tree, `line`, `claim` (one sentence: what is missing) and `proof` (the command), and no other key. Put the proof in double quotes, escaping a double quote inside it as `\"`. `lines: []` is a valid answer.
+`question` is the id your brief names. Each line holds `file` relative to the tree, `line`, `claim` (one sentence: what is missing) and `proof` (the command), and no other key, except at plan time, where every line also holds `kind: LEGAL`, `MAKER` or `BUILD`. Put the proof in double quotes, escaping a double quote inside it as `\"`. `lines: []` is a valid answer.
 
 ## Return
 

@@ -18,6 +18,7 @@ const HOST = {
     "delivery:\n  base_branch: main\n",
 };
 const LINE = '\n  - file: src/a.ts\n    line: 1\n    claim: a reads no producer\n    proof: "rg -n producer src"\n';
+const PLAN_LINE = LINE.replace("    claim:", "    kind: LEGAL\n    claim:");
 
 /** A worktree with one commit of work, on a host with a Codex config and the given role files. */
 function started(name = INTENT_TREE, files = HOST) {
@@ -115,7 +116,7 @@ test("on a tree on no intent branch, every scan, collect and review call the sca
 test("on Codex the plan-time scan's collect and its hand-off to the planner run as printed on Codex", () => {
   const fixture = repo({ files: HOST });
   const sent = run(fixture, ["scan", "--only", "wiring", "--plan", "alpha", "--config", CODEX]);
-  answer(scanned(sent, 1), { wiring: LINE });
+  answer(scanned(sent, 1), { wiring: PLAN_LINE });
   const [gaps] = asPrinted(fixture, sent.out, "collect");
   assert.equal(gaps.code, 2, gaps.out + gaps.err);
   assert.match(gaps.out, /GAP wiring-1/);

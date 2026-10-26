@@ -11,7 +11,9 @@
  *
  * At plan time, `--only wiring --plan <intent>` asks the wiring question of the plan before
  * anything is built, one scanner per slice of its work items (run-scan-slices.cjs), and its
- * collect merges every slice and hands each gap back to the planner instead of recording.
+ * collect merges every slice and hands each LEGAL or MAKER gap back to the planner instead of
+ * recording. A BUILD line never blocks a plan, and a plan that builds on an unmerged intent
+ * waits for that merge, so it is scanned once against the real tree.
  */
 
 const fs = require('fs');
@@ -20,11 +22,11 @@ const path = require('path');
 const lib = require('./run-lib.cjs');
 const proofs = require('./run-proofs.cjs');
 const gate = require('./run-gate.cjs');
-const { resolveBase } = require('./run-intents.cjs');
+const { resolveBase, unmetPrerequisites } = require('./run-intents.cjs');
 const { hostActor } = require('./run-review.cjs');
 const owed = require('./run-intent-owed.cjs');
 const { intentReviewCall, scanCall } = require('./run-call.cjs');
-const { IDS, QUESTIONS, numbered, readResult, renderScan } = require('./run-scan-file.cjs');
+const { BLOCKING_KINDS, IDS, PLAN_KINDS, PLAN_QUESTION, QUESTIONS, numbered, readResult, renderScan } = require('./run-scan-file.cjs');
 const { planItems, planSlices } = require('./run-scan-slices.cjs');
 
 const { RunError } = lib;
@@ -88,6 +90,15 @@ function subject(context, entry, entries, range) {
   ];
 }
 
+/** The question line, and at plan time the kinds a line is tagged with and which of them block. */
+function questionText(question, range) {
+  if (range) return [`- question ${question}: ${QUESTIONS[question]}`];
+  return [
+    `- question ${question} at plan time: ${PLAN_QUESTION}`,
+    ...Object.entries(PLAN_KINDS).map(([kind, what]) => `- ${kind}: ${what}`),
+  ];
+}
+
 function briefText(tree, context, entry, entries, range) {
   const { question } = entry;
   const scope = range ? 'the range' : 'your slice';
@@ -102,7 +113,7 @@ function briefText(tree, context, entry, entries, range) {
     '',
     `- tree ${tree}`,
     ...subject(context, entry, entries, range),
-    `- question ${question}: ${QUESTIONS[question]}`,
+    ...questionText(question, range),
     `- result ${entry.result}`,
     '',
   ].join('\n');
@@ -181,17 +192,28 @@ function readDispatch(dir, intent, plan) {
   }
 }
 
-/** Hand every gap the plan-time scan found back to the planner; nothing is recorded. */
+/**
+ * Hand every LEGAL and MAKER gap the plan-time scan found back to the planner; nothing is
+ * recorded. BUILD lines are counted and left to the builder and the gate, never sent.
+ */
 function planGaps(tree, context, results) {
-  const lines = numbered(results);
+  const blocking = (line) => BLOCKING_KINDS.includes(line.kind);
+  const lines = numbered(results.map((result) => ({ ...result, lines: result.lines.filter(blocking) })));
+  const build = results.flatMap((result) => result.lines.filter((line) => !blocking(line))).length;
+  const left = build > 0 ? [`${build} BUILD line${build === 1 ? '' : 's'} left to the builder and the gate, never to the plan`] : [];
   if (lines.length === 0) {
-    return { exit: 0, payload: { ok: true, intent: context.intent, gaps: [] }, out: [`no gap in the plan of ${context.intent}`] };
+    return {
+      exit: 0,
+      payload: { ok: true, intent: context.intent, gaps: [], build },
+      out: [`no LEGAL or MAKER gap in the plan of ${context.intent}: it goes to build`, ...left],
+    };
   }
   return {
     exit: 2,
-    payload: { ok: false, intent: context.intent, gaps: lines },
+    payload: { ok: false, intent: context.intent, gaps: lines, build },
     out: [
-      ...lines.map((line) => `GAP ${line.id} ${line.file}:${line.line}: ${line.claim} (proof: ${line.proof})`),
+      ...lines.map((line) => `GAP ${line.id} ${line.kind} ${line.file}:${line.line}: ${line.claim} (proof: ${line.proof})`),
+      ...left,
       `resume the planner with every GAP line as one message, then run ${scanCall(tree, context.options.plan)} again`,
     ],
   };
@@ -253,8 +275,19 @@ function collect(tree, context) {
       `spawn the dispatch lines ${again} printed for ${missing.length === 1 ? 'it' : 'them'}, then run ${fix} again`,
     ]);
   }
-  const results = entries.map((entry) => ({ question: entry.question, lines: readResult(resultOf(entry), entry.question, fix, entry.id) }));
+  const results = entries.map((entry) => ({ question: entry.question, lines: readResult(resultOf(entry), entry.question, fix, entry.id, Boolean(options.plan)) }));
   return options.plan ? planGaps(tree, context, results) : record(tree, context, sent, results);
+}
+
+/**
+ * The intents a plan builds on that have not merged yet. Until they merge the plan pins detail
+ * of a tree that does not exist, so its scan waits and then runs once against the real tree.
+ */
+function unmergedBase(tree, intent) {
+  if (!fs.existsSync(lib.statePath(tree))) return [];
+  const ledger = lib.readLedger(tree);
+  const entry = ledger.intents.find((candidate) => candidate.id === intent);
+  return entry ? unmetPrerequisites(ledger, entry) : [];
 }
 
 function scan(options) {
@@ -264,6 +297,17 @@ function scan(options) {
   const intent = options.plan || owed.intentFor(tree, options);
   if (options.plan && !fs.existsSync(path.join(tree, lib.SPECS_DIR, 'intents', intent))) {
     throw new RunError(`no plan of ${intent} in ${path.join(tree, lib.SPECS_DIR, 'intents')}: capture the intent first, then run this again`, 'NO_PLAN');
+  }
+  const unmerged = options.plan ? unmergedBase(tree, intent) : [];
+  if (unmerged.length > 0) {
+    return {
+      exit: 3,
+      payload: { ok: false, intent, owed: 'merge', unmerged },
+      out: [
+        `the plan of ${intent} builds on ${unmerged.join(', ')}, not merged yet: its scan waits for that merge`,
+        `once ${unmerged.join(', ')} ${unmerged.length === 1 ? 'has' : 'have'} merged into the base, run ${scanCall(tree, options.plan)}`,
+      ],
+    };
   }
   const root = path.join(lib.cacheDir(tree), lib.currentBranch(tree), 'scan');
   const dir = options.plan ? path.join(root, `plan-${intent}`) : root;

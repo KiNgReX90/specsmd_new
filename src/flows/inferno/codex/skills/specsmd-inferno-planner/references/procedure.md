@@ -129,7 +129,7 @@ An item boundary preserves every existing invariant, so the tests, allowlists, g
 
 Before you return a plan or a repair, run the blast-radius grep: one `git grep -n` per exact identifier over the whole tree, for every identifier, op, enum value, struct field, question id, component, catalogue, count, file contract, document and behaviour the plan adds, changes or removes. Every consumer it finds in code, tests, fixtures, seeds, e2e, integration, dev bridges, generated mirrors or scripts, a production caller of a function you thread included, goes into an item's ownership, context, acceptance criteria and probes. A test among them, in `planner.test_trees` of the config or anywhere when that is unset, sits in the item's `context.tests` with the value it must show and its own acceptance criterion; `run.cjs frontier` prints what you missed as `candidate` lines.
 
-A GAP is a class. A plan-time scan GAP names one instance of a missed consumer: sweep its whole class with the same grep, fix every instance, and only then return the repair.
+A GAP is a class. A plan-time scan GAP is LEGAL or MAKER and names one instance: sweep its whole class with the same grep, fix every instance, and only then return the repair. A BUILD finding is never chased: the builder and the gate own it.
 
 ### Verification-item convention
 
